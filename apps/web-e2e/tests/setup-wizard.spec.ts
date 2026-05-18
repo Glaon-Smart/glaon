@@ -4,20 +4,23 @@
 //   1. clear `glaon.device-config` so SetupGate routes to the wizard
 //      (the shared fixture in `support/test.ts` seeds a completedAt
 //      blob by default — we have to opt out).
-//   2. walk all 5 steps filling the minimum required fields:
+//   2. mock the HA Supervisor network endpoints. The preview build
+//      isn't started with `VITE_APP_MODE=standalone`, so WifiStep
+//      takes the populated branch and tries to scan; mocked fetch
+//      lets the test pick an unsecured `PreviewGuest` AP and the
+//      commit POST round-trips cleanly.
+//   3. walk all 5 steps filling the minimum required fields:
 //        - Home Overview → set the home name + advance
-//        - Layout Setup  → advance (placeholder, no required field)
-//        - Wi-Fi         → standalone branch (the test build doesn't
-//          run the HA Supervisor); Next advances without selection
+//        - Layout Setup → advance (placeholder, no required field)
+//        - Wi-Fi → pick the mocked unsecured AP + advance
 //        - Device Security → password + confirm + advance
-//        - Final Review  → assert summary contains the typed home name,
-//          click Complete setup, assert no dialog opens (no Wi-Fi was
-//          collected), assert the wizard ConfigStore commit fires and
-//          `window.location.reload()` lands the user on /login
-//   3. forced commit failure path: same walk but a 5xx on the
-//      Supervisor push (or the absence of `wifi` collected at all
-//      means we cannot trigger the supervisor — instead verify the
-//      mode-select / login is the next render).
+//        - Final Review → assert summary contains the typed home
+//          name + click Complete setup. No password dialog opens
+//          (the AP is unsecured) so the commit fires immediately;
+//          `window.location.reload()` lands the user on mode-select
+//          or login (either is post-wizard surface).
+//   4. second test confirms the reload-after-completion path: a
+//      second visit never re-renders the wizard.
 //
 // Tagged `@smoke` so the CI matrix runs it on every PR.
 
@@ -38,49 +41,62 @@ async function clearDeviceConfig(page: Page): Promise<void> {
   );
 }
 
+async function mockSupervisorNetworkScan(page: Page): Promise<void> {
+  await page.route('**/api/hassio/network/info', async (route) => {
+    await route.fulfill({
+      status: 200,
+      contentType: 'application/json',
+      body: JSON.stringify({
+        data: {
+          interfaces: [{ accesspoints: [{ ssid: 'PreviewGuest', auth: 'none' }] }],
+        },
+      }),
+    });
+  });
+  await page.route('**/api/hassio/network/wlan0/update', async (route) => {
+    await route.fulfill({ status: 200, contentType: 'application/json', body: '{"result":"ok"}' });
+  });
+}
+
 test.describe('setup wizard @smoke', () => {
   test.beforeEach(async ({ page }) => {
     await clearDeviceConfig(page);
+    await mockSupervisorNetworkScan(page);
   });
 
   test('walks all 5 steps and lands on the login screen after commit', async ({ page }) => {
     await page.goto('/');
 
-    // Step 1: Home Overview. The h1 from setup.homeOverview.title is
-    // "Home Overview" (en). Fill the required home name then Next.
+    // Step 1: Home Overview.
     await expect(page.getByRole('heading', { level: 1, name: 'Home Overview' })).toBeVisible();
     await page.getByLabel('Home Name').fill('Olivia');
     await page.getByRole('button', { name: 'Next' }).click();
 
-    // Step 2: Layout Setup (placeholder; no required fields).
+    // Step 2: Layout Setup (placeholder; no required field).
     await expect(page.getByRole('heading', { level: 1, name: 'Layout Setup' })).toBeVisible();
     await page.getByRole('button', { name: 'Next' }).click();
 
-    // Step 3: Wi-Fi Configuration. The preview build runs without an
-    // HA Supervisor, so VITE_APP_MODE is whatever the build picked —
-    // the spec uses the standalone informational branch where Next
-    // advances unconditionally.
+    // Step 3: Wi-Fi Configuration. Pick the mocked unsecured AP.
     await expect(page.getByRole('heading', { level: 1, name: 'Wi-Fi Connection' })).toBeVisible();
+    await page.getByRole('button', { name: /PreviewGuest/i }).click();
     await page.getByRole('button', { name: 'Next' }).click();
 
-    // Step 4: Device Security. Type a password + confirm.
+    // Step 4: Device Security.
     await expect(page.getByRole('heading', { level: 1, name: 'Device Security' })).toBeVisible();
-    await page.getByLabel('Password', { exact: true }).fill('correct-horse');
-    await page.getByLabel('Confirm password', { exact: true }).fill('correct-horse');
+    // SecurityStep labels render as "Password *" / "Confirm password *"
+    // (the asterisk lives inside the <label>), so getByLabel with
+    // exact:true misses. Use the placeholder text — unique per field.
+    await page.getByPlaceholder('At least 8 characters').fill('correct-horse');
+    await page.getByPlaceholder('Type the password again').fill('correct-horse');
     await page.getByRole('button', { name: 'Next' }).click();
 
-    // Step 5: Final Review. Summary contains the home name. No Wi-Fi
-    // was collected (standalone branch skipped) so Complete setup
-    // commits without a dialog. The commit ceremony reloads `/`; the
-    // gate sees `completedAt` and falls through to the existing
-    // Router which lands the user on /login (or mode-select).
+    // Step 5: Final Review. Summary contains the home name. The AP
+    // is unsecured, so Complete setup commits without opening the
+    // password dialog. The reload lands on mode-select / login.
     await expect(page.getByRole('heading', { level: 1, name: 'Final Review' })).toBeVisible();
     await expect(page.getByText('Olivia')).toBeVisible();
     await page.getByRole('button', { name: 'Complete setup' }).click();
 
-    // After reload the wizard is gone and the auth surface mounts.
-    // mode-select-route is the first thing a fresh user sees once
-    // device-config is set, so wait for either it or the login form.
     await expect(
       page.getByTestId('mode-select-route').or(page.getByTestId('login-device-form')),
     ).toBeVisible({ timeout: 10_000 });
@@ -100,12 +116,16 @@ test.describe('setup wizard @smoke', () => {
     // First run: walk the wizard end-to-end (compressed assertions).
     await page.goto('/');
     await page.getByLabel('Home Name').fill('Olivia');
-    await page.getByRole('button', { name: 'Next' }).click(); // Layout
-    await page.getByRole('button', { name: 'Next' }).click(); // Wi-Fi
-    await page.getByRole('button', { name: 'Next' }).click(); // Security
-    await page.getByLabel('Password', { exact: true }).fill('correct-horse');
-    await page.getByLabel('Confirm password', { exact: true }).fill('correct-horse');
-    await page.getByRole('button', { name: 'Next' }).click(); // Review
+    await page.getByRole('button', { name: 'Next' }).click(); // Home → Layout
+    await page.getByRole('button', { name: 'Next' }).click(); // Layout → Wi-Fi
+    await page.getByRole('button', { name: /PreviewGuest/i }).click();
+    await page.getByRole('button', { name: 'Next' }).click(); // Wi-Fi → Security
+    // SecurityStep labels render as "Password *" / "Confirm password *"
+    // (the asterisk lives inside the <label>), so getByLabel with
+    // exact:true misses. Use the placeholder text — unique per field.
+    await page.getByPlaceholder('At least 8 characters').fill('correct-horse');
+    await page.getByPlaceholder('Type the password again').fill('correct-horse');
+    await page.getByRole('button', { name: 'Next' }).click(); // Security → Review
     await page.getByRole('button', { name: 'Complete setup' }).click();
     await expect(
       page.getByTestId('mode-select-route').or(page.getByTestId('login-device-form')),

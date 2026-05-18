@@ -89,6 +89,18 @@
     "locales": {
       "en": "English",
       "tr": "Türkçe"
+    },
+    "layoutSetup": {
+      "title": "Yerleşim Kurulumu",
+      "subtitle": "Evinin nasıl organize olduğunu kısaca anlat. Tam kat + oda editörü ileri bir sürümde geliyor.",
+      "layout": {
+        "label": "Ev yapısı",
+        "placeholder": "örn. 2 kat, 5 oda — mutfak, salon, iki yatak odası, banyo",
+        "hint": "Opsiyonel. Şimdilik serbest metin; ileride gerçek bir yerleşim editörü ile değiştireceğiz."
+      },
+      "actions": {
+        "next": "İleri"
+      }
     }
   }
 }

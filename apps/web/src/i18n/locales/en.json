@@ -89,6 +89,18 @@
     "locales": {
       "en": "English",
       "tr": "Türkçe"
+    },
+    "layoutSetup": {
+      "title": "Layout Setup",
+      "subtitle": "Describe how your home is organized. The full floor + room editor lands in a later release.",
+      "layout": {
+        "label": "Home structure",
+        "placeholder": "e.g. 2 floors, 5 rooms — kitchen, living, two bedrooms, bathroom",
+        "hint": "Optional. Free-text for now; we'll replace this with a real layout editor in a follow-up."
+      },
+      "actions": {
+        "next": "Next"
+      }
     }
   }
 }

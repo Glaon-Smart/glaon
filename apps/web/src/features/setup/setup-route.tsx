@@ -26,6 +26,7 @@ import type { DeviceConfigInput } from '@glaon/core/config';
 import { SetupLayout, type SetupLayoutStep } from '@glaon/ui';
 
 import { HomeOverviewStep } from './home-overview';
+import { LayoutStep } from './layout';
 
 export type WizardStepId = 'home-overview' | 'layout' | 'wifi' | 'security' | 'review';
 
@@ -113,13 +114,13 @@ interface PlaceholderProps {
   readonly isLastStep: boolean;
 }
 
-// Real step component for #540; the rest of the wizard's steps still
-// render the inline placeholder until their issues land.
+// Real step components for #540 + #545; the rest still render the
+// inline placeholder until their issues land.
 const HomeOverviewStepAdapter = (props: WizardStepProps): ReactNode => (
   <HomeOverviewStep collected={props.collected} onNext={props.onNext} />
 );
-const LayoutPlaceholder = (props: WizardStepProps): ReactNode => (
-  <PlaceholderStep title="Layout Setup" onNext={props.onNext} isLastStep={props.isLastStep} />
+const LayoutStepAdapter = (props: WizardStepProps): ReactNode => (
+  <LayoutStep collected={props.collected} onNext={props.onNext} />
 );
 const WifiPlaceholder = (props: WizardStepProps): ReactNode => (
   <PlaceholderStep
@@ -148,7 +149,7 @@ const SETUP_STEPS: readonly WizardStepRegistration[] = [
     title: 'Layout Setup',
     description: 'Define floors and rooms to organize your space.',
     icon: <StepIcon id="layout" />,
-    Component: LayoutPlaceholder,
+    Component: LayoutStepAdapter,
   },
   {
     id: 'wifi',

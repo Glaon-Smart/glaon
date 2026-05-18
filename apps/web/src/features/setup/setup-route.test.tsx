@@ -54,12 +54,15 @@ describe('SetupRoute', () => {
     expect(container.querySelector('h1')?.textContent).toBe('Wi-Fi Connection');
   });
 
-  it('walks through every placeholder step up to Final Review', () => {
+  it('walks from Layout placeholder through Wi-Fi standalone to Device Security', () => {
+    // Wi-Fi is in standalone mode (per the beforeEach stub) so Next
+    // advances without selection; Device Security requires real password
+    // input — covered in security-step.test.tsx. Walking past it to
+    // Review is a separate path tested via initialStepId='review'.
     const { container, getByRole } = renderRoute('layout');
-    fireEvent.click(getByRole('button', { name: 'Next' })); // Wi-Fi
-    fireEvent.click(getByRole('button', { name: 'Next' })); // Device Security
-    fireEvent.click(getByRole('button', { name: 'Next' })); // Final Review
-    expect(container.querySelector('h1')?.textContent).toBe('Final Review');
+    fireEvent.click(getByRole('button', { name: 'Next' })); // Layout → Wi-Fi
+    fireEvent.click(getByRole('button', { name: 'Next' })); // Wi-Fi standalone → Security
+    expect(container.querySelector('h1')?.textContent).toBe('Device Security');
   });
 
   it('respects initialStepId and lands on Wi-Fi when asked', () => {

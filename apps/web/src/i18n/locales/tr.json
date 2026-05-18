@@ -125,6 +125,29 @@
         "next": "İleri",
         "retry": "Tekrar dene"
       }
+    },
+    "security": {
+      "title": "Cihaz Güvenliği",
+      "subtitle": "Bu cihaz için yönetici şifresi belirle. Kurulumu değiştirecek herkes bu şifreye ihtiyaç duyacak.",
+      "password": {
+        "label": "Şifre",
+        "placeholder": "En az 8 karakter",
+        "required": "Şifre zorunludur.",
+        "tooShort": "En az {min} karakter kullan."
+      },
+      "confirm": {
+        "label": "Şifreyi tekrar gir",
+        "placeholder": "Aynı şifreyi tekrar yaz",
+        "confirmRequired": "Şifreyi tekrar gir.",
+        "mismatch": "Şifreler eşleşmiyor."
+      },
+      "hashFailed": {
+        "title": "Şifre hash'lenemedi",
+        "description": "Tarayıcın Web Crypto API'sini engelliyor. Başka bir tarayıcı dene ya da yöneticine başvur."
+      },
+      "actions": {
+        "next": "İleri"
+      }
     }
   }
 }

@@ -125,6 +125,29 @@
         "next": "Next",
         "retry": "Try again"
       }
+    },
+    "security": {
+      "title": "Device Security",
+      "subtitle": "Set the admin password for this device. Anyone who needs to change the setup will need it.",
+      "password": {
+        "label": "Password",
+        "placeholder": "At least 8 characters",
+        "required": "Password is required.",
+        "tooShort": "Use at least {min} characters."
+      },
+      "confirm": {
+        "label": "Confirm password",
+        "placeholder": "Type the password again",
+        "confirmRequired": "Confirm the password.",
+        "mismatch": "Passwords don't match."
+      },
+      "hashFailed": {
+        "title": "Couldn't hash the password",
+        "description": "Your browser blocked the Web Crypto API. Try a different browser or contact your administrator."
+      },
+      "actions": {
+        "next": "Next"
+      }
     }
   }
 }

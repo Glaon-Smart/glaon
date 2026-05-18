@@ -21,8 +21,11 @@
 // validation land per-step.
 
 import { useCallback, useMemo, useState, type ComponentType, type ReactNode } from 'react';
+import { useTranslation } from 'react-i18next';
 
 import type { DeviceConfigInput } from '@glaon/core/config';
+import { SUPPORTED_LOCALES, isSupportedLocale, type SupportedLocale } from '@glaon/core/i18n';
+import { Select, SelectItem, type SelectItemType } from '@glaon/ui';
 import { SetupLayout, type SetupLayoutStep } from '@glaon/ui';
 
 import { HomeOverviewStep } from './home-overview';
@@ -194,6 +197,20 @@ export function SetupRoute({ initialStepId }: SetupRouteProps = {}): ReactNode {
     [],
   );
 
+  // Derive the set of completed steps from the active step's position in
+  // SETUP_STEPS: every step strictly before it is "done". The v1 wizard
+  // locks the order so this matches the user's actual progress; if a
+  // future wizard adds skipping, it can pass an explicit `completedStepIds`
+  // to SetupLayout instead.
+  const completedStepIds = useMemo<readonly string[]>(
+    () => SETUP_STEPS.slice(0, Math.max(activeIndex, 0)).map((step) => step.id),
+    [activeIndex],
+  );
+
+  const onLocaleChange = useCallback((next: SupportedLocale) => {
+    setCollected((prev) => ({ ...prev, locale: next }));
+  }, []);
+
   if (activeStep === undefined) {
     // SETUP_STEPS is non-empty at module load — this branch exists only
     // to convince TS that ActiveStepComponent below is callable.
@@ -203,7 +220,12 @@ export function SetupRoute({ initialStepId }: SetupRouteProps = {}): ReactNode {
   const ActiveStepComponent = activeStep.Component;
 
   return (
-    <SetupLayout steps={navSteps} activeStepId={activeStepId}>
+    <SetupLayout
+      steps={navSteps}
+      activeStepId={activeStepId}
+      completedStepIds={completedStepIds}
+      controlsSlot={<WizardLocaleSwitcher onLocaleChange={onLocaleChange} />}
+    >
       <ActiveStepComponent
         collected={collected}
         onNext={onNext}
@@ -211,5 +233,50 @@ export function SetupRoute({ initialStepId }: SetupRouteProps = {}): ReactNode {
         isLastStep={isLastStep}
       />
     </SetupLayout>
+  );
+}
+
+interface WizardLocaleSwitcherProps {
+  /**
+   * Mirror the chosen locale into the wizard's `collected` state so the
+   * final commit (#548) persists the user's actual choice. Without this,
+   * the user could switch the chrome to Turkish but the post-wizard
+   * `glaon.locale` would stay at whatever Home Overview's Language form
+   * field defaulted to.
+   */
+  readonly onLocaleChange: (next: SupportedLocale) => void;
+}
+
+// In-wizard language switcher (#570). The wizard's chrome embeds this
+// in the sidebar so a user who opened the wizard in the wrong locale
+// can swap to their language without losing the data they've already
+// filled in: route-local `collected` state survives because the wizard
+// route does not unmount when i18next changes the active language.
+// Persistence flows through i18next-browser-languagedetector → the same
+// `glaon.locale` localStorage key the Home Overview step ultimately
+// commits, so the post-wizard reload picks the choice up.
+function WizardLocaleSwitcher({ onLocaleChange }: WizardLocaleSwitcherProps): ReactNode {
+  const { t, i18n } = useTranslation();
+  const active: SupportedLocale = isSupportedLocale(i18n.resolvedLanguage)
+    ? i18n.resolvedLanguage
+    : 'en';
+  const items: SelectItemType[] = SUPPORTED_LOCALES.map((code) => ({
+    id: code,
+    label: t(`languageSwitcher.options.${code}`),
+  }));
+  return (
+    <Select
+      aria-label={t('languageSwitcher.ariaLabel')}
+      items={items}
+      value={active}
+      onChange={(key) => {
+        if (typeof key === 'string' && isSupportedLocale(key)) {
+          void i18n.changeLanguage(key);
+          onLocaleChange(key);
+        }
+      }}
+    >
+      {(item) => <SelectItem key={item.id} id={item.id} label={item.label ?? ''} />}
+    </Select>
   );
 }

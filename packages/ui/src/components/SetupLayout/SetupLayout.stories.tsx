@@ -154,3 +154,34 @@ export const WithoutLogo: Story = {
     </SetupLayout>
   ),
 };
+
+// Mirrors what the production wizard renders mid-flow (#570): the
+// active step is brand-coloured, the steps before it carry the
+// completed Check glyph, and the sidebar's `controlsSlot` hosts an
+// in-flow language switcher (placeholder `<select>` in the story —
+// the real wizard mounts a Glaon Select primitive).
+export const MidWizardWithControls: Story = {
+  args: { activeStepId: 'wifi' },
+  render: (args) => (
+    <SetupLayout
+      {...args}
+      steps={wizardSteps}
+      completedStepIds={['home-overview', 'layout']}
+      controlsSlot={
+        <label className="flex flex-col gap-1 text-sm text-tertiary">
+          <span>Language</span>
+          <select
+            aria-label="Choose interface language"
+            defaultValue="en"
+            className="rounded-lg bg-primary px-3 py-2 text-sm text-primary shadow-xs-skeuomorphic ring-1 ring-primary ring-inset"
+          >
+            <option value="en">English</option>
+            <option value="tr">Türkçe</option>
+          </select>
+        </label>
+      }
+    >
+      {placeholderContent}
+    </SetupLayout>
+  ),
+};

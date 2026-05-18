@@ -47,12 +47,25 @@ padding (per-step gutters vary in the Figma frames).
 
 ## Step rail behaviour
 
-- The active row matches `activeStepId` and renders at full opacity.
-- Every other row renders at `opacity-50` on the text block (icon stays
-  full opacity). This is the only visual differentiation drawn in the
-  current Figma frame.
-- The dedicated `SetupStepNav` primitive (#538) adds a `completed`
-  state with a checkmark once D2–D5 designs land.
+- The active row matches `activeStepId` and renders in the brand
+  colour: filled `bg-brand-solid` icon container with a white glyph, and
+  the title in `text-brand-secondary`. This is the only visually loud
+  element in the sidebar.
+- Rows in `completedStepIds` (default: every step before `activeStepId`
+  in `steps` order) render in `text-tertiary` with a Check glyph in
+  place of the supplied icon, so the user can scan past finished steps.
+- Upcoming rows render in `text-tertiary` with the supplied icon and
+  no further treatment.
+- Behaviour ships in the dedicated `SetupStepNav` primitive (#538);
+  SetupLayout just forwards `steps` / `activeStepId` / `completedStepIds`
+  / `onSelectStep` through.
+
+## Sidebar controls slot
+
+The `controlsSlot` prop renders between the step rail and the footer.
+It is empty by default; the v1 first-run wizard mounts a language
+switcher there (#570) so a user who opened the wizard in the wrong
+locale can fix it mid-flow without losing their progress.
 
 ## Accessibility
 

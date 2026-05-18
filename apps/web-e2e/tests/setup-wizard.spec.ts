@@ -24,22 +24,18 @@
 //
 // Tagged `@smoke` so the CI matrix runs it on every PR.
 
-import type { Page } from '@playwright/test';
+import { expect, test, type Page } from '@playwright/test';
 
-import { expect, test } from './support/test';
+// Bypass the shared `support/test.ts` fixture deliberately: the fixture
+// runs an init script on every navigation that seeds
+// `glaon.device-config.completedAt`. After this spec's wizard
+// completes and reloads, that init script would overwrite the blob
+// the user just persisted — so SetupGate would still see "configured"
+// thanks to the seed but the test couldn't observe the wizard's own
+// write. Using the raw `@playwright/test` import keeps localStorage
+// untouched between navigations, matching real first-run behaviour.
 
 const DEVICE_CONFIG_KEY = 'glaon.device-config';
-
-async function clearDeviceConfig(page: Page): Promise<void> {
-  // Runs AFTER the shared fixture's seed init-script, so the wizard
-  // sees an empty store on the first render.
-  await page.addInitScript(
-    ({ key }) => {
-      window.localStorage.removeItem(key);
-    },
-    { key: DEVICE_CONFIG_KEY },
-  );
-}
 
 async function mockSupervisorNetworkScan(page: Page): Promise<void> {
   await page.route('**/api/hassio/network/info', async (route) => {
@@ -60,7 +56,6 @@ async function mockSupervisorNetworkScan(page: Page): Promise<void> {
 
 test.describe('setup wizard @smoke', () => {
   test.beforeEach(async ({ page }) => {
-    await clearDeviceConfig(page);
     await mockSupervisorNetworkScan(page);
   });
 

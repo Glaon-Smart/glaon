@@ -17,7 +17,7 @@ import { useTranslation } from 'react-i18next';
 
 import type { DeviceConfigInput } from '@glaon/core/config';
 
-export interface LayoutStepProps {
+interface LayoutStepProps {
   /** Partial DeviceConfig collected from earlier steps in this run. */
   readonly collected: DeviceConfigInput;
   /** Merge the form's output into `collected` and advance to the next step. */

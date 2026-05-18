@@ -101,6 +101,30 @@
       "actions": {
         "next": "Next"
       }
+    },
+    "wifi": {
+      "title": "Wi-Fi Connection",
+      "subtitle": "Pick the network this device should join. The selection is sent to Home Assistant when you finish the wizard.",
+      "list": {
+        "ariaLabel": "Available Wi-Fi networks"
+      },
+      "unsecured": "Unsecured",
+      "password": {
+        "label": "Password",
+        "placeholder": "Network password"
+      },
+      "loading": "Looking for nearby Wi-Fi networks…",
+      "empty": "No Wi-Fi networks found nearby. Move closer to your router or try again.",
+      "standalone": "Wi-Fi setup is only available when Glaon runs as the Home Assistant add-on. Skipping this step.",
+      "scanFailed": {
+        "title": "Couldn't scan Wi-Fi networks",
+        "description": "Home Assistant didn't respond to the network scan. Check that the add-on is running and try again.",
+        "body": "We couldn't reach the Home Assistant network scanner. The add-on may be restarting."
+      },
+      "actions": {
+        "next": "Next",
+        "retry": "Try again"
+      }
     }
   }
 }

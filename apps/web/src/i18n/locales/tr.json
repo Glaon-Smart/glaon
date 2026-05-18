@@ -101,6 +101,30 @@
       "actions": {
         "next": "İleri"
       }
+    },
+    "wifi": {
+      "title": "Wi-Fi Bağlantısı",
+      "subtitle": "Cihazın bağlanacağı ağı seç. Seçim, wizard tamamlandığında Home Assistant'a gönderilir.",
+      "list": {
+        "ariaLabel": "Bulunan Wi-Fi ağları"
+      },
+      "unsecured": "Şifresiz",
+      "password": {
+        "label": "Şifre",
+        "placeholder": "Ağ şifresi"
+      },
+      "loading": "Yakındaki Wi-Fi ağları aranıyor…",
+      "empty": "Yakında Wi-Fi ağı bulunamadı. Router'a yaklaş ya da tekrar dene.",
+      "standalone": "Wi-Fi ayarı yalnız Glaon Home Assistant add-on olarak çalışırken kullanılabilir. Bu adım atlanıyor.",
+      "scanFailed": {
+        "title": "Wi-Fi taraması başarısız",
+        "description": "Home Assistant ağ taramasına cevap vermedi. Add-on çalışıyor mu kontrol et ve tekrar dene.",
+        "body": "Home Assistant ağ tarayıcısına ulaşamadık. Add-on yeniden başlatılıyor olabilir."
+      },
+      "actions": {
+        "next": "İleri",
+        "retry": "Tekrar dene"
+      }
     }
   }
 }

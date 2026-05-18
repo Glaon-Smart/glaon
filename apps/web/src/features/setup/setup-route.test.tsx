@@ -70,10 +70,11 @@ describe('SetupRoute', () => {
     expect(container.querySelector('h1')?.textContent).toBe('Wi-Fi Connection');
   });
 
-  it('disables Next on the last step (commit ceremony lands in #548)', () => {
+  it('renders the Final Review step with the Complete setup CTA', () => {
     const { getByRole } = renderRoute('review');
-    const cta = getByRole('button', { name: 'Complete setup (TBD)' });
-    expect((cta as HTMLButtonElement).disabled).toBe(true);
+    // #548 wires the real commit ceremony; the CTA is enabled by
+    // default (the dialog gates the actual submit for secured Wi-Fi).
+    expect(getByRole('button', { name: 'Complete setup' })).toBeInTheDocument();
   });
 
   it('marks the active step with aria-current=step in the rail', () => {

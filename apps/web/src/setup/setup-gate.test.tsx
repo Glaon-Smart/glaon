@@ -1,4 +1,4 @@
-import { render } from '@testing-library/react';
+import { render, waitFor } from '@testing-library/react';
 import { type ReactNode } from 'react';
 import { afterEach, describe, expect, it, vi } from 'vitest';
 
@@ -27,7 +27,7 @@ afterEach(() => {
 });
 
 describe('SetupGate', () => {
-  it('renders the wizard when no config is hydrated', () => {
+  it('renders the wizard when no config is hydrated', async () => {
     vi.stubEnv('VITE_APP_MODE', 'standalone');
     const { container, queryByText } = render(
       wrap(
@@ -37,10 +37,17 @@ describe('SetupGate', () => {
         </SetupGate>,
       ),
     );
-    // "Home Overview" appears in both the rail and the placeholder
-    // body, so disambiguate by querying the h1 the wizard renders.
     expect(queryByText('downstream router')).toBeNull();
-    expect(container.querySelector('h1')?.textContent).toBe('Home Overview');
+    // SetupRoute is lazy-loaded so the wizard appears one tick after
+    // the gate decides to render it. waitFor's default 1s timeout
+    // proved too tight on cold vitest runs (chunk resolves slower than
+    // microtask-flush), so give the dynamic import a bigger window.
+    await waitFor(
+      () => {
+        expect(container.querySelector('h1')?.textContent).toBe('Home Overview');
+      },
+      { timeout: 5000 },
+    );
   });
 
   it('renders downstream children when the config is marked complete', () => {

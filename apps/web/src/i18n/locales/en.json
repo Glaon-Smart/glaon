@@ -41,5 +41,54 @@
       "en": "English",
       "tr": "Türkçe"
     }
+  },
+  "setup": {
+    "homeOverview": {
+      "title": "Home Overview",
+      "subtitle": "Tell us about your home so Glaon can localize units, time, and language for you.",
+      "homeName": {
+        "label": "Home Name",
+        "placeholder": "e.g. Olivia",
+        "required": "Home name is required."
+      },
+      "location": {
+        "label": "Location",
+        "placeholder": "Search location",
+        "hint": "Free-text for now; map search ships in a follow-up."
+      },
+      "unitSystem": {
+        "label": "Unit System",
+        "metric": {
+          "label": "Metric",
+          "description": "Celsius, kilograms"
+        },
+        "imperial": {
+          "label": "US customary",
+          "description": "Fahrenheit, pounds"
+        }
+      },
+      "country": {
+        "label": "Country",
+        "placeholder": "Select your country"
+      },
+      "timezone": {
+        "label": "Timezone",
+        "placeholder": "Select timezone",
+        "tooltip": "Used by HA-time displays and automations."
+      },
+      "language": {
+        "label": "Language",
+        "placeholder": "Select language",
+        "tooltip": "Glaon UI language. Changes apply on the next reload."
+      },
+      "actions": {
+        "cancel": "Cancel",
+        "next": "Next"
+      }
+    },
+    "locales": {
+      "en": "English",
+      "tr": "Türkçe"
+    }
   }
 }

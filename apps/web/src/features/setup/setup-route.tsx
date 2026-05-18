@@ -25,6 +25,8 @@ import { useCallback, useMemo, useState, type ComponentType, type ReactNode } fr
 import type { DeviceConfigInput } from '@glaon/core/config';
 import { SetupLayout, type SetupLayoutStep } from '@glaon/ui';
 
+import { HomeOverviewStep } from './home-overview';
+
 export type WizardStepId = 'home-overview' | 'layout' | 'wifi' | 'security' | 'review';
 
 // `WizardStepProps`, `SETUP_STEPS`, and `SetupRouteProps` stay unexported
@@ -111,8 +113,10 @@ interface PlaceholderProps {
   readonly isLastStep: boolean;
 }
 
-const HomeOverviewPlaceholder = (props: WizardStepProps): ReactNode => (
-  <PlaceholderStep title="Home Overview" onNext={props.onNext} isLastStep={props.isLastStep} />
+// Real step component for #540; the rest of the wizard's steps still
+// render the inline placeholder until their issues land.
+const HomeOverviewStepAdapter = (props: WizardStepProps): ReactNode => (
+  <HomeOverviewStep collected={props.collected} onNext={props.onNext} />
 );
 const LayoutPlaceholder = (props: WizardStepProps): ReactNode => (
   <PlaceholderStep title="Layout Setup" onNext={props.onNext} isLastStep={props.isLastStep} />
@@ -137,7 +141,7 @@ const SETUP_STEPS: readonly WizardStepRegistration[] = [
     title: 'Home Overview',
     description: 'Enter basic information about your home.',
     icon: <StepIcon id="home-overview" />,
-    Component: HomeOverviewPlaceholder,
+    Component: HomeOverviewStepAdapter,
   },
   {
     id: 'layout',

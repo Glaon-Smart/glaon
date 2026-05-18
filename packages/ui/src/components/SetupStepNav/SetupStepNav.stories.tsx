@@ -98,6 +98,30 @@ export const MidWizardActive: Story = {
   },
 };
 
+// Captures the three-state matrix in a single Chromatic baseline: the
+// active row uses the brand-coloured fill (#570), the rows before it
+// render as completed (Check glyph + tertiary text), and the rows
+// after stay upcoming. This is the visual that ships in the v1 first-
+// run wizard so we want it in the regression set explicitly.
+export const MidWizardWithCompleted: Story = {
+  args: { activeStepId: 'security' },
+  render: (args) => (
+    <SetupStepNav
+      {...args}
+      steps={wizardSteps}
+      completedStepIds={['home-overview', 'layout', 'wifi']}
+    />
+  ),
+  play: async ({ canvasElement }) => {
+    const canvas = within(canvasElement);
+    const activeRows = canvasElement.querySelectorAll('[aria-current="step"]');
+    await expect(activeRows.length).toBe(1);
+    await expect(
+      canvas.getByText('Device Security').closest('[aria-current="step"]'),
+    ).not.toBeNull();
+  },
+};
+
 export const AllCompleted: Story = {
   args: { activeStepId: 'review' },
   render: (args) => (

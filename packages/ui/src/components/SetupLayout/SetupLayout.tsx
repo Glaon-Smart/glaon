@@ -53,6 +53,14 @@ export interface SetupLayoutProps {
    */
   logoSlot?: ReactNode;
   /**
+   * Optional control surface rendered in the sidebar above the footer.
+   * v1 wizard uses this to host the in-flow language switcher (#570) so
+   * a user who opened the wizard in the wrong locale can fix it without
+   * abandoning their progress. Default is no slot — non-wizard consumers
+   * pass nothing and the sidebar collapses around the gap.
+   */
+  controlsSlot?: ReactNode;
+  /**
    * Override for the sidebar footer. Defaults to `© Glaon {year}` on the
    * left and `help@glaon.com` on the right (with a Glaon mail icon). Pass
    * `null` to suppress.
@@ -73,6 +81,7 @@ export function SetupLayout({
   completedStepIds,
   onSelectStep,
   logoSlot,
+  controlsSlot,
   footerSlot,
   children,
 }: SetupLayoutProps) {
@@ -98,11 +107,16 @@ export function SetupLayout({
             {...(onSelectStep === undefined ? {} : { onSelect: onSelectStep })}
           />
         </div>
-        {footer !== null && (
-          <div className="flex h-24 items-end justify-between p-8 text-sm text-tertiary">
-            {footer}
-          </div>
-        )}
+        <div className="flex flex-col">
+          {controlsSlot !== undefined && controlsSlot !== null && (
+            <div className="px-8 pb-4">{controlsSlot}</div>
+          )}
+          {footer !== null && (
+            <div className="flex h-24 items-end justify-between p-8 text-sm text-tertiary">
+              {footer}
+            </div>
+          )}
+        </div>
       </aside>
       <main className="flex flex-1 flex-col lg:min-w-[480px] lg:overflow-y-auto">{children}</main>
     </div>

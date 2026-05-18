@@ -4,8 +4,11 @@
 // independently in Storybook + Chromatic.
 //
 // Three visual states:
-//   - active     — title in `text-secondary` (#404040), icon container
-//                  unchanged. The single row that matches `activeStepId`.
+//   - active     — title in `text-brand-secondary`, icon container
+//                  uses `bg-brand-solid` with a white icon glyph so the
+//                  current step is obvious at a glance against the
+//                  light-grey sidebar. The single row that matches
+//                  `activeStepId`.
 //   - completed  — title in `text-tertiary` (#525252), icon replaced by
 //                  a Check glyph so the user can scan past finished steps.
 //   - upcoming   — title in `text-tertiary` (#525252), icon as supplied.
@@ -125,17 +128,21 @@ interface SetupStepNavItemProps {
 function SetupStepNavItem({ step, state, isLast, onSelect }: SetupStepNavItemProps) {
   const isActive = state === 'active';
   const isCompleted = state === 'completed';
-  // Title colour: active gets full strength; completed + upcoming both
-  // downshift to text-tertiary — see component-level comment for why
-  // text-quaternary is not used here (4.06:1 fails WCAG AA on the
-  // Glaon light-grey sidebar).
-  const titleClass = `text-sm font-semibold leading-5 ${isActive ? 'text-secondary' : 'text-tertiary'}`;
+  // Active step gets brand-coloured emphasis (#570) so the user can spot
+  // their position at a glance — the prior `text-secondary` treatment
+  // was too close to the inactive `text-tertiary` on the light-grey
+  // sidebar. Completed + upcoming both stay `text-tertiary`; the
+  // completed Check glyph differentiates the two.
+  const titleClass = `text-sm font-semibold leading-5 ${isActive ? 'text-brand-secondary' : 'text-tertiary'}`;
   const descriptionClass = 'text-sm font-normal leading-5 text-tertiary';
-  // Completed rows swap the supplied icon for a Check glyph so the user
-  // can scan past finished steps. The icon container styling stays the
-  // same across states until design ships a richer "completed" frame
-  // (D2–D5 follow-ups for steps 2–5).
   const iconNode = isCompleted ? <Check aria-hidden="true" /> : step.icon;
+  // Icon container: active gets a filled brand-coloured tile with a
+  // white glyph (loud emphasis); completed + upcoming stay on the
+  // neutral white surface so the active row is the only visually
+  // "loud" element in the rail.
+  const iconContainerClass = isActive
+    ? 'z-[1] flex size-10 shrink-0 items-center justify-center rounded-lg bg-brand-solid text-white shadow-xs-skeuomorphic ring-1 ring-brand ring-inset'
+    : 'z-[1] flex size-10 shrink-0 items-center justify-center rounded-lg bg-primary text-secondary shadow-xs-skeuomorphic ring-1 ring-primary ring-inset';
   const textBlock = (
     <div
       className="flex flex-1 flex-col pb-8 text-left"
@@ -151,7 +158,7 @@ function SetupStepNavItem({ step, state, isLast, onSelect }: SetupStepNavItemPro
   return (
     <li className="flex items-start gap-3">
       <div className="flex flex-col items-center gap-1 self-stretch pb-1">
-        <div className="z-[1] flex size-10 shrink-0 items-center justify-center rounded-lg bg-primary text-secondary shadow-xs-skeuomorphic ring-1 ring-primary ring-inset">
+        <div className={iconContainerClass}>
           <span aria-hidden="true" className="block size-5">
             {iconNode}
           </span>

@@ -1,7 +1,8 @@
 import { fireEvent, render } from '@testing-library/react';
-import { describe, expect, it } from 'vitest';
+import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 
 import { InMemoryConfigStore } from '@glaon/core/config';
+import { ToastProvider } from '@glaon/ui';
 
 import { ConfigProvider } from '../../config/config-provider';
 import { SetupRoute, type WizardStepId } from './setup-route';
@@ -9,10 +10,32 @@ import { SetupRoute, type WizardStepId } from './setup-route';
 function renderRoute(initialStepId?: WizardStepId) {
   return render(
     <ConfigProvider configStore={new InMemoryConfigStore()}>
-      {initialStepId === undefined ? <SetupRoute /> : <SetupRoute initialStepId={initialStepId} />}
+      <ToastProvider>
+        {initialStepId === undefined ? (
+          <SetupRoute />
+        ) : (
+          <SetupRoute initialStepId={initialStepId} />
+        )}
+      </ToastProvider>
     </ConfigProvider>,
   );
 }
+
+// WifiStep (#546) calls /api/hassio/network/info on mount unless the
+// build is `standalone`. Stub fetch + VITE_APP_MODE so the placeholder
+// walk-through tests don't hit a real network — actual Wi-Fi behaviour
+// is covered in `wifi/wifi-step.test.tsx`.
+beforeEach(() => {
+  vi.stubEnv('VITE_APP_MODE', 'standalone');
+  vi.stubGlobal(
+    'fetch',
+    vi.fn(() => Promise.reject(new TypeError('network'))),
+  );
+});
+afterEach(() => {
+  vi.unstubAllEnvs();
+  vi.unstubAllGlobals();
+});
 
 describe('SetupRoute', () => {
   it('starts at the Home Overview step by default', () => {
@@ -28,7 +51,7 @@ describe('SetupRoute', () => {
     const { container, getByRole } = renderRoute('layout');
     const next = getByRole('button', { name: 'Next' });
     fireEvent.click(next);
-    expect(container.querySelector('h1')?.textContent).toBe('Wi-Fi Configuration');
+    expect(container.querySelector('h1')?.textContent).toBe('Wi-Fi Connection');
   });
 
   it('walks through every placeholder step up to Final Review', () => {
@@ -41,7 +64,7 @@ describe('SetupRoute', () => {
 
   it('respects initialStepId and lands on Wi-Fi when asked', () => {
     const { container } = renderRoute('wifi');
-    expect(container.querySelector('h1')?.textContent).toBe('Wi-Fi Configuration');
+    expect(container.querySelector('h1')?.textContent).toBe('Wi-Fi Connection');
   });
 
   it('disables Next on the last step (commit ceremony lands in #548)', () => {
@@ -53,6 +76,9 @@ describe('SetupRoute', () => {
   it('marks the active step with aria-current=step in the rail', () => {
     const { container } = renderRoute('wifi');
     const activeRail = container.querySelector('nav [aria-current="step"]');
+    // The rail label is the hardcoded SETUP_STEPS title ("Wi-Fi
+    // Configuration"); the body title is the i18n one ("Wi-Fi
+    // Connection") rendered by WifiStep. The test asserts on the rail.
     expect(activeRail?.textContent).toContain('Wi-Fi Configuration');
   });
 });

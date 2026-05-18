@@ -27,6 +27,7 @@ import { SetupLayout, type SetupLayoutStep } from '@glaon/ui';
 
 import { HomeOverviewStep } from './home-overview';
 import { LayoutStep } from './layout';
+import { WifiStep } from './wifi';
 
 export type WizardStepId = 'home-overview' | 'layout' | 'wifi' | 'security' | 'review';
 
@@ -114,20 +115,16 @@ interface PlaceholderProps {
   readonly isLastStep: boolean;
 }
 
-// Real step components for #540 + #545; the rest still render the
-// inline placeholder until their issues land.
+// Real step components for #540 + #545 + #546; the rest still render
+// the inline placeholder until their issues land.
 const HomeOverviewStepAdapter = (props: WizardStepProps): ReactNode => (
   <HomeOverviewStep collected={props.collected} onNext={props.onNext} />
 );
 const LayoutStepAdapter = (props: WizardStepProps): ReactNode => (
   <LayoutStep collected={props.collected} onNext={props.onNext} />
 );
-const WifiPlaceholder = (props: WizardStepProps): ReactNode => (
-  <PlaceholderStep
-    title="Wi-Fi Configuration"
-    onNext={props.onNext}
-    isLastStep={props.isLastStep}
-  />
+const WifiStepAdapter = (props: WizardStepProps): ReactNode => (
+  <WifiStep collected={props.collected} onNext={props.onNext} />
 );
 const SecurityPlaceholder = (props: WizardStepProps): ReactNode => (
   <PlaceholderStep title="Device Security" onNext={props.onNext} isLastStep={props.isLastStep} />
@@ -156,7 +153,7 @@ const SETUP_STEPS: readonly WizardStepRegistration[] = [
     title: 'Wi-Fi Configuration',
     description: 'Connect to your network and set a secure password.',
     icon: <StepIcon id="wifi" />,
-    Component: WifiPlaceholder,
+    Component: WifiStepAdapter,
   },
   {
     id: 'security',

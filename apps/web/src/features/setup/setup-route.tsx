@@ -27,6 +27,7 @@ import { SetupLayout, type SetupLayoutStep } from '@glaon/ui';
 
 import { HomeOverviewStep } from './home-overview';
 import { LayoutStep } from './layout';
+import { ReviewStep } from './review';
 import { SecurityStep } from './security';
 import { WifiStep } from './wifi';
 
@@ -83,41 +84,9 @@ function StepIcon({ id }: { id: WizardStepId }): ReactNode {
   );
 }
 
-// Placeholder step bodies. #540 and #545–#548 replace each entry with
-// its real implementation (Figma-pixel-matched form + i18n + validation).
-function PlaceholderStep({ title, onNext, isLastStep }: PlaceholderProps): ReactNode {
-  return (
-    <div className="flex flex-col gap-6 p-8 lg:p-12">
-      <header className="flex flex-col gap-3">
-        <h1 className="text-display-xs font-semibold text-primary">{title}</h1>
-        <p className="text-md text-tertiary">
-          Step UI ships in its own issue; this placeholder unblocks the gate + routing wiring.
-        </p>
-      </header>
-      <div className="flex justify-end">
-        <button
-          type="button"
-          onClick={() => {
-            onNext({});
-          }}
-          disabled={isLastStep}
-          className="rounded-lg bg-brand-solid px-4 py-2 text-sm font-semibold text-white disabled:opacity-50"
-        >
-          {isLastStep ? 'Complete setup (TBD)' : 'Next'}
-        </button>
-      </div>
-    </div>
-  );
-}
-
-interface PlaceholderProps {
-  readonly title: string;
-  readonly onNext: (partial: DeviceConfigInput) => void;
-  readonly isLastStep: boolean;
-}
-
-// Real step components for #540 + #545 + #546 + #547; the review step
-// keeps the placeholder until #548 lands the commit ceremony.
+// All 5 wizard steps now ship their real implementations (#540, #545,
+// #546, #547, #548). Adapters bridge the shared `WizardStepProps`
+// contract to each step's own (smaller) props surface.
 const HomeOverviewStepAdapter = (props: WizardStepProps): ReactNode => (
   <HomeOverviewStep collected={props.collected} onNext={props.onNext} />
 );
@@ -130,8 +99,8 @@ const WifiStepAdapter = (props: WizardStepProps): ReactNode => (
 const SecurityStepAdapter = (props: WizardStepProps): ReactNode => (
   <SecurityStep collected={props.collected} onNext={props.onNext} />
 );
-const ReviewPlaceholder = (props: WizardStepProps): ReactNode => (
-  <PlaceholderStep title="Final Review" onNext={props.onNext} isLastStep={props.isLastStep} />
+const ReviewStepAdapter = (props: WizardStepProps): ReactNode => (
+  <ReviewStep collected={props.collected} onNext={props.onNext} />
 );
 
 const SETUP_STEPS: readonly WizardStepRegistration[] = [
@@ -168,7 +137,7 @@ const SETUP_STEPS: readonly WizardStepRegistration[] = [
     title: 'Final Review',
     description: 'Check your settings and complete the setup.',
     icon: <StepIcon id="review" />,
-    Component: ReviewPlaceholder,
+    Component: ReviewStepAdapter,
   },
 ];
 

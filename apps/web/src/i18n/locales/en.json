@@ -148,6 +148,32 @@
       "actions": {
         "next": "Next"
       }
+    },
+    "review": {
+      "title": "Final Review",
+      "subtitle": "Double-check what Glaon will save. We'll reload once setup is complete.",
+      "summary": {
+        "wifi": "Wi-Fi",
+        "wifiSecured": "{ssid} (secured)",
+        "wifiUnsecured": "{ssid} (open)",
+        "adminPassword": "Admin password",
+        "passwordSet": "Set",
+        "notSet": "—"
+      },
+      "passwordDialog": {
+        "title": "Connect to {ssid}",
+        "description": "Enter the Wi-Fi password so Glaon can save the connection to Home Assistant.",
+        "placeholder": "Wi-Fi password",
+        "cancel": "Cancel",
+        "connect": "Connect"
+      },
+      "commitFailed": {
+        "title": "Couldn't complete setup",
+        "description": "Home Assistant didn't accept the configuration. Check the connection and try again."
+      },
+      "actions": {
+        "complete": "Complete setup"
+      }
     }
   }
 }

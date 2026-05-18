@@ -148,6 +148,32 @@
       "actions": {
         "next": "İleri"
       }
+    },
+    "review": {
+      "title": "Son Kontrol",
+      "subtitle": "Glaon'un kaydedeceği bilgileri kontrol et. Kurulum tamamlandığında sayfa yeniden yüklenir.",
+      "summary": {
+        "wifi": "Wi-Fi",
+        "wifiSecured": "{ssid} (şifreli)",
+        "wifiUnsecured": "{ssid} (açık)",
+        "adminPassword": "Yönetici şifresi",
+        "passwordSet": "Ayarlandı",
+        "notSet": "—"
+      },
+      "passwordDialog": {
+        "title": "{ssid} ağına bağlan",
+        "description": "Glaon bağlantıyı Home Assistant'a kaydedebilsin diye Wi-Fi şifresini gir.",
+        "placeholder": "Wi-Fi şifresi",
+        "cancel": "İptal",
+        "connect": "Bağlan"
+      },
+      "commitFailed": {
+        "title": "Kurulum tamamlanamadı",
+        "description": "Home Assistant ayarları kabul etmedi. Bağlantıyı kontrol edip tekrar dene."
+      },
+      "actions": {
+        "complete": "Kurulumu tamamla"
+      }
     }
   }
 }

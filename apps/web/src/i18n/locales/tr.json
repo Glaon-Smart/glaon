@@ -41,5 +41,54 @@
       "en": "English",
       "tr": "Türkçe"
     }
+  },
+  "setup": {
+    "homeOverview": {
+      "title": "Ev Genel Bakış",
+      "subtitle": "Evin hakkında birkaç bilgi al ki Glaon birim, saat ve dil seçimlerini sana göre ayarlayabilsin.",
+      "homeName": {
+        "label": "Ev Adı",
+        "placeholder": "örn. Olivia",
+        "required": "Ev adı zorunludur."
+      },
+      "location": {
+        "label": "Konum",
+        "placeholder": "Konum ara",
+        "hint": "Şimdilik serbest metin; harita araması ileri bir sürümde geliyor."
+      },
+      "unitSystem": {
+        "label": "Birim Sistemi",
+        "metric": {
+          "label": "Metrik",
+          "description": "Santigrat, kilogram"
+        },
+        "imperial": {
+          "label": "ABD geleneksel",
+          "description": "Fahrenheit, libre"
+        }
+      },
+      "country": {
+        "label": "Ülke",
+        "placeholder": "Ülkeni seç"
+      },
+      "timezone": {
+        "label": "Saat Dilimi",
+        "placeholder": "Saat dilimini seç",
+        "tooltip": "HA saat görüntülemeleri ve otomasyonları için kullanılır."
+      },
+      "language": {
+        "label": "Dil",
+        "placeholder": "Dil seç",
+        "tooltip": "Glaon arayüz dili. Değişiklik bir sonraki sayfa yenilemesinde geçerli olur."
+      },
+      "actions": {
+        "cancel": "İptal",
+        "next": "İleri"
+      }
+    },
+    "locales": {
+      "en": "English",
+      "tr": "Türkçe"
+    }
   }
 }

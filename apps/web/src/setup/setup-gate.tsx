@@ -11,10 +11,19 @@
 // wizard fields would be redundant. An Ingress-tuned variant is tracked
 // as a follow-up.
 
-import type { ReactNode } from 'react';
+import { Suspense, lazy, type ReactNode } from 'react';
 
 import { useDeviceConfig } from '../config/config-provider';
-import { SetupRoute } from '../features/setup/setup-route';
+
+// Code-split the wizard so already-configured devices (the common
+// case after first-run) never pay the wizard's bundle cost. The
+// chunk only fetches when the gate decides the user is not
+// configured. `fallback={null}` keeps the brief blank during chunk
+// fetch invisible — the gate has already short-circuited the
+// Router so there's nothing else competing for the viewport.
+const SetupRoute = lazy(() =>
+  import('../features/setup/setup-route').then((mod) => ({ default: mod.SetupRoute })),
+);
 
 interface SetupGateProps {
   readonly children: ReactNode;
@@ -26,7 +35,11 @@ export function SetupGate({ children }: SetupGateProps) {
     return <>{children}</>;
   }
   if (!isConfigured) {
-    return <SetupRoute />;
+    return (
+      <Suspense fallback={null}>
+        <SetupRoute />
+      </Suspense>
+    );
   }
   return <>{children}</>;
 }

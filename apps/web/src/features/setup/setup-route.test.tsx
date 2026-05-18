@@ -22,15 +22,17 @@ describe('SetupRoute', () => {
   });
 
   it('advances to the next step when the placeholder Next button is clicked', () => {
-    const { container, getByRole } = renderRoute();
+    // Start at the Layout step so we exercise the placeholder Next
+    // path; Home Overview (#540) requires its own form to validate
+    // before advancing — covered in `home-overview-step.test.tsx`.
+    const { container, getByRole } = renderRoute('layout');
     const next = getByRole('button', { name: 'Next' });
     fireEvent.click(next);
-    expect(container.querySelector('h1')?.textContent).toBe('Layout Setup');
+    expect(container.querySelector('h1')?.textContent).toBe('Wi-Fi Configuration');
   });
 
-  it('walks through every step up to Final Review', () => {
-    const { container, getByRole } = renderRoute();
-    fireEvent.click(getByRole('button', { name: 'Next' })); // Layout
+  it('walks through every placeholder step up to Final Review', () => {
+    const { container, getByRole } = renderRoute('layout');
     fireEvent.click(getByRole('button', { name: 'Next' })); // Wi-Fi
     fireEvent.click(getByRole('button', { name: 'Next' })); // Device Security
     fireEvent.click(getByRole('button', { name: 'Next' })); // Final Review

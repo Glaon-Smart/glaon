@@ -217,6 +217,17 @@ Bir paket yeni sürüm sonrası sorun çıkarırsa:
    ```
 3. Ayrı issue aç, kök sebebi araştır, hazır olunca constraint'i kaldır.
 
+Transitive bir bağımlılık high/critical advisory aldıysa ve doğrudan tüketicimiz henüz patch sürümü yayınlamadıysa, aynı yöntemi `pnpm.overrides` üzerinden kullanırız — kök `package.json`'da `pnpm.overrides` bloğuna minimum güvenli versiyonu yaz, `pnpm install` ile lockfile'ı yenile, audit'in yeşil olduğunu doğrula. Her aktif override aşağıdaki tabloda gerekçesi ve kalkış tetikleyicisi ile birlikte tutulur — pin gereksizleştiğinde (override olmadan da `pnpm audit --audit-level high` yeşil) `package.json` ve bu tablodan birlikte düşürülür.
+
+### Aktif override'lar
+
+Kök [`package.json`](../package.json) `pnpm.overrides` bloğunda hâlen aktif olan pin'ler:
+
+| Paket       | Override  | Gerekçe                                                                                                                                           | Ne zaman düşer                                                                            | Tracking |
+| ----------- | --------- | ------------------------------------------------------------------------------------------------------------------------------------------------- | ----------------------------------------------------------------------------------------- | -------- |
+| `basic-ftp` | `>=5.3.1` | [GHSA-rpmf-866q-6p89](https://github.com/advisories/GHSA-rpmf-866q-6p89) — transitive `basic-ftp@<5.3.1`                                          | `basic-ftp` transitive consumer'ları kendiliğinden `>=5.3.1`'e geçtiğinde                 | #405     |
+| `js-cookie` | `>=3.0.7` | [GHSA-qjx8-664m-686j](https://github.com/advisories/GHSA-qjx8-664m-686j) — `apps/mobile` Clerk SDK üzerinden transitive `js-cookie@3.0.5` çekiyor | Clerk SDK kendi içinde `js-cookie >=3.0.7`'ye geçtiğinde (`pnpm why js-cookie` ile teyit) | #580     |
+
 ## Sorun giderme
 
 - **Dashboard issue yok** → Renovate GitHub App repo'ya yüklü mü? Repo → Settings → Integrations.

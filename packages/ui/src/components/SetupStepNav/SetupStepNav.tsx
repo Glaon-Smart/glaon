@@ -136,13 +136,16 @@ function SetupStepNavItem({ step, state, isLast, onSelect }: SetupStepNavItemPro
   const titleClass = `text-sm font-semibold leading-5 ${isActive ? 'text-brand-secondary' : 'text-tertiary'}`;
   const descriptionClass = 'text-sm font-normal leading-5 text-tertiary';
   const iconNode = isCompleted ? <Check aria-hidden="true" /> : step.icon;
-  // Icon container: active gets a filled brand-coloured tile with a
-  // white glyph (loud emphasis); completed + upcoming stay on the
-  // neutral white surface so the active row is the only visually
-  // "loud" element in the rail.
-  const iconContainerClass = isActive
-    ? 'z-[1] flex size-10 shrink-0 items-center justify-center rounded-lg bg-brand-solid text-white shadow-xs-skeuomorphic ring-1 ring-brand ring-inset'
-    : 'z-[1] flex size-10 shrink-0 items-center justify-center rounded-lg bg-primary text-secondary shadow-xs-skeuomorphic ring-1 ring-primary ring-inset';
+  const base =
+    'z-[1] flex size-10 shrink-0 items-center justify-center rounded-lg shadow-xs-skeuomorphic ring-1 ring-inset';
+  let iconContainerClass: string;
+  if (isActive) {
+    iconContainerClass = `${base} bg-brand-solid text-white ring-brand`;
+  } else if (isCompleted) {
+    iconContainerClass = `${base} bg-success-solid text-white ring-[var(--color-bg-success-solid)]`;
+  } else {
+    iconContainerClass = `${base} bg-primary text-secondary ring-primary`;
+  }
   const textBlock = (
     <div
       className="flex flex-1 flex-col pb-8 text-left"

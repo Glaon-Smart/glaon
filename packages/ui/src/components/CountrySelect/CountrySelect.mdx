@@ -117,9 +117,32 @@ browser supports — no shipped translation tables, no extra dependency.
 ## Search behaviour
 
 The filter is **diacritic-insensitive** — typing `turkiye` matches
-`Türkiye`, `reunion` matches `Réunion`, etc. The ISO code is also
-searchable, so typing `TR` lands on Türkiye and `US` on the United
-States.
+`Türkiye`, `reunion` matches `Réunion`, etc. Search is by country
+name only; ISO codes are intentionally not matched (they don't read
+naturally in the search affordance and add noise to the result list).
+
+The input **selects-all on focus**, so the next keystroke replaces
+the current label cleanly. Tab in, type, pick — the previous selection
+doesn't need to be cleared manually.
+
+## Flags and trigger glyph
+
+Every row renders the country flag (circular sprite from
+`flag-icons`) as a leading glyph. Once a country is selected, the
+trigger leading glyph swaps from a generic `Globe` to the selected
+country's flag, so the picker visually reads as "a country is
+chosen" at a glance.
+
+## Error UX
+
+`isInvalid` styling **clears automatically** the moment the user
+makes a selection — picking a country counts as resolving the error.
+If your re-validation rejects the new value, toggle `isInvalid` from
+`false` → `true` to force the error back on; the picker re-arms its
+suppression every time the prop transitions.
+
+Pair the styling with a descriptive `hint` ("Country is required.")
+so the user understands what's wrong before they pick.
 
 ## Related components
 

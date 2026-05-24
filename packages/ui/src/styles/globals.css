@@ -29,6 +29,12 @@
    CSP (`default-src 'self'`) stays intact — no CDN whitelist
    needed. */
 @import 'flag-icons/css/flag-icons.css';
+/* MapLibre GL canvas + control chrome for the `LocationPicker`
+   primitive (#579). The library ships its own stylesheet covering
+   the map container, popups, attribution control, navigation
+   buttons, and the marker default. Vite bundles it into the
+   same-origin asset directory; no CDN host to whitelist. */
+@import 'maplibre-gl/dist/maplibre-gl.css';
 
 @plugin "@tailwindcss/typography";
 @plugin "tailwindcss-react-aria-components";

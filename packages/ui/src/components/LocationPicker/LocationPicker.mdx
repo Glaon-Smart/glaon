@@ -1,0 +1,151 @@
+import { Meta, Canvas, Stories, Controls } from '@storybook/addon-docs/blocks';
+
+import * as LocationPickerStories from './LocationPicker.stories';
+
+<Meta of={LocationPickerStories} />
+
+# LocationPicker
+
+App-primitive location picker. Search-as-you-type address input paired
+with an interactive MapLibre map and a draggable marker. Returns
+`{ lat, lng, address? }` so consumers can persist exact coordinates
+plus the human-readable address the user picked.
+
+Third primitive in the Phase 2 picker trio, alongside
+[CountrySelect](?path=/docs/app-primitives-countryselect--docs) and
+[TimezoneSelect](?path=/docs/app-primitives-timezoneselect--docs).
+
+## Provider stack
+
+- **Map:** MapLibre GL (open-source fork of Mapbox GL, no token).
+- **Tiles:** OpenStreetMap raster tiles via `tile.openstreetmap.org`.
+- **Geocoder:** Nominatim (OSM) by default via the sibling
+  `nominatimGeocode` helper — injected through the `geocode` prop
+  per the [Component Data-Fetching Boundary](https://github.com/Glaon-Smart/glaon/blob/development/CLAUDE.md#component-data-fetching-boundary-mandatory)
+  rule.
+
+Production deployments that exceed Nominatim's free-tier rate limit
+(1 req/sec per user) should swap in a paid provider (Geoapify,
+LocationIQ) or a self-hosted Nominatim. The wrapper signature
+`(query, signal?, locale?) => Promise<Suggestion[]>` is
+provider-agnostic by design.
+
+## When to use
+
+- Setup wizard's location step (device install location, residence,
+  default reminder zone).
+- Any form that needs precise coordinates plus a human-readable
+  label — billing address, delivery address, meeting location.
+
+## When NOT to use
+
+- Free-text address-only fields where coordinates don't matter —
+  use a plain [Input](?path=/docs/web-primitives-input--docs).
+- A pure country picker — use
+  [CountrySelect](?path=/docs/app-primitives-countryselect--docs).
+
+## Anatomy
+
+<Canvas of={LocationPickerStories.WithDefaultValue} />
+
+```tsx
+import { LocationPicker, nominatimGeocode } from '@glaon/ui';
+
+<LocationPicker label="Location" geocode={nominatimGeocode} onChange={(loc) => setLocation(loc)} />;
+```
+
+The trigger renders a search input with a magnifier glyph. As the
+user types, the picker debounces the query (300ms), aborts any
+in-flight request, and posts the latest input to the `geocode`
+callback. Suggestions stream into the popover; picking one flies
+the map to the location and drops a draggable marker.
+
+## Marker drag
+
+The marker is draggable by default (disabled when `isDisabled` is
+true). `onChange` fires on every drag-end with the new
+`{ lat, lng }` — note that the `address` field is **only** populated
+for autocomplete picks; marker drags emit lat/lng only. If you need
+reverse-geocoding after a drag, call your geocoder from the host
+layer (the same `nominatimGeocode` helper can be adapted).
+
+## State machine
+
+Three modes, same as the sister primitives:
+
+- **Controlled.** Host passes `value`; the picker reflects it.
+- **Uncontrolled, explicit default.** Host passes `defaultValue`;
+  the picker seeds from it.
+- **Uncontrolled, empty.** Map opens at `defaultCenter`
+  (Istanbul by default) with no marker until the user picks
+  something.
+
+## Error UX
+
+`isInvalid` styling **clears automatically** the moment the user
+makes a selection — picking a location counts as resolving the
+error. Toggling `isInvalid` from `false` → `true` after
+re-validation re-arms the error. Pair with a descriptive `hint`.
+
+## Search behaviour
+
+The input **selects-all on focus**, so the next keystroke replaces
+the current label cleanly. The kit's local filter is disabled
+(`defaultFilter={() => true}`) because the geocoder already returns
+filtered results — the picker just renders whatever the callback
+resolved with.
+
+## Variants
+
+<Stories includePrimary={false} />
+
+## Props
+
+<Controls />
+
+## Accessibility
+
+- Always pass a `label` — the kit ComboBox binds it to the search
+  input via the standard RAC label slot.
+- The popover is keyboard-navigable (Arrow up/down, Enter to
+  select, Esc to dismiss) and the search input is a real `<input>`
+  with `aria-autocomplete="list"`.
+- The map canvas is announced via `aria-controls` pointing from
+  the input — assistive tech reads the input as controlling the
+  map region.
+- Marker drag is mouse / touch only at the kit primitive level;
+  keyboard-only users can still pick coordinates via the
+  autocomplete. A keyboard-driven nudge affordance is a candidate
+  for a v2 polish PR.
+- Pair `isInvalid` with descriptive copy — the kit wires
+  `aria-invalid` + `aria-describedby` automatically.
+
+## CSP requirements
+
+LocationPicker needs the following Content-Security-Policy
+entries:
+
+- `connect-src` — `https://nominatim.openstreetmap.org` (geocoder).
+- `img-src` — `https://*.tile.openstreetmap.org` (raster tiles).
+- `worker-src` — `'self' blob:` (MapLibre's render worker, spawned
+  from a blob URL).
+
+The repo's current Glaon-web CSP (`apps/web/index.html`) is
+permissive enough on all three axes — `connect-src` and `img-src`
+both include the `https:` umbrella, and `worker-src 'self' blob:`
+is already set for the Clerk auth worker (#517). No CSP edit is
+needed in this PR; that's a happy accident of the existing
+posture, not an invariant.
+
+When (a) the umbrella `connect-src https:` is tightened to an
+explicit allow-list or (b) the provider is swapped to a paid
+geocoder, the new endpoints must be added explicitly.
+
+## Related components
+
+- [CountrySelect](?path=/docs/app-primitives-countryselect--docs) —
+  sister primitive for ISO 3166-1 countries.
+- [TimezoneSelect](?path=/docs/app-primitives-timezoneselect--docs) —
+  sister primitive for IANA timezones.
+- [FormField](?path=/docs/app-primitives-formfield--docs) — wrapper
+  for label + control + error in compound forms.

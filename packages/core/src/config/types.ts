@@ -14,6 +14,48 @@ export const DEVICE_CONFIG_SCHEMA_VERSION = 1 as const;
 export const UnitSystemSchema = z.union([z.literal('metric'), z.literal('imperial')]);
 export type UnitSystem = z.infer<typeof UnitSystemSchema>;
 
+/**
+ * Room category — drives the leading glyph in the layout editor and
+ * lets HA bucket the room downstream (lighting / sensor templates,
+ * default automations). Open-set on purpose: `'other'` is the
+ * escape hatch for spaces that don't fit a canonical category.
+ */
+export const RoomTypeSchema = z.enum([
+  'bedroom',
+  'bathroom',
+  'kitchen',
+  'living',
+  'office',
+  'dining',
+  'garage',
+  'garden',
+  'other',
+]);
+export type RoomType = z.infer<typeof RoomTypeSchema>;
+
+export const RoomSchema = z.object({
+  /** Stable client-generated id (crypto.randomUUID()). Opaque. */
+  id: z.string().min(1),
+  /** User-facing name. Trimmed before persistence. 1–64 chars. */
+  name: z.string().min(1).max(64),
+  type: RoomTypeSchema.optional(),
+});
+export type Room = z.infer<typeof RoomSchema>;
+
+export const FloorSchema = z.object({
+  id: z.string().min(1),
+  name: z.string().min(1).max(64),
+  /** Empty array is valid — a floor without rooms is e.g. an attic. */
+  rooms: z.array(RoomSchema).max(50),
+});
+export type Floor = z.infer<typeof FloorSchema>;
+
+export const LayoutSchema = z.object({
+  /** Always at least one floor; the editor blocks removing the last. */
+  floors: z.array(FloorSchema).min(1).max(10),
+});
+export type Layout = z.infer<typeof LayoutSchema>;
+
 export const WifiConfigSchema = z.object({
   ssid: z.string().min(1),
   /**
@@ -50,8 +92,20 @@ export const DeviceConfigSchema = z
     /** BCP-47 locale tag. SUPPORTED_LOCALES validation is the consumer's job. */
     locale: z.string().optional(),
     unitSystem: UnitSystemSchema.optional(),
-    /** v1 free-text placeholder; real floor/room editor is a follow-up epic. */
-    layout: z.string().optional(),
+    /**
+     * Multi-floor layout collected in wizard step 2. Each floor
+     * carries a list of rooms; the optional `type` per room drives
+     * the leading glyph in the editor and lets HA categorise the
+     * room downstream when the layout is mapped to HA areas
+     * (separate epic).
+     *
+     * Replaces the v1 free-text string from #545. Phase 2 has no
+     * production blobs that wrote the old shape, so the swap is
+     * direct — no `schemaVersion` bump. Local-dev blobs with the
+     * stale string field will fail strict parse and the wizard
+     * re-runs, which is acceptable for pre-release.
+     */
+    layout: LayoutSchema.optional(),
     wifi: WifiConfigSchema.optional(),
     /** SHA-256 hex (64 lowercase hex chars). Plaintext PIN never leaves the device. */
     securityPinHash: z

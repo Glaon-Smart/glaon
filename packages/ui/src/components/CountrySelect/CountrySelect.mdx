@@ -1,0 +1,132 @@
+import { Meta, Canvas, Stories, Controls } from '@storybook/addon-docs/blocks';
+
+import * as CountrySelectStories from './CountrySelect.stories';
+
+<Meta of={CountrySelectStories} />
+
+# CountrySelect
+
+App-primitive country picker. Thin wrap over the kit
+[`<ComboBox>`](?path=/docs/web-primitives-select--docs#withsearch) that
+adds the ISO 3166-1 alpha-2 list, runtime localization through
+`Intl.DisplayNames`, diacritic-insensitive search, and optional
+one-shot browser locale auto-detection.
+
+The wrap layer is what you import. The visual + popover positioning +
+RAC plumbing all come from the kit ComboBox.
+
+## When to use
+
+- Setup wizard's region / address step.
+- Profile screen — billing country, shipping country, residence
+  country.
+- Any form that asks the user to pick a single country from the full
+  ISO 3166-1 list.
+
+## When NOT to use
+
+- A short curated list of "supported regions" — use a plain
+  [Select](?path=/docs/web-primitives-select--docs) with the curated
+  options.
+- A phone-number country prefix — that lives in a future
+  `PhoneInput` primitive that pairs flag + prefix + national-number
+  formatter (open follow-up issue if you need it now).
+- A region/state sub-picker — out of scope for this primitive.
+
+## Auto-detection
+
+When `autoDetect` is `true` (the default), on mount the picker reads
+`navigator.language` (and `navigator.languages` if the primary tag
+has no region) and pre-selects the corresponding country. The
+detection is **pure browser API** — no network call leaves the
+component, no IP-geolocation service is contacted, no token is
+required.
+
+Detection is **one-shot** at mount. The picker doesn't re-detect when
+the browser locale changes mid-session — re-mount the component to
+re-run detection.
+
+Auto-detection is **skipped** when:
+
+- `value` is passed (the host owns the state).
+- `defaultValue` is passed (an explicit initial choice wins).
+- `autoDetect` is `false`.
+
+### Examples
+
+```tsx
+// Pre-select from the browser locale.
+<CountrySelect onSelectionChange={setCountry} />
+
+// Always start empty; let the user pick.
+<CountrySelect autoDetect={false} onSelectionChange={setCountry} />
+
+// Controlled, hydrated from a profile load.
+<CountrySelect value={user.country} onSelectionChange={updateCountry} />
+```
+
+## Anatomy
+
+<Canvas of={CountrySelectStories.Default} />
+
+```tsx
+<CountrySelect
+  label="Country"
+  placeholder="Select a country"
+  onSelectionChange={(iso) => setCountry(iso)}
+/>
+```
+
+The trigger renders the localized country name once a selection is
+made; the input becomes a search field while the popover is open.
+
+## Localization
+
+Country names are derived at render time via
+`new Intl.DisplayNames([locale], { type: 'region' }).of(code)`. The
+`locale` prop accepts any BCP-47 tag; when omitted, the component
+uses `navigator.language`. Sort order is locale-aware (`Intl.Collator`
+with `sensitivity: 'base'`), so "Çekya" lands where Turkish
+collation expects it.
+
+The same dataset (249 ISO codes) renders correctly in any locale the
+browser supports — no shipped translation tables, no extra dependency.
+
+## Variants
+
+<Stories includePrimary={false} />
+
+## Props
+
+<Controls />
+
+## Accessibility
+
+- Always pass a `label` — the kit ComboBox binds it to the trigger
+  via the standard RAC label slot. Visually-hidden labels are not
+  supported in this primitive.
+- The popover is keyboard-navigable (Arrow up/down, Enter to select,
+  Esc to dismiss) and the search input is a real `<input>` element
+  with `aria-autocomplete="list"`.
+- Pair `isInvalid` with a descriptive `hint` ("Country is required.")
+  — the kit wires `aria-invalid` + `aria-describedby` automatically.
+- `isRequired` adds a visual `*` and forwards `aria-required`. Use
+  `hideRequiredIndicator` on dense forms to drop the asterisk while
+  keeping the a11y contract.
+
+## Search behaviour
+
+The filter is **diacritic-insensitive** — typing `turkiye` matches
+`Türkiye`, `reunion` matches `Réunion`, etc. The ISO code is also
+searchable, so typing `TR` lands on Türkiye and `US` on the United
+States.
+
+## Related components
+
+- [Select](?path=/docs/web-primitives-select--docs) — generic single-
+  value picker; use it for short curated lists.
+- [TimezoneSelect](?path=/docs/app-primitives-timezoneselect--docs) —
+  sister primitive for IANA timezones with the same `autoDetect`
+  contract.
+- [FormField](?path=/docs/app-primitives-formfield--docs) — wrapper
+  for label + control + error in compound forms.

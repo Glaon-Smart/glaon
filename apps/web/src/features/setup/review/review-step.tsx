@@ -28,7 +28,7 @@ import { Button, Modal, PasswordInput, useToast } from '@glaon/ui';
 import { useState, type ReactNode } from 'react';
 import { useTranslation } from 'react-i18next';
 
-import type { DeviceConfigInput } from '@glaon/core/config';
+import type { DeviceConfigInput, Layout } from '@glaon/core/config';
 
 import { useDeviceConfig } from '../../../config/config-provider';
 
@@ -150,7 +150,7 @@ export function ReviewStep({ collected }: ReviewStepProps): ReactNode {
               : undefined
           }
         />
-        <SummaryRow label={t('setup.layoutSetup.layout.label')} value={collected.layout} />
+        <LayoutSummaryRow layout={collected.layout} />
         <SummaryRow
           label={t('setup.review.summary.wifi')}
           value={
@@ -231,6 +231,55 @@ function SummaryRow({ label, value }: SummaryRowProps): ReactNode {
       <dt className="text-sm font-semibold text-secondary">{label}</dt>
       <dd className="text-sm text-tertiary">
         {value !== undefined && value !== '' ? value : t('setup.review.summary.notSet')}
+      </dd>
+    </div>
+  );
+}
+
+interface LayoutSummaryRowProps {
+  readonly layout: Layout | undefined;
+}
+
+function LayoutSummaryRow({ layout }: LayoutSummaryRowProps): ReactNode {
+  const { t } = useTranslation();
+  const label = t('setup.layoutSetup.label');
+
+  if (layout === undefined || layout.floors.length === 0) {
+    return <SummaryRow label={label} value={undefined} />;
+  }
+
+  const totalRooms = layout.floors.reduce((sum, floor) => sum + floor.rooms.length, 0);
+  const headline = t('setup.review.summary.layoutHeadline', {
+    floorCount: layout.floors.length,
+    roomCount: totalRooms,
+  });
+
+  return (
+    <div className="grid grid-cols-1 gap-2 border-t border-secondary py-4 sm:grid-cols-[240px_1fr] sm:items-baseline sm:gap-8">
+      <dt className="text-sm font-semibold text-secondary">{label}</dt>
+      <dd className="flex flex-col gap-1 text-sm text-tertiary">
+        <span className="font-medium text-primary">{headline}</span>
+        <ul className="flex flex-col gap-1">
+          {layout.floors.map((floor) => {
+            const roomNames = floor.rooms.map((r) => r.name).join(', ');
+            return (
+              <li key={floor.id} className="truncate">
+                <span className="font-medium text-secondary">{floor.name}</span>
+                {floor.rooms.length > 0 ? (
+                  <>
+                    <span aria-hidden="true"> — </span>
+                    <span>{roomNames}</span>
+                  </>
+                ) : (
+                  <>
+                    <span aria-hidden="true"> — </span>
+                    <span className="italic">{t('setup.review.summary.layoutEmptyFloor')}</span>
+                  </>
+                )}
+              </li>
+            );
+          })}
+        </ul>
       </dd>
     </div>
   );

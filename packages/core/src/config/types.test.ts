@@ -3,6 +3,10 @@ import { describe, expect, it } from 'vitest';
 import {
   DEVICE_CONFIG_SCHEMA_VERSION,
   DeviceConfigSchema,
+  FloorSchema,
+  LayoutSchema,
+  RoomSchema,
+  RoomTypeSchema,
   UnitSystemSchema,
   WifiConfigSchema,
 } from './types';
@@ -24,7 +28,23 @@ describe('DeviceConfigSchema', () => {
       timezone: 'Europe/Istanbul',
       locale: 'tr-TR',
       unitSystem: 'metric',
-      layout: 'open-plan, 2 katlı',
+      layout: {
+        floors: [
+          {
+            id: 'floor-1',
+            name: 'Zemin Kat',
+            rooms: [
+              { id: 'room-1', name: 'Salon', type: 'living' as const },
+              { id: 'room-2', name: 'Mutfak', type: 'kitchen' as const },
+            ],
+          },
+          {
+            id: 'floor-2',
+            name: '1. Kat',
+            rooms: [{ id: 'room-3', name: 'Yatak Odası', type: 'bedroom' as const }],
+          },
+        ],
+      },
       wifi: { ssid: 'home', passwordCipher: 'AES-GCM:abc123' },
       securityPinHash: 'a'.repeat(64),
       completedAt: '2026-05-17T18:30:00.000Z',
@@ -112,6 +132,51 @@ describe('DeviceConfigSchema', () => {
         wifi: { ssid: 'home', passwordCipher: '' },
       }),
     ).toThrow();
+  });
+});
+
+describe('LayoutSchema', () => {
+  const baseRoom = { id: 'r-1', name: 'Living', type: 'living' as const };
+  const baseFloor = { id: 'f-1', name: 'Ground Floor', rooms: [baseRoom] };
+
+  it('accepts a single-floor / single-room blob', () => {
+    expect(LayoutSchema.parse({ floors: [baseFloor] })).toEqual({ floors: [baseFloor] });
+  });
+
+  it('accepts an empty rooms array (attic etc.)', () => {
+    expect(LayoutSchema.parse({ floors: [{ id: 'f-1', name: 'Attic', rooms: [] }] })).toBeDefined();
+  });
+
+  it('rejects zero floors', () => {
+    expect(() => LayoutSchema.parse({ floors: [] })).toThrow();
+  });
+
+  it('rejects more than 10 floors', () => {
+    const eleven = Array.from({ length: 11 }, (_, idx) => ({
+      ...baseFloor,
+      id: `f-${idx.toString()}`,
+    }));
+    expect(() => LayoutSchema.parse({ floors: eleven })).toThrow();
+  });
+
+  it('rejects an empty floor name', () => {
+    expect(() => FloorSchema.parse({ ...baseFloor, name: '' })).toThrow();
+  });
+
+  it('rejects more than 50 rooms on a floor', () => {
+    const tooMany = Array.from({ length: 51 }, (_, idx) => ({
+      ...baseRoom,
+      id: `r-${idx.toString()}`,
+    }));
+    expect(() => FloorSchema.parse({ ...baseFloor, rooms: tooMany })).toThrow();
+  });
+
+  it('rejects an empty room name', () => {
+    expect(() => RoomSchema.parse({ ...baseRoom, name: '' })).toThrow();
+  });
+
+  it('rejects a room type not in the enum', () => {
+    expect(() => RoomTypeSchema.parse('basement')).toThrow();
   });
 });
 

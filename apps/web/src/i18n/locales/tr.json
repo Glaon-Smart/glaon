@@ -91,11 +91,39 @@
     },
     "layoutSetup": {
       "title": "Yerleşim Kurulumu",
-      "subtitle": "Evinin nasıl organize olduğunu kısaca anlat. Tam kat + oda editörü ileri bir sürümde geliyor.",
-      "layout": {
-        "label": "Ev yapısı",
-        "placeholder": "örn. 2 kat, 5 oda — mutfak, salon, iki yatak odası, banyo",
-        "hint": "Opsiyonel. Şimdilik serbest metin; ileride gerçek bir yerleşim editörü ile değiştireceğiz."
+      "subtitle": "Evindeki katları ve odaları ekle. Glaon bunları cihazları gruplamak ve her mekana uygun kontrolleri göstermek için kullanır.",
+      "label": "Yerleşim",
+      "defaultFloorName": "Zemin Kat",
+      "newFloorNameTemplate": "{index}. Kat",
+      "newRoomNameTemplate": "Oda {index}",
+      "floors": {
+        "tabsLabel": "Katlar",
+        "addFloor": "Kat ekle",
+        "removeFloor": "{name} sil",
+        "renameFloor": "Katı yeniden adlandır",
+        "roomCountBadge": "{count} oda"
+      },
+      "rooms": {
+        "addRoom": "Oda ekle",
+        "addFirstRoom": "İlk odayı ekle",
+        "removeRoom": "{name} sil",
+        "emptyTitle": "{floor} henüz boş",
+        "emptyHint": "Bu katta kontrol etmek istediğin odaları ekle — yatak odası, mutfak, banyo, Glaon'un bilmesi gereken her yer.",
+        "nameLabel": "Oda adı",
+        "namePlaceholder": "Oda adı",
+        "typeLabel": "Oda tipi",
+        "types": {
+          "none": "Tip yok",
+          "bedroom": "Yatak odası",
+          "bathroom": "Banyo",
+          "kitchen": "Mutfak",
+          "living": "Salon",
+          "office": "Çalışma odası",
+          "dining": "Yemek odası",
+          "garage": "Garaj",
+          "garden": "Bahçe",
+          "other": "Diğer"
+        }
       },
       "actions": {
         "next": "İleri"
@@ -157,7 +185,9 @@
         "wifiUnsecured": "{ssid} (açık)",
         "adminPassword": "Yönetici şifresi",
         "passwordSet": "Ayarlandı",
-        "notSet": "—"
+        "notSet": "—",
+        "layoutHeadline": "{floorCount} kat · {roomCount} oda",
+        "layoutEmptyFloor": "henüz oda yok"
       },
       "passwordDialog": {
         "title": "{ssid} ağına bağlan",

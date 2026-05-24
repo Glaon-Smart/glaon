@@ -91,11 +91,39 @@
     },
     "layoutSetup": {
       "title": "Layout Setup",
-      "subtitle": "Describe how your home is organized. The full floor + room editor lands in a later release.",
-      "layout": {
-        "label": "Home structure",
-        "placeholder": "e.g. 2 floors, 5 rooms — kitchen, living, two bedrooms, bathroom",
-        "hint": "Optional. Free-text for now; we'll replace this with a real layout editor in a follow-up."
+      "subtitle": "Add the floors and rooms in your home. Glaon uses them to group devices and surface the right controls per space.",
+      "label": "Layout",
+      "defaultFloorName": "Ground Floor",
+      "newFloorNameTemplate": "Floor {index}",
+      "newRoomNameTemplate": "Room {index}",
+      "floors": {
+        "tabsLabel": "Floors",
+        "addFloor": "Add floor",
+        "removeFloor": "Remove {name}",
+        "renameFloor": "Rename floor",
+        "roomCountBadge": "{count} rooms"
+      },
+      "rooms": {
+        "addRoom": "Add room",
+        "addFirstRoom": "Add your first room",
+        "removeRoom": "Remove {name}",
+        "emptyTitle": "No rooms in {floor} yet",
+        "emptyHint": "Add the rooms you want to control on this floor — bedrooms, kitchen, bath, anything Glaon should know about.",
+        "nameLabel": "Room name",
+        "namePlaceholder": "Room name",
+        "typeLabel": "Room type",
+        "types": {
+          "none": "No type",
+          "bedroom": "Bedroom",
+          "bathroom": "Bathroom",
+          "kitchen": "Kitchen",
+          "living": "Living",
+          "office": "Office",
+          "dining": "Dining",
+          "garage": "Garage",
+          "garden": "Garden",
+          "other": "Other"
+        }
       },
       "actions": {
         "next": "Next"
@@ -157,7 +185,9 @@
         "wifiUnsecured": "{ssid} (open)",
         "adminPassword": "Admin password",
         "passwordSet": "Set",
-        "notSet": "—"
+        "notSet": "—",
+        "layoutHeadline": "{floorCount} floors · {roomCount} rooms",
+        "layoutEmptyFloor": "no rooms yet"
       },
       "passwordDialog": {
         "title": "Connect to {ssid}",

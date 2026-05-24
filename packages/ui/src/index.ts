@@ -16,6 +16,7 @@ export * from './components/ButtonGroup';
 export * from './components/Calendar';
 export * from './components/Card';
 export * from './components/Checkbox';
+export * from './components/CountrySelect';
 export * from './components/DatePicker';
 export * from './components/DateRangePicker';
 export * from './components/Drawer';

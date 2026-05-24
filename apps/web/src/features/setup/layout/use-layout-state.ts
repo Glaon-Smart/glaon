@@ -19,7 +19,11 @@ export interface LayoutState {
   readonly activeFloorId: string;
 }
 
-export type LayoutAction =
+// Both kept un-exported per memory note
+// `feedback_knip_props_interfaces.md` — `LayoutAction` and
+// `LayoutReducerContext` are consumed only inside this file.
+// Promote when an external consumer arrives.
+type LayoutAction =
   | { kind: 'switchFloor'; floorId: string }
   | { kind: 'addFloor'; name: string }
   | { kind: 'renameFloor'; floorId: string; name: string }
@@ -29,7 +33,7 @@ export type LayoutAction =
   | { kind: 'changeRoomType'; floorId: string; roomId: string; type: RoomType | undefined }
   | { kind: 'removeRoom'; floorId: string; roomId: string };
 
-export interface LayoutReducerContext {
+interface LayoutReducerContext {
   /** Returns the next room/floor id. Override in tests for determinism. */
   readonly idFactory: () => string;
 }
@@ -136,7 +140,10 @@ export function makeReducer(ctx: LayoutReducerContext) {
  * Default id factory — `crypto.randomUUID()` in modern browsers.
  * Replaced in jsdom tests with a deterministic counter.
  */
-export function defaultIdFactory(): string {
+// Internal — same memory-note rationale as the types above.
+// `useLayoutState` reads it as the default `idFactory`; tests
+// inject their own deterministic factory.
+function defaultIdFactory(): string {
   if (typeof crypto !== 'undefined' && typeof crypto.randomUUID === 'function') {
     return crypto.randomUUID();
   }

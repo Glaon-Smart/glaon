@@ -34,7 +34,8 @@
   "packageManager": "pnpm@9.15.9",
   "pnpm": {
     "overrides": {
-      "basic-ftp": ">=5.3.1"
+      "basic-ftp": ">=5.3.1",
+      "js-cookie": ">=3.0.7"
     }
   },
   "private": true,

@@ -42,9 +42,13 @@ import Map, {
   type MapRef,
   type MarkerDragEvent,
 } from 'react-map-gl/maplibre';
-// MapLibre's CSS is imported package-wide via `src/styles/globals.css`
-// alongside the kit's other stylesheet imports — no per-component
-// import needed.
+// MapLibre ships its own stylesheet — kept component-scoped (rather
+// than `globals.css`) so the ~25 kB raw / ~7 kB gzipped CSS only
+// downloads as part of the lazy setup-route chunk that actually
+// renders the map. Loading it in `globals.css` would block initial
+// paint on every page that consumes `@glaon/ui/styles`, which is
+// the LCP regression Lighthouse mobile flagged on #591.
+import 'maplibre-gl/dist/maplibre-gl.css';
 import type { Key } from 'react-aria-components';
 
 import { ComboBox, SelectItem, type SelectItemType } from '../Select';

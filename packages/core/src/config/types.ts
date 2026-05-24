@@ -35,6 +35,16 @@ export const DeviceConfigSchema = z
       .string()
       .regex(/^[A-Z]{2}$/, 'country must be ISO 3166-1 alpha-2 uppercase')
       .optional(),
+    /**
+     * Latitude (WGS84 decimal degrees, −90…+90). Optional companion
+     * to `location` — present when the user picked the address via
+     * `LocationPicker` (#579 / #590). Old wizard runs emitted
+     * `location` as free text and these two fields stay undefined;
+     * additive change keeps existing blobs parse-clean.
+     */
+    latitude: z.number().min(-90).max(90).optional(),
+    /** Longitude (WGS84 decimal degrees, −180…+180). See `latitude`. */
+    longitude: z.number().min(-180).max(180).optional(),
     /** IANA TZ name (e.g. "Europe/Istanbul"). */
     timezone: z.string().optional(),
     /** BCP-47 locale tag. SUPPORTED_LOCALES validation is the consumer's job. */

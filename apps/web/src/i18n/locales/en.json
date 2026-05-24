@@ -53,8 +53,7 @@
       },
       "location": {
         "label": "Location",
-        "placeholder": "Search location",
-        "hint": "Free-text for now; map search ships in a follow-up."
+        "placeholder": "Search for an address"
       },
       "unitSystem": {
         "label": "Unit System",

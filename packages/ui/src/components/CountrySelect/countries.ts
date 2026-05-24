@@ -17,8 +17,13 @@ import type { SelectItemType } from '../base/select/select-shared';
  * ISO 3166-1 alpha-2 country codes (249 entries, source: ISO 3166
  * Maintenance Agency). Order is alphabetical to make grep-by-code
  * easy; the picker re-sorts by localized name at render time.
+ *
+ * Internal — un-exported per memory note
+ * `feedback_knip_props_interfaces.md` (knip blocks PRs on unused
+ * exports). Promote to a named export here + in `index.ts` when an
+ * external consumer needs to read or re-use the list.
  */
-export const COUNTRY_CODES = [
+const COUNTRY_CODES = [
   'AD',
   'AE',
   'AF',
@@ -270,7 +275,10 @@ export const COUNTRY_CODES = [
   'ZW',
 ] as const;
 
-export type CountryCode = (typeof COUNTRY_CODES)[number];
+// `CountryCode` is only used internally by `detectBrowserCountry`'s
+// return type; kept un-exported per the same memory-note rationale
+// as `COUNTRY_CODES` above.
+type CountryCode = (typeof COUNTRY_CODES)[number];
 
 /**
  * Build a `{ id, label }` list sorted by the localized country name.

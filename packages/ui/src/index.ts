@@ -43,6 +43,7 @@ export * from './components/Switch';
 export * from './components/Table';
 export * from './components/Tabs';
 export * from './components/Textarea';
+export * from './components/TimezoneSelect';
 export * from './components/Toast';
 export * from './components/Tooltip';
 export * from './components/TopBar';

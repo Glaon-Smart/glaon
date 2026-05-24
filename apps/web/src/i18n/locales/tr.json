@@ -53,8 +53,7 @@
       },
       "location": {
         "label": "Konum",
-        "placeholder": "Konum ara",
-        "hint": "Şimdilik serbest metin; harita araması ileri bir sürümde geliyor."
+        "placeholder": "Adres ara"
       },
       "unitSystem": {
         "label": "Birim Sistemi",

@@ -18,6 +18,8 @@ describe('DeviceConfigSchema', () => {
       schemaVersion: DEVICE_CONFIG_SCHEMA_VERSION,
       homeName: 'Olivia',
       location: 'Istanbul, TR',
+      latitude: 41.0082,
+      longitude: 28.9784,
       country: 'TR',
       timezone: 'Europe/Istanbul',
       locale: 'tr-TR',
@@ -28,6 +30,24 @@ describe('DeviceConfigSchema', () => {
       completedAt: '2026-05-17T18:30:00.000Z',
     } as const;
     expect(DeviceConfigSchema.parse(blob)).toEqual(blob);
+  });
+
+  it('rejects latitude outside [-90, 90]', () => {
+    expect(() =>
+      DeviceConfigSchema.parse({ schemaVersion: DEVICE_CONFIG_SCHEMA_VERSION, latitude: 95 }),
+    ).toThrow();
+    expect(() =>
+      DeviceConfigSchema.parse({ schemaVersion: DEVICE_CONFIG_SCHEMA_VERSION, latitude: -91 }),
+    ).toThrow();
+  });
+
+  it('rejects longitude outside [-180, 180]', () => {
+    expect(() =>
+      DeviceConfigSchema.parse({ schemaVersion: DEVICE_CONFIG_SCHEMA_VERSION, longitude: 200 }),
+    ).toThrow();
+    expect(() =>
+      DeviceConfigSchema.parse({ schemaVersion: DEVICE_CONFIG_SCHEMA_VERSION, longitude: -181 }),
+    ).toThrow();
   });
 
   it('rejects an unrecognised schemaVersion', () => {

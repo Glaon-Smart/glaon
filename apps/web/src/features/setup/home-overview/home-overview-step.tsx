@@ -4,10 +4,10 @@
 //
 // Form fields (per Figma, top to bottom):
 // - Home Name (required text input)
-// - Location (free-text stub; Maps integration is a follow-up)
+// - Location (LocationPicker — autocomplete + map + draggable marker)
 // - Unit System (radio: metric / imperial)
-// - Country (Select; flag emoji as leading icon)
-// - Timezone (Select; full IANA list via Intl.supportedValuesOf)
+// - Country (CountrySelect — auto-detect on first visit)
+// - Timezone (TimezoneSelect — auto-detect on first visit)
 // - Language (Select; SUPPORTED_LOCALES from @glaon/core)
 //
 // Layout follows the UUI horizontal-form pattern: a label column on
@@ -18,32 +18,30 @@
 // Per the API Error Toast Rule (CLAUDE.md), per-field validation
 // (e.g. "Home name is required") renders inline; nothing here goes
 // through Toast because nothing leaves the device.
+//
+// The previous local helpers (`./countries.ts`, `./timezones.ts`)
+// were dropped in #590 — the Phase 2 picker trio
+// (CountrySelect / TimezoneSelect / LocationPicker) is now the
+// canonical implementation.
 
 import {
+  CountrySelect,
   InputBase,
+  LocationPicker,
   Radio,
   RadioGroup,
   Select,
   SelectItem,
   TextField,
+  TimezoneSelect,
+  nominatimGeocode,
   type SelectItemType,
 } from '@glaon/ui';
-import {
-  useId,
-  useMemo,
-  useState,
-  type ComponentType,
-  type HTMLAttributes,
-  type ReactNode,
-  type SubmitEvent,
-} from 'react';
+import { useId, useMemo, useState, type ReactNode, type SubmitEvent } from 'react';
 import { useTranslation } from 'react-i18next';
 
 import { SUPPORTED_LOCALES, type SupportedLocale } from '@glaon/core/i18n';
 import type { DeviceConfigInput } from '@glaon/core/config';
-
-import { COUNTRIES, flagEmoji } from './countries';
-import { getTimezones } from './timezones';
 
 interface HomeOverviewStepProps {
   /** Partial DeviceConfig collected from earlier steps in this run. */
@@ -54,16 +52,23 @@ interface HomeOverviewStepProps {
 
 type UnitSystem = 'metric' | 'imperial';
 
+interface LocationState {
+  readonly address: string;
+  readonly latitude: number | undefined;
+  readonly longitude: number | undefined;
+}
+
 export function HomeOverviewStep({ collected, onNext }: HomeOverviewStepProps): ReactNode {
   const { t } = useTranslation();
   const homeNameLabelId = useId();
-  const locationLabelId = useId();
-  const countryLabelId = useId();
-  const timezoneLabelId = useId();
   const languageLabelId = useId();
 
   const [homeName, setHomeName] = useState<string>(collected.homeName ?? '');
-  const [location, setLocation] = useState<string>(collected.location ?? '');
+  const [location, setLocation] = useState<LocationState>(() => ({
+    address: collected.location ?? '',
+    latitude: collected.latitude,
+    longitude: collected.longitude,
+  }));
   const [unitSystem, setUnitSystem] = useState<UnitSystem>(collected.unitSystem ?? 'metric');
   const [country, setCountry] = useState<string>(collected.country ?? '');
   const [timezone, setTimezone] = useState<string>(collected.timezone ?? '');
@@ -71,29 +76,6 @@ export function HomeOverviewStep({ collected, onNext }: HomeOverviewStepProps): 
     (collected.locale as SupportedLocale | undefined) ?? 'en',
   );
   const [showHomeNameError, setShowHomeNameError] = useState<boolean>(false);
-
-  const countryItems = useMemo<SelectItemType[]>(
-    () =>
-      COUNTRIES.map((entry) => ({
-        id: entry.code,
-        label: entry.label,
-        icon: (
-          <span aria-hidden="true" className="text-base leading-none">
-            {flagEmoji(entry.code)}
-          </span>
-        ),
-      })),
-    [],
-  );
-
-  const timezoneItems = useMemo<SelectItemType[]>(
-    () =>
-      getTimezones().map((tz) => ({
-        id: tz,
-        label: tz,
-      })),
-    [],
-  );
 
   const localeItems = useMemo<SelectItemType[]>(
     () =>
@@ -108,6 +90,16 @@ export function HomeOverviewStep({ collected, onNext }: HomeOverviewStepProps): 
   const homeNameInvalid = showHomeNameError && homeNameTrimmed === '';
   const homeNameErrorText = homeNameInvalid ? t('setup.homeOverview.homeName.required') : undefined;
 
+  // The LocationPicker hydrates from `defaultValue` only when the
+  // wizard re-opens with a previously saved location; on a fresh
+  // visit we leave the picker empty (no auto-geolocation prompt).
+  const locationDefault =
+    collected.location !== undefined &&
+    collected.latitude !== undefined &&
+    collected.longitude !== undefined
+      ? { address: collected.location, lat: collected.latitude, lng: collected.longitude }
+      : undefined;
+
   const onSubmit = (event: SubmitEvent<HTMLFormElement>): void => {
     event.preventDefault();
     if (homeNameTrimmed === '') {
@@ -119,7 +111,9 @@ export function HomeOverviewStep({ collected, onNext }: HomeOverviewStepProps): 
       unitSystem,
       locale,
     };
-    if (location.trim() !== '') partial.location = location.trim();
+    if (location.address.trim() !== '') partial.location = location.address.trim();
+    if (location.latitude !== undefined) partial.latitude = location.latitude;
+    if (location.longitude !== undefined) partial.longitude = location.longitude;
     if (country !== '') partial.country = country;
     if (timezone !== '') partial.timezone = timezone;
     onNext(partial);
@@ -150,20 +144,27 @@ export function HomeOverviewStep({ collected, onNext }: HomeOverviewStepProps): 
               type="text"
               placeholder={t('setup.homeOverview.homeName.placeholder')}
               autoComplete="off"
+              data-testid="home-overview-home-name"
             />
           </TextField>
           {homeNameErrorText !== undefined && <InlineError>{homeNameErrorText}</InlineError>}
         </FormRow>
 
-        <FormRow label={t('setup.homeOverview.location.label')} labelId={locationLabelId}>
-          <TextField value={location} onChange={setLocation} aria-labelledby={locationLabelId}>
-            <InputBase
-              type="text"
-              placeholder={t('setup.homeOverview.location.placeholder')}
-              autoComplete="off"
-              icon={LocationIcon}
-            />
-          </TextField>
+        <FormRow label={t('setup.homeOverview.location.label')}>
+          <LocationPicker
+            label={t('setup.homeOverview.location.label')}
+            hideRequiredIndicator
+            placeholder={t('setup.homeOverview.location.placeholder')}
+            geocode={nominatimGeocode}
+            {...(locationDefault !== undefined ? { defaultValue: locationDefault } : {})}
+            onChange={(value) => {
+              setLocation({
+                address: value.address ?? location.address,
+                latitude: value.lat,
+                longitude: value.lng,
+              });
+            }}
+          />
         </FormRow>
 
         <FormRow label={t('setup.homeOverview.unitSystem.label')}>
@@ -188,39 +189,30 @@ export function HomeOverviewStep({ collected, onNext }: HomeOverviewStepProps): 
           </RadioGroup>
         </FormRow>
 
-        <FormRow label={t('setup.homeOverview.country.label')} labelId={countryLabelId}>
-          <Select
-            aria-labelledby={countryLabelId}
-            items={countryItems}
+        <FormRow label={t('setup.homeOverview.country.label')}>
+          <CountrySelect
+            label={t('setup.homeOverview.country.label')}
+            hideRequiredIndicator
             placeholder={t('setup.homeOverview.country.placeholder')}
-            value={country === '' ? null : country}
-            onChange={(key) => {
-              setCountry(typeof key === 'string' ? key : '');
+            {...(collected.country !== undefined ? { defaultValue: collected.country } : {})}
+            autoDetect={collected.country === undefined}
+            onSelectionChange={(iso) => {
+              setCountry(iso ?? '');
             }}
-          >
-            {(item) => (
-              <SelectItem
-                key={item.id}
-                id={item.id}
-                label={item.label ?? ''}
-                {...(item.icon !== undefined ? { icon: item.icon } : {})}
-              />
-            )}
-          </Select>
+          />
         </FormRow>
 
-        <FormRow label={t('setup.homeOverview.timezone.label')} labelId={timezoneLabelId}>
-          <Select
-            aria-labelledby={timezoneLabelId}
-            items={timezoneItems}
+        <FormRow label={t('setup.homeOverview.timezone.label')}>
+          <TimezoneSelect
+            label={t('setup.homeOverview.timezone.label')}
+            hideRequiredIndicator
             placeholder={t('setup.homeOverview.timezone.placeholder')}
-            value={timezone === '' ? null : timezone}
-            onChange={(key) => {
-              setTimezone(typeof key === 'string' ? key : '');
+            {...(collected.timezone !== undefined ? { defaultValue: collected.timezone } : {})}
+            autoDetect={collected.timezone === undefined}
+            onSelectionChange={(tz) => {
+              setTimezone(tz ?? '');
             }}
-          >
-            {(item) => <SelectItem key={item.id} id={item.id} label={item.label ?? ''} />}
-          </Select>
+          />
         </FormRow>
 
         <FormRow label={t('setup.homeOverview.language.label')} labelId={languageLabelId}>
@@ -261,7 +253,8 @@ interface FormRowProps {
   /**
    * id forwarded to the visible `<p>` label so the matching control can
    * reference it via `aria-labelledby`. Omit when the control owns its
-   * accessible name (RadioGroup via `aria-label`, etc.).
+   * accessible name (RadioGroup via `aria-label`, the picker trio via
+   * their own `label` prop, etc.).
    */
   readonly labelId?: string;
   readonly required?: boolean;
@@ -295,21 +288,10 @@ function InlineError({ children }: { children: ReactNode }): ReactNode {
   );
 }
 
-const LocationIcon: ComponentType<HTMLAttributes<HTMLOrSVGElement>> = (props) => (
-  <svg
-    {...props}
-    data-icon
-    viewBox="0 0 20 20"
-    fill="none"
-    stroke="currentColor"
-    strokeWidth="1.5"
-    strokeLinecap="round"
-    strokeLinejoin="round"
-    aria-hidden="true"
-  >
-    <path d="m7.5 17.5-5 1V4.167l5-1m0 14.333 5 1m-5-1V3.167m5 15.333 5-1V3.167l-5 1m0 14.333V4.167" />
-  </svg>
-);
+// `LocationIcon` (the previous inline SVG used by the free-text
+// location field) and the `./countries.ts` + `./timezones.ts`
+// helpers all retired in #590 — the Phase 2 picker trio ships its
+// own glyphs and datasets.
 
 function NextArrowIcon(): ReactNode {
   return (

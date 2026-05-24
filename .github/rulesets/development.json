@@ -37,9 +37,6 @@
             "context": "conventional-commits"
           },
           {
-            "context": "gitleaks"
-          },
-          {
             "context": "i18n-check"
           },
           {

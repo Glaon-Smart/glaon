@@ -73,7 +73,7 @@ const STEP_ICON_PATHS: Record<WizardStepId, string> = {
 function StepIcon({ id }: { id: WizardStepId }): ReactNode {
   return (
     <svg
-      className="size-5 text-secondary"
+      className="size-5"
       viewBox="0 0 24 24"
       fill="none"
       stroke="currentColor"

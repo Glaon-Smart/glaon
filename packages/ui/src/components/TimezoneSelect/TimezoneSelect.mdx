@@ -1,0 +1,149 @@
+import { Meta, Canvas, Stories, Controls } from '@storybook/addon-docs/blocks';
+
+import * as TimezoneSelectStories from './TimezoneSelect.stories';
+
+<Meta of={TimezoneSelectStories} />
+
+# TimezoneSelect
+
+App-primitive IANA timezone picker. Thin wrap over the kit
+[`<ComboBox>`](?path=/docs/web-primitives-select--docs#withsearch)
+that adds the built-in timezone list, locale-aware sorting,
+diacritic-insensitive search, and optional one-shot browser
+autodetection.
+
+Sister primitive to
+[CountrySelect](?path=/docs/app-primitives-countryselect--docs) —
+same prop contract, same state machine, same polish (auto-clear-error,
+select-all-on-focus). The differences come from the dataset (IANA
+zones, no flag glyphs) and the detection source
+(`Intl.DateTimeFormat().resolvedOptions().timeZone`).
+
+## When to use
+
+- Setup wizard's region / scheduling step.
+- Profile screen — user timezone for notifications, reminders, and
+  scheduled actions.
+- Automation editor — "run this at 8am in the user's timezone" vs
+  "run this at 8am UTC".
+
+## When NOT to use
+
+- A short curated list of "supported regions" — use a plain
+  [Select](?path=/docs/web-primitives-select--docs) with the curated
+  options.
+- A clock / time-of-day picker — that's a future `TimeInput`
+  primitive, not this one.
+
+## Auto-detection
+
+When `autoDetect` is `true` (the default), on mount the picker reads
+`Intl.DateTimeFormat().resolvedOptions().timeZone` and pre-selects
+the matching IANA identifier. The detection is **pure browser API**
+— no network call leaves the component, no geo-IP service is
+contacted.
+
+Detection is **one-shot** at mount. The picker doesn't re-detect
+when the runtime timezone changes mid-session (rare, but happens on
+some mobile platforms) — re-mount the component to re-run detection.
+
+Auto-detection is **skipped** when:
+
+- `value` is passed (the host owns the state).
+- `defaultValue` is passed (an explicit initial choice wins).
+- `autoDetect` is `false`.
+
+### Examples
+
+```tsx
+// Pre-select from the runtime timezone.
+<TimezoneSelect onSelectionChange={setTimezone} />
+
+// Always start empty; let the user pick.
+<TimezoneSelect autoDetect={false} onSelectionChange={setTimezone} />
+
+// Controlled, hydrated from a profile load.
+<TimezoneSelect value={user.timezone} onSelectionChange={updateTimezone} />
+```
+
+## Anatomy
+
+<Canvas of={TimezoneSelectStories.WithDefaultValue} />
+
+```tsx
+<TimezoneSelect
+  label="Timezone"
+  placeholder="Select a timezone"
+  onSelectionChange={(tz) => setTimezone(tz)}
+/>
+```
+
+Each row renders the city (last segment of the IANA id with
+underscores prettied) and the current UTC offset, e.g.
+`Istanbul — (UTC+03:00)`. The UTC zone itself shows as `UTC — (UTC)`.
+
+## Dataset and localization
+
+The list comes from `Intl.supportedValuesOf('timeZone')` — the
+runtime-built-in IANA database (~430 zones on a modern engine, no
+shipped table). The `locale` prop drives `Intl.Collator` for
+locale-aware sort order; labels themselves stay in English because
+the IANA database is English-only. If your design needs localized
+city names, that's a follow-up that needs a translation table.
+
+## Search behaviour
+
+The filter is **diacritic-insensitive** — typing `istanbul` matches
+`Istanbul`, `reunion` matches `Réunion`. Search is by the displayed
+label only (city + offset string).
+
+The input **selects-all on focus**, so the next keystroke replaces
+the current label cleanly. Tab in, type, pick — no manual clear.
+
+## Error UX
+
+`isInvalid` styling **clears automatically** the moment the user
+makes a selection — picking a timezone counts as resolving the
+error. If your re-validation rejects the new value, toggle
+`isInvalid` from `false` → `true` to force the error back on; the
+picker re-arms its suppression every time the prop transitions.
+
+## Variants
+
+<Stories includePrimary={false} />
+
+## Props
+
+<Controls />
+
+## Accessibility
+
+- Always pass a `label` — the kit ComboBox binds it to the trigger
+  via the standard RAC label slot.
+- The popover is keyboard-navigable (Arrow up/down, Enter to select,
+  Esc to dismiss) and the search input is a real `<input>` with
+  `aria-autocomplete="list"`.
+- Pair `isInvalid` with a descriptive `hint` ("Timezone is
+  required.") — the kit wires `aria-invalid` + `aria-describedby`
+  automatically.
+- `isRequired` adds a visual `*` and forwards `aria-required`. Use
+  `hideRequiredIndicator` on dense forms to drop the asterisk while
+  keeping the a11y contract.
+
+## DST and runtime drift
+
+The UTC offset displayed in each label is a snapshot computed at
+module load. The picker doesn't track DST transitions live; in
+practice this is fine because user sessions rarely span a DST
+boundary, and the value the picker emits is the IANA id (not the
+offset), so downstream date arithmetic stays correct.
+
+## Related components
+
+- [CountrySelect](?path=/docs/app-primitives-countryselect--docs) —
+  sister primitive for ISO 3166-1 countries with the same
+  `autoDetect` contract.
+- [Select](?path=/docs/web-primitives-select--docs) — generic
+  single-value picker; use it for short curated lists.
+- [FormField](?path=/docs/app-primitives-formfield--docs) — wrapper
+  for label + control + error in compound forms.

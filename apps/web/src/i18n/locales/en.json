@@ -151,6 +151,26 @@
       "actions": {
         "next": "Next",
         "retry": "Try again"
+      },
+      "handoff": {
+        "title": "Switch this device to {ssid}",
+        "description": "Glaon will save your credentials and tell the device to join {ssid}. Your phone or laptop will lose its connection to the device for a moment — that's expected.",
+        "bullet1": "The device drops its setup Wi-Fi and joins {ssid}.",
+        "bullet2": "Your phone or laptop loses the connection. Switch it to your home Wi-Fi.",
+        "bullet3": "Reopen the setup page at {url}. Scan the QR code to make this easy.",
+        "passwordLabel": "Confirm the {ssid} password",
+        "passwordPlaceholder": "Network password",
+        "passwordHint": "Re-typed so a stray key doesn't lock you out of the device.",
+        "qrAlt": "QR code linking to {url}",
+        "qrLoading": "Generating QR…",
+        "qrFallback": "QR unavailable",
+        "cancel": "Wait — go back",
+        "confirm": "Switch network now",
+        "overlay": {
+          "title": "Switching to {ssid}…",
+          "description": "Your device is joining {ssid}. This usually takes 10–30 seconds. Don't refresh this page.",
+          "nudge": "Still here? Switch your phone or laptop to {ssid} and reopen {url}."
+        }
       }
     },
     "security": {
@@ -188,13 +208,6 @@
         "notSet": "—",
         "layoutHeadline": "{floorCount} floors · {roomCount} rooms",
         "layoutEmptyFloor": "no rooms yet"
-      },
-      "passwordDialog": {
-        "title": "Connect to {ssid}",
-        "description": "Enter the Wi-Fi password so Glaon can save the connection to Home Assistant.",
-        "placeholder": "Wi-Fi password",
-        "cancel": "Cancel",
-        "connect": "Connect"
       },
       "commitFailed": {
         "title": "Couldn't complete setup",

@@ -109,7 +109,7 @@ describe('ReviewStep — commit ceremony', () => {
     expect(body.wifi.auth).toBe('open');
   });
 
-  it('opens a password dialog for a secured Wi-Fi network and commits after Connect', async () => {
+  it('opens the handoff modal for a secured Wi-Fi network and commits after Switch network now', async () => {
     const configStore = new InMemoryConfigStore();
     const collected = {
       ...baseCollected,
@@ -118,16 +118,22 @@ describe('ReviewStep — commit ceremony', () => {
     const { getByRole } = render(wrap(<ReviewStep collected={collected} />, configStore));
     fireEvent.click(getByRole('button', { name: 'Complete setup' }));
     // RAC Modal renders into a portal — query the document body to
-    // reach it, not the test container.
-    const connect = await waitFor(() => getByRole('button', { name: 'Connect' }));
-    expect((connect as HTMLButtonElement).disabled).toBe(true);
+    // reach the new HandoffModal's "Switch network now" CTA.
+    const switchBtn = await waitFor(() => getByRole('button', { name: 'Switch network now' }));
+    expect((switchBtn as HTMLButtonElement).disabled).toBe(true);
     const passwordInput = document.body.querySelector('input[type="password"]');
     expect(passwordInput).not.toBeNull();
     fireEvent.change(passwordInput as HTMLInputElement, { target: { value: 'fresh-secret' } });
-    fireEvent.click(getByRole('button', { name: 'Connect' }));
-    await waitFor(() => {
-      expect(reloadSpy).toHaveBeenCalledTimes(1);
-    });
+    fireEvent.click(getByRole('button', { name: 'Switch network now' }));
+    // The secured-wifi path defers the reload by 1500ms so the user
+    // catches a beat of the HandoffOverlay before the page goes
+    // away (#594). Bump the default 1000ms waitFor budget.
+    await waitFor(
+      () => {
+        expect(reloadSpy).toHaveBeenCalledTimes(1);
+      },
+      { timeout: 3000 },
+    );
     const persisted = await configStore.get();
     // The dialog's value overwrites whatever cipher was carried in.
     expect(persisted?.wifi?.passwordCipher).toBe('fresh-secret');

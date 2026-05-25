@@ -151,6 +151,26 @@
       "actions": {
         "next": "İleri",
         "retry": "Tekrar dene"
+      },
+      "handoff": {
+        "title": "Bu cihazı {ssid} ağına geçir",
+        "description": "Glaon şifreyi kaydedecek ve cihaza {ssid} ağına katılmasını söyleyecek. Telefonun veya bilgisayarın cihaza olan bağlantısı kısa süreliğine kopacak — bu beklenen bir şey.",
+        "bullet1": "Cihaz setup Wi-Fi'sını bırakır ve {ssid} ağına katılır.",
+        "bullet2": "Telefonun veya bilgisayarın bağlantıyı kaybeder. Onu da kendi Wi-Fi'na geçir.",
+        "bullet3": "Setup sayfasını {url} adresinden tekrar aç. Karekodu okutmak en kolayı.",
+        "passwordLabel": "{ssid} şifresini bir daha gir",
+        "passwordPlaceholder": "Ağ şifresi",
+        "passwordHint": "Yanlış tuş yüzünden cihazdan kilitlenmemen için tekrar soruyoruz.",
+        "qrAlt": "{url} adresine giden karekod",
+        "qrLoading": "Karekod üretiliyor…",
+        "qrFallback": "Karekod oluşturulamadı",
+        "cancel": "Bekle — geri dön",
+        "confirm": "Ağı şimdi değiştir",
+        "overlay": {
+          "title": "{ssid} ağına geçiliyor…",
+          "description": "Cihazın {ssid} ağına katılıyor. Genelde 10–30 saniye sürer. Bu sayfayı yenileme.",
+          "nudge": "Hâlâ buradaysan: telefonunu / bilgisayarını {ssid} ağına geçir ve {url} adresini aç."
+        }
       }
     },
     "security": {
@@ -188,13 +208,6 @@
         "notSet": "—",
         "layoutHeadline": "{floorCount} kat · {roomCount} oda",
         "layoutEmptyFloor": "henüz oda yok"
-      },
-      "passwordDialog": {
-        "title": "{ssid} ağına bağlan",
-        "description": "Glaon bağlantıyı Home Assistant'a kaydedebilsin diye Wi-Fi şifresini gir.",
-        "placeholder": "Wi-Fi şifresi",
-        "cancel": "İptal",
-        "connect": "Bağlan"
       },
       "commitFailed": {
         "title": "Kurulum tamamlanamadı",

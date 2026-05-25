@@ -20,7 +20,7 @@
 // #545–#548 to flesh out. Real form, Figma fidelity, i18n keys, and
 // validation land per-step.
 
-import { useCallback, useMemo, useState, type ComponentType, type ReactNode } from 'react';
+import { useCallback, useMemo, type ComponentType, type ReactNode } from 'react';
 import { useTranslation } from 'react-i18next';
 
 import type { DeviceConfigInput } from '@glaon/core/config';
@@ -28,6 +28,7 @@ import { SUPPORTED_LOCALES, isSupportedLocale, type SupportedLocale } from '@gla
 import { Select, SelectItem, type SelectItemType } from '@glaon/ui';
 import { SetupLayout, type SetupLayoutStep } from '@glaon/ui';
 
+import { useWizardState } from '../../setup/use-wizard-state';
 import { ApplyStep } from './apply';
 import { HomeOverviewStep } from './home-overview';
 import { LayoutStep } from './layout';
@@ -150,8 +151,17 @@ interface SetupRouteProps {
 }
 
 export function SetupRoute({ initialStepId }: SetupRouteProps = {}): ReactNode {
-  const [activeStepId, setActiveStepId] = useState<WizardStepId>(initialStepId ?? FIRST_STEP_ID);
-  const [collected, setCollected] = useState<DeviceConfigInput>({});
+  // Persistence (#595): collected + activeStepId round-trip through
+  // `localStorage` under `glaon.wizard.scratch` so a browser refresh
+  // (or the Wi-Fi handoff's AP disconnect, #594/#596/#599) resumes
+  // the wizard where the user left off. The `bypassStorage` flag
+  // when an explicit `initialStepId` is passed keeps tests
+  // deterministic — they never accidentally pick up a stray
+  // scratch entry from a previous test in the same vitest worker.
+  const { collected, activeStepId, setCollected, setActiveStepId } = useWizardState<WizardStepId>({
+    initialStepId: initialStepId ?? FIRST_STEP_ID,
+    bypassStorage: initialStepId !== undefined,
+  });
 
   const activeIndex = SETUP_STEPS.findIndex((step) => step.id === activeStepId);
   // findIndex returns -1 on miss; coerce that to 0 so an unknown step id
@@ -171,7 +181,7 @@ export function SetupRoute({ initialStepId }: SetupRouteProps = {}): ReactNode {
       // markComplete + navigate to /login). For now Next is disabled on
       // the placeholder review step so this branch is unreachable.
     },
-    [activeIndex],
+    [activeIndex, setActiveStepId, setCollected],
   );
 
   const onCancel = useCallback(() => {
@@ -201,9 +211,12 @@ export function SetupRoute({ initialStepId }: SetupRouteProps = {}): ReactNode {
     [activeIndex],
   );
 
-  const onLocaleChange = useCallback((next: SupportedLocale) => {
-    setCollected((prev) => ({ ...prev, locale: next }));
-  }, []);
+  const onLocaleChange = useCallback(
+    (next: SupportedLocale) => {
+      setCollected((prev) => ({ ...prev, locale: next }));
+    },
+    [setCollected],
+  );
 
   if (activeStep === undefined) {
     // SETUP_STEPS is non-empty at module load — this branch exists only

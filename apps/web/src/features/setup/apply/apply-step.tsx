@@ -39,8 +39,10 @@ import { useTranslation } from 'react-i18next';
 import type { DeviceConfigInput, Layout } from '@glaon/core/config';
 
 import { useDeviceConfig } from '../../../config/config-provider';
+import { clearWizardScratch } from '../../../setup/use-wizard-state';
 import { HandoffModal } from '../wifi/handoff-modal';
 import { HandoffOverlay } from '../wifi/handoff-overlay';
+import { clearDeviceKey, wrapPassword } from '../wifi/wifi-crypto';
 
 interface ApplyStepProps {
   /** Final accumulated partial from prior steps. */
@@ -217,30 +219,32 @@ export function ApplyStep({ collected }: ApplyStepProps): ReactNode {
   async function runCommit(secureWifiPassword: string): Promise<void> {
     setHandoffPhase('committing');
     try {
-      // The user's draft password (typed inline below the wifi list)
-      // is what we'd commit if the secured branch fired; the modal
-      // re-asks as a typo guard — `secureWifiPassword` is the
-      // re-typed value the user just confirmed.
-      const wifiToCommit =
-        selectedNetwork !== null
-          ? {
-              ssid: selectedNetwork.ssid,
-              passwordCipher: passwordRequired ? secureWifiPassword : '(unsecured)',
-            }
-          : undefined;
+      // The plaintext password lives in the modal's confirm field
+      // (`secureWifiPassword`) — used as-is for the supervisor POST
+      // (the wire format expects plaintext PSK), then wrapped via
+      // Web Crypto AES-GCM before it lands in the persisted blob
+      // (#595, Security-First Rule "no plaintext credentials").
+      const secured = passwordRequired;
+      const password = secured ? secureWifiPassword : '';
+      if (secured && password === '') {
+        throw new Error('missing wifi password');
+      }
 
-      if (wifiToCommit !== undefined) {
-        const secured = passwordRequired;
-        const password = secured ? secureWifiPassword : '';
-        if (secured && password === '') {
-          throw new Error('missing wifi password');
-        }
-        await pushWifiToSupervisor({ ssid: wifiToCommit.ssid, password, secured });
-        await setPartial({ ...collected, wifi: wifiToCommit });
+      if (selectedNetwork !== null) {
+        await pushWifiToSupervisor({ ssid: selectedNetwork.ssid, password, secured });
+        const persistedCipher = secured ? await wrapPassword(password) : '(unsecured)';
+        await setPartial({
+          ...collected,
+          wifi: { ssid: selectedNetwork.ssid, passwordCipher: persistedCipher },
+        });
       } else {
         await setPartial(collected);
       }
       await markComplete();
+      // Wizard is complete — drop the scratch entry + wrap key so a
+      // future visit to the URL never resurrects this run's state.
+      clearWizardScratch();
+      clearDeviceKey();
       // `passwordRequired` already implies `selectedNetwork !== null`
       // (see its derivation above), so the wifi handoff overlay path
       // matches the secured-network case 1:1.

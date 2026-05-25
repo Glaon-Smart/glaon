@@ -12,6 +12,7 @@ import { InMemoryConfigStore } from '@glaon/core/config';
 import { ToastProvider } from '@glaon/ui';
 
 import { ConfigProvider } from '../../../config/config-provider';
+import { isWrapped } from '../wifi/wifi-crypto';
 import { ApplyStep } from './apply-step';
 
 interface MockResponseInit {
@@ -180,7 +181,15 @@ describe('ApplyStep — populated mode', () => {
       { timeout: 3000 },
     );
     const persisted = await configStore.get();
-    expect(persisted?.wifi?.passwordCipher).toBe('fresh-secret');
+    // #595 — the persisted cipher is AES-GCM wrapped, not the
+    // raw modal password. Asserting on the wrap shape only because
+    // the apply step's post-commit cleanup intentionally drops the
+    // wrap key from storage; an unwrap here would race a fresh key
+    // and fail. The wrap → unwrap round-trip is exhaustively
+    // covered by `wifi-crypto.test.ts`.
+    const persistedCipher = persisted?.wifi?.passwordCipher ?? '';
+    expect(isWrapped(persistedCipher)).toBe(true);
+    expect(persistedCipher).not.toBe('fresh-secret');
     const calls = (global.fetch as unknown as { mock: { calls: unknown[][] } }).mock.calls;
     const postCall = calls.find(
       ([, init]) => (init as { method?: string } | undefined)?.method === 'POST',

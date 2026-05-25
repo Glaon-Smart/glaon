@@ -44,56 +44,90 @@ Mock mode is enough for most wizard work. Switch to live when you need
 to verify the actual network-update path — e.g. credentials really
 apply, real APs come back from the scan.
 
-### Prerequisites
+### Why not `apps/dev-ha/`?
 
-The standard HA Core container (the one in `apps/dev-ha/`) **does not
-expose the supervisor endpoints**. You need either:
+The fixture in `apps/dev-ha/` runs **HA Core** (the standalone Python
+container) — it intentionally does not expose the Supervisor's
+`/api/hassio/*` endpoints. That fixture is for OAuth2 + WebSocket
+work where Core is enough; the network-update path needs a real
+Supervisor.
 
-1. **HA Supervised** running natively on a Linux host (full supervisor
-   - Docker + NetworkManager stack).
-2. **HA OS in a VM** (e.g. VirtualBox / UTM / VMware).
-3. **The actual production add-on** running on a real Home Assistant
-   instance — your dev box just runs apps/api + apps/web against it.
+You need one of:
 
-Inside any of these, the supervisor's HTTP API lives at
-`http://supervisor` (DNS resolves inside the supervisor's Docker
-network). From outside the supervisor container, you typically need
-to expose / port-forward.
+1. **HA OS in UTM** (macOS dev — easiest path; covered below).
+2. **HA OS in a VM** (VirtualBox / VMware / Proxmox / Hyper-V).
+3. **HA Supervised** running natively on a Linux host.
+4. **The actual production add-on** running on a real Home Assistant
+   instance — your dev box runs apps/api + apps/web against it over
+   the LAN.
 
-### Token
+### Live mode: HA OS in UTM (#602)
 
-The supervisor expects a **long-lived access token** as `Authorization:
-Bearer <token>`. Inside an add-on the supervisor mints one automatically
-via the `SUPERVISOR_TOKEN` env var; for external dev you generate one
-manually:
+The recommended dev path on macOS.
 
-1. Open HA web UI → user profile → "Long-lived access tokens" → Create.
-2. Copy the token into `apps/api/.env`:
+**1. Spin up HA OS in UTM.** Download the UTM-compatible HA OS image
+from <https://www.home-assistant.io/installation/macos>, create a
+new UTM VM with it, boot, complete the on-screen onboarding (create
+your first user). After onboarding the HA UI lands on
+`http://homeassistant.local:8123`.
 
-   ```bash
-   HA_SUPERVISOR_URL=http://supervisor.local:4357/network   # or wherever
-   HA_SUPERVISOR_TOKEN=eyJ0eXAi...                          # the LLT
-   ```
+**2. Mint a long-lived access token (LLT).** In the HA UI:
 
-3. Drop `HA_SUPERVISOR_MOCK` (or set it to `false`).
+- Click your user avatar (bottom-left) → **Security** tab.
+- Scroll to **Long-lived access tokens** → **Create token**.
+- Name it something like `glaon-dev`, copy the token (it's only
+  shown once).
 
-Restart `apps/api`. Hit `http://localhost:8080/healthz/supervisor` —
-should return `{ status: 'ok', mode: 'live' }`.
-
-### Verifying a commit actually applied
-
-After clicking **Save and switch network** in the wizard, the
-supervisor's NetworkManager should have a new connection. Exec into
-the HA container and check:
+**3. Wire `apps/api/.env`.** The example file already carries the
+correct URL — paste the token, drop the mock flag if it's set:
 
 ```bash
-docker exec -it homeassistant nmcli connection show
-docker exec -it homeassistant nmcli connection show <ssid>
+# apps/api/.env
+HA_SUPERVISOR_URL=http://homeassistant.local:8123/api/hassio
+HA_SUPERVISOR_TOKEN=<paste-the-LLT-here>
+# HA_SUPERVISOR_MOCK=true    # leave this commented out for live mode
 ```
 
-If `glaon.local` resolves on your home network, opening
-`http://glaon.local` should land you on the wizard's post-setup
-surface (login screen).
+HA Core's `/api/hassio/*` proxy is what forwards apps/api's calls to
+the supervisor inside the VM, so we point at port 8123 (HA Core),
+not at the supervisor itself.
+
+**4. Restart apps/api** so the new env vars apply:
+
+```bash
+pnpm --filter @glaon/api dev
+```
+
+**5. Verify reachability.**
+
+```bash
+curl http://localhost:8080/healthz/supervisor
+# {"status":"ok","mode":"live"}
+```
+
+If you get `{ mode: 'live' }` with `status: 'unavailable'`, the
+URL or token is wrong (or `homeassistant.local` doesn't resolve from
+the host — check `ping homeassistant.local`).
+
+**6. Walk the wizard.** Open `http://localhost:5173`, walk to the
+apply step, you should see the actual Wi-Fi networks the UTM VM can
+see. macOS doesn't forward the host's Wi-Fi adapter to UTM by
+default; if the AP list is empty, that's the OS-side limitation
+(see "Wi-Fi visibility" below) — the API path is still working, it
+just has nothing to enumerate.
+
+**7. Pick a network → Save and switch network.** The supervisor
+should accept the POST and add the connection to its NetworkManager.
+Verify on the HA side:
+
+- HA UI → **Settings** → **System** → **Network** — the new
+  connection appears in the list.
+- Or, more directly, SSH into HA OS and `nmcli connection show`.
+
+### Live mode: real device on the LAN
+
+Same flow, different URL. Replace `homeassistant.local:8123` with the
+device's IP / hostname. Token generation is the same.
 
 ## Health probe
 
@@ -143,9 +177,12 @@ deployments either:
 
 ## Refs
 
-- Open issue: #598.
+- Tracking issues: #598 (proxy + mock), #602 (UTM HA OS setup).
 - Sister wizard collapse: #597 / PR #599.
+- Persistence + crypto wrap: #595 / PR #601.
 - Setup wizard apply step: `apps/web/src/features/setup/apply/`.
 - HA Supervisor network API:
   <https://developers.home-assistant.io/docs/api/supervisor/endpoints/#network>
-- HA dev fixture (Core, not Supervisor): `apps/dev-ha/`.
+- HA dev fixture (Core, not Supervisor): `apps/dev-ha/` — for
+  OAuth2 + WebSocket work; for the network endpoints use UTM HA OS
+  (see "Live mode" above).

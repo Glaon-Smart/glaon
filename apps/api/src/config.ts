@@ -61,8 +61,13 @@ export function loadConfig(env: NodeJS.ProcessEnv = process.env): Config {
     sessionJwtSecret: env.SESSION_JWT_SECRET ?? '',
     sessionTtlSeconds: ttl,
     webOrigins: parseOrigins(env.WEB_ORIGINS),
-    supervisorUrl: env.HA_SUPERVISOR_URL,
-    supervisorToken: env.HA_SUPERVISOR_TOKEN,
+    // Empty-string coercion to undefined keeps the proxy's
+    // "supervisor-not-configured" branch firing on a fresh
+    // .env-from-example where the developer hasn't pasted the LLT
+    // yet — otherwise apps/api would forward an empty Bearer to
+    // HA and trigger a 401 (#602).
+    supervisorUrl: env.HA_SUPERVISOR_URL === '' ? undefined : env.HA_SUPERVISOR_URL,
+    supervisorToken: env.HA_SUPERVISOR_TOKEN === '' ? undefined : env.HA_SUPERVISOR_TOKEN,
     supervisorMock: parseBool(env.HA_SUPERVISOR_MOCK),
     buildInfo: {
       commit: env.GLAON_API_COMMIT ?? 'unknown',

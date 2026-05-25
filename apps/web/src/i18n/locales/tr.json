@@ -130,28 +130,6 @@
       }
     },
     "wifi": {
-      "title": "Wi-Fi Bağlantısı",
-      "subtitle": "Cihazın bağlanacağı ağı seç. Seçim, wizard tamamlandığında Home Assistant'a gönderilir.",
-      "list": {
-        "ariaLabel": "Bulunan Wi-Fi ağları"
-      },
-      "unsecured": "Şifresiz",
-      "password": {
-        "label": "Şifre",
-        "placeholder": "Ağ şifresi"
-      },
-      "loading": "Yakındaki Wi-Fi ağları aranıyor…",
-      "empty": "Yakında Wi-Fi ağı bulunamadı. Router'a yaklaş ya da tekrar dene.",
-      "standalone": "Wi-Fi ayarı yalnız Glaon Home Assistant add-on olarak çalışırken kullanılabilir. Bu adım atlanıyor.",
-      "scanFailed": {
-        "title": "Wi-Fi taraması başarısız",
-        "description": "Home Assistant ağ taramasına cevap vermedi. Add-on çalışıyor mu kontrol et ve tekrar dene.",
-        "body": "Home Assistant ağ tarayıcısına ulaşamadık. Add-on yeniden başlatılıyor olabilir."
-      },
-      "actions": {
-        "next": "İleri",
-        "retry": "Tekrar dene"
-      },
       "handoff": {
         "title": "Bu cihazı {ssid} ağına geçir",
         "description": "Glaon şifreyi kaydedecek ve cihaza {ssid} ağına katılmasını söyleyecek. Telefonun veya bilgisayarın cihaza olan bağlantısı kısa süreliğine kopacak — bu beklenen bir şey.",
@@ -196,10 +174,11 @@
         "next": "İleri"
       }
     },
-    "review": {
-      "title": "Son Kontrol",
-      "subtitle": "Glaon'un kaydedeceği bilgileri kontrol et. Kurulum tamamlandığında sayfa yeniden yüklenir.",
+    "apply": {
+      "title": "Kaydet ve uygula",
+      "subtitle": "Ayarları gözden geçir, ev Wi-Fi'nı seç — sonra Glaon cihazı kendi ağına geçirir.",
       "summary": {
+        "heading": "Uygulanacak ayarlar",
         "wifi": "Wi-Fi",
         "wifiSecured": "{ssid} (şifreli)",
         "wifiUnsecured": "{ssid} (açık)",
@@ -209,12 +188,36 @@
         "layoutHeadline": "{floorCount} kat · {roomCount} oda",
         "layoutEmptyFloor": "henüz oda yok"
       },
+      "wifi": {
+        "heading": "Wi-Fi ağı",
+        "subtitle": "Cihazın kurulumdan sonra bağlanacağı ağı seç. Kaydet'e basınca Glaon bu ağa geçirir.",
+        "list": {
+          "ariaLabel": "Bulunan Wi-Fi ağları"
+        },
+        "unsecured": "Şifresiz",
+        "password": {
+          "label": "Ağ şifresi",
+          "placeholder": "Şifreyi yaz",
+          "hint": "Onay diyalogunda bir kez daha soracağız — yanlış tuş yüzünden cihazdan kilitlenmeyesin diye."
+        },
+        "loading": "Yakındaki Wi-Fi ağları aranıyor…",
+        "empty": "Yakında Wi-Fi ağı bulunamadı. Router'a yaklaş ya da tekrar dene.",
+        "standalone": "Wi-Fi ayarı yalnız Glaon Home Assistant add-on olarak çalışırken kullanılabilir. Ağ değişimi atlanır.",
+        "scanFailed": {
+          "title": "Wi-Fi taraması başarısız",
+          "description": "Home Assistant ağ taramasına cevap vermedi. Add-on çalışıyor mu kontrol et ve tekrar dene.",
+          "body": "Home Assistant ağ tarayıcısına ulaşamadık. Add-on yeniden başlatılıyor olabilir."
+        },
+        "actions": {
+          "retry": "Tekrar dene"
+        }
+      },
       "commitFailed": {
         "title": "Kurulum tamamlanamadı",
         "description": "Home Assistant ayarları kabul etmedi. Bağlantıyı kontrol edip tekrar dene."
       },
       "actions": {
-        "complete": "Kurulumu tamamla"
+        "save": "Kaydet ve ağa geç"
       }
     }
   }

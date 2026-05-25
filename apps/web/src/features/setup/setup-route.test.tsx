@@ -21,10 +21,11 @@ function renderRoute(initialStepId?: WizardStepId) {
   );
 }
 
-// WifiStep (#546) calls /api/hassio/network/info on mount unless the
-// build is `standalone`. Stub fetch + VITE_APP_MODE so the placeholder
-// walk-through tests don't hit a real network — actual Wi-Fi behaviour
-// is covered in `wifi/wifi-step.test.tsx`.
+// ApplyStep (#597, formerly the wifi + review pair) calls
+// /api/hassio/network/info on mount unless the build is `standalone`.
+// Stub fetch + VITE_APP_MODE so the walk-through tests don't hit a
+// real network; the actual scan / commit behaviour lives in
+// `apply/apply-step.test.tsx`.
 beforeEach(() => {
   vi.stubEnv('VITE_APP_MODE', 'standalone');
   vi.stubGlobal(
@@ -46,43 +47,31 @@ describe('SetupRoute', () => {
 
   it('advances to the next step when the placeholder Next button is clicked', () => {
     // Start at the Layout step so we exercise the placeholder Next
-    // path; Home Overview (#540) requires its own form to validate
-    // before advancing — covered in `home-overview-step.test.tsx`.
+    // path; Home Overview's own form validation is covered in
+    // `home-overview-step.test.tsx`.
     const { container, getByRole } = renderRoute('layout');
     const next = getByRole('button', { name: 'Next' });
     fireEvent.click(next);
-    expect(container.querySelector('h1')?.textContent).toBe('Wi-Fi Connection');
-  });
-
-  it('walks from Layout placeholder through Wi-Fi standalone to Device Security', () => {
-    // Wi-Fi is in standalone mode (per the beforeEach stub) so Next
-    // advances without selection; Device Security requires real password
-    // input — covered in security-step.test.tsx. Walking past it to
-    // Review is a separate path tested via initialStepId='review'.
-    const { container, getByRole } = renderRoute('layout');
-    fireEvent.click(getByRole('button', { name: 'Next' })); // Layout → Wi-Fi
-    fireEvent.click(getByRole('button', { name: 'Next' })); // Wi-Fi standalone → Security
     expect(container.querySelector('h1')?.textContent).toBe('Device Security');
   });
 
-  it('respects initialStepId and lands on Wi-Fi when asked', () => {
-    const { container } = renderRoute('wifi');
-    expect(container.querySelector('h1')?.textContent).toBe('Wi-Fi Connection');
+  it('lands on the Apply step after Security in the 4-step order', () => {
+    const { container } = renderRoute('apply');
+    expect(container.querySelector('h1')?.textContent).toBe('Save and apply');
   });
 
-  it('renders the Final Review step with the Complete setup CTA', () => {
-    const { getByRole } = renderRoute('review');
-    // #548 wires the real commit ceremony; the CTA is enabled by
-    // default (the dialog gates the actual submit for secured Wi-Fi).
-    expect(getByRole('button', { name: 'Complete setup' })).toBeInTheDocument();
+  it('renders the Apply step with the Save and switch network CTA', () => {
+    const { getByRole } = renderRoute('apply');
+    // #597 — the merged step's terminal CTA replaces the old
+    // "Complete setup" copy.
+    expect(getByRole('button', { name: 'Save and switch network' })).toBeInTheDocument();
   });
 
   it('marks the active step with aria-current=step in the rail', () => {
-    const { container } = renderRoute('wifi');
+    const { container } = renderRoute('apply');
     const activeRail = container.querySelector('nav [aria-current="step"]');
-    // The rail label is the hardcoded SETUP_STEPS title ("Wi-Fi
-    // Configuration"); the body title is the i18n one ("Wi-Fi
-    // Connection") rendered by WifiStep. The test asserts on the rail.
-    expect(activeRail?.textContent).toContain('Wi-Fi Configuration');
+    // The rail label is the hardcoded SETUP_STEPS title ("Save and
+    // apply"); the body title is the same i18n string in this case.
+    expect(activeRail?.textContent).toContain('Save and apply');
   });
 });

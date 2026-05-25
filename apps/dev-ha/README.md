@@ -26,5 +26,6 @@ pnpm ha:reset   # durdur + config'i sıfırla (onboarding tekrar)
 - HA Add-on test ortamı — [`addon/`](../../addon/) ayrı akış.
 - E2E mock'ları — [#13](https://github.com/toss-cengiz/glaon/issues/13) ve [#358](https://github.com/toss-cengiz/glaon/issues/358) `page.route()` ile gider; bu fixture **dev** içindir.
 - Production HA / TLS / sertifika pinning.
+- **HA Supervisor endpoint'leri** (`/api/hassio/network/*`) — bu container HA Core, Supervisor'sız. Setup wizard'ın apply step'i (Wi-Fi scan + commit) Supervisor istiyor; macOS dev için UTM HA OS önerilir, kurulum [docs/dev-supervisor.md](../../docs/dev-supervisor.md#live-mode-ha-os-in-utm-602)'de.
 
 Refs #331.

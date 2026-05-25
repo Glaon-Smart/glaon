@@ -78,6 +78,28 @@ describe('loadConfig', () => {
     expect(() => loadConfig({ ...REQUIRED_BASE, HA_SUPERVISOR_URL: 'not-a-url' })).toThrow();
   });
 
+  it('treats an empty HA_SUPERVISOR_TOKEN as undefined (#602)', () => {
+    // A fresh `.env`-from-example carries `HA_SUPERVISOR_TOKEN=` with
+    // no value while the developer is still pasting their LLT. The
+    // proxy must treat that as "not configured" rather than forward
+    // an empty Bearer to HA.
+    const config = loadConfig({
+      ...REQUIRED_BASE,
+      HA_SUPERVISOR_URL: 'http://homeassistant.local:8123/api/hassio',
+      HA_SUPERVISOR_TOKEN: '',
+    });
+    expect(config.supervisorToken).toBeUndefined();
+  });
+
+  it('treats an empty HA_SUPERVISOR_URL as undefined (#602)', () => {
+    const config = loadConfig({
+      ...REQUIRED_BASE,
+      HA_SUPERVISOR_URL: '',
+      HA_SUPERVISOR_TOKEN: 'tok',
+    });
+    expect(config.supervisorUrl).toBeUndefined();
+  });
+
   it('honors build info env vars', () => {
     const config = loadConfig({
       ...REQUIRED_BASE,

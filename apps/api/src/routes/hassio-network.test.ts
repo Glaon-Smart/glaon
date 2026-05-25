@@ -151,15 +151,26 @@ describe('probeSupervisor', () => {
       baseConfig({ supervisorUrl: 'http://supervisor.test/network', supervisorToken: 't' }),
       fetchImpl,
     );
-    expect(result).toEqual({ ok: true, mode: 'live' });
+    expect(result).toEqual({ ok: true, mode: 'live', status: 200 });
   });
 
-  it('reports mode=live + ok=false when the live supervisor errors', async () => {
+  it('reports mode=live + ok=false + upstream status when the live supervisor returns non-2xx', async () => {
+    const fetchImpl: typeof fetch = vi.fn(() =>
+      Promise.resolve(mockResponse({ status: 401, body: { error: 'unauthorized' } })),
+    );
+    const result = await probeSupervisor(
+      baseConfig({ supervisorUrl: 'http://supervisor.test/network', supervisorToken: 't' }),
+      fetchImpl,
+    );
+    expect(result).toEqual({ ok: false, mode: 'live', status: 401 });
+  });
+
+  it('reports mode=live + ok=false + reason when the fetch throws', async () => {
     const fetchImpl: typeof fetch = vi.fn(() => Promise.reject(new Error('boom')));
     const result = await probeSupervisor(
       baseConfig({ supervisorUrl: 'http://supervisor.test/network', supervisorToken: 't' }),
       fetchImpl,
     );
-    expect(result).toEqual({ ok: false, mode: 'live' });
+    expect(result).toEqual({ ok: false, mode: 'live', reason: 'boom' });
   });
 });

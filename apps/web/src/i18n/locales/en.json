@@ -130,28 +130,6 @@
       }
     },
     "wifi": {
-      "title": "Wi-Fi Connection",
-      "subtitle": "Pick the network this device should join. The selection is sent to Home Assistant when you finish the wizard.",
-      "list": {
-        "ariaLabel": "Available Wi-Fi networks"
-      },
-      "unsecured": "Unsecured",
-      "password": {
-        "label": "Password",
-        "placeholder": "Network password"
-      },
-      "loading": "Looking for nearby Wi-Fi networks…",
-      "empty": "No Wi-Fi networks found nearby. Move closer to your router or try again.",
-      "standalone": "Wi-Fi setup is only available when Glaon runs as the Home Assistant add-on. Skipping this step.",
-      "scanFailed": {
-        "title": "Couldn't scan Wi-Fi networks",
-        "description": "Home Assistant didn't respond to the network scan. Check that the add-on is running and try again.",
-        "body": "We couldn't reach the Home Assistant network scanner. The add-on may be restarting."
-      },
-      "actions": {
-        "next": "Next",
-        "retry": "Try again"
-      },
       "handoff": {
         "title": "Switch this device to {ssid}",
         "description": "Glaon will save your credentials and tell the device to join {ssid}. Your phone or laptop will lose its connection to the device for a moment — that's expected.",
@@ -196,10 +174,11 @@
         "next": "Next"
       }
     },
-    "review": {
-      "title": "Final Review",
-      "subtitle": "Double-check what Glaon will save. We'll reload once setup is complete.",
+    "apply": {
+      "title": "Save and apply",
+      "subtitle": "Double-check your settings, pick your home Wi-Fi, and we'll switch the device over.",
       "summary": {
+        "heading": "Settings to apply",
         "wifi": "Wi-Fi",
         "wifiSecured": "{ssid} (secured)",
         "wifiUnsecured": "{ssid} (open)",
@@ -209,12 +188,36 @@
         "layoutHeadline": "{floorCount} floors · {roomCount} rooms",
         "layoutEmptyFloor": "no rooms yet"
       },
+      "wifi": {
+        "heading": "Wi-Fi network",
+        "subtitle": "Pick the network this device should join after setup. Glaon switches to it when you click Save.",
+        "list": {
+          "ariaLabel": "Available Wi-Fi networks"
+        },
+        "unsecured": "Unsecured",
+        "password": {
+          "label": "Network password",
+          "placeholder": "Type the password",
+          "hint": "We'll ask again in the confirmation dialog so a typo can't lock you out."
+        },
+        "loading": "Looking for nearby Wi-Fi networks…",
+        "empty": "No Wi-Fi networks found nearby. Move closer to your router or try again.",
+        "standalone": "Wi-Fi setup is only available when Glaon runs as the Home Assistant add-on. We'll skip the network switch.",
+        "scanFailed": {
+          "title": "Couldn't scan Wi-Fi networks",
+          "description": "Home Assistant didn't respond to the network scan. Check that the add-on is running and try again.",
+          "body": "We couldn't reach the Home Assistant network scanner. The add-on may be restarting."
+        },
+        "actions": {
+          "retry": "Try again"
+        }
+      },
       "commitFailed": {
         "title": "Couldn't complete setup",
         "description": "Home Assistant didn't accept the configuration. Check the connection and try again."
       },
       "actions": {
-        "complete": "Complete setup"
+        "save": "Save and switch network"
       }
     }
   }

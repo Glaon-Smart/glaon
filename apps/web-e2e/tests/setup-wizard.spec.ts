@@ -1,24 +1,25 @@
-// Setup wizard @smoke spec (#549 — epic #533). Drives the first-run
-// device setup wizard end-to-end:
+// Setup wizard @smoke spec (#549 — epic #533, updated for the
+// step-collapse in #597). Drives the first-run device setup wizard
+// end-to-end:
 //
 //   1. clear `glaon.device-config` so SetupGate routes to the wizard
 //      (the shared fixture in `support/test.ts` seeds a completedAt
 //      blob by default — we have to opt out).
 //   2. mock the HA Supervisor network endpoints. The preview build
-//      isn't started with `VITE_APP_MODE=standalone`, so WifiStep
-//      takes the populated branch and tries to scan; mocked fetch
-//      lets the test pick an unsecured `PreviewGuest` AP and the
-//      commit POST round-trips cleanly.
-//   3. walk all 5 steps filling the minimum required fields:
+//      isn't started with `VITE_APP_MODE=standalone`, so the apply
+//      step takes the populated wifi branch and tries to scan; mocked
+//      fetch lets the test pick an unsecured `PreviewGuest` AP and
+//      the commit POST round-trips cleanly.
+//   3. walk all 4 steps filling the minimum required fields:
 //        - Home Overview → set the home name + advance
-//        - Layout Setup → advance (placeholder, no required field)
-//        - Wi-Fi → pick the mocked unsecured AP + advance
+//        - Layout Setup → advance (single default floor, no required field)
 //        - Device Security → password + confirm + advance
-//        - Final Review → assert summary contains the typed home
-//          name + click Complete setup. No password dialog opens
-//          (the AP is unsecured) so the commit fires immediately;
-//          `window.location.reload()` lands the user on mode-select
-//          or login (either is post-wizard surface).
+//        - Apply → assert summary contains the typed home name, pick
+//          the mocked unsecured AP, click "Save and switch network".
+//          No handoff modal opens (the AP is unsecured) so the commit
+//          fires immediately; `window.location.reload()` lands the
+//          user on mode-select or login (either is post-wizard
+//          surface).
 //   4. second test confirms the reload-after-completion path: a
 //      second visit never re-renders the wizard.
 //
@@ -59,7 +60,7 @@ test.describe('setup wizard @smoke', () => {
     await mockSupervisorNetworkScan(page);
   });
 
-  test('walks all 5 steps and lands on the login screen after commit', async ({ page }) => {
+  test('walks all 4 steps and lands on the login screen after commit', async ({ page }) => {
     await page.goto('/');
 
     // Step 1: Home Overview.
@@ -71,12 +72,9 @@ test.describe('setup wizard @smoke', () => {
     await expect(page.getByRole('heading', { level: 1, name: 'Layout Setup' })).toBeVisible();
     await page.getByRole('button', { name: 'Next' }).click();
 
-    // Step 3: Wi-Fi Configuration. Pick the mocked unsecured AP.
-    await expect(page.getByRole('heading', { level: 1, name: 'Wi-Fi Connection' })).toBeVisible();
-    await page.getByRole('button', { name: /PreviewGuest/i }).click();
-    await page.getByRole('button', { name: 'Next' }).click();
-
-    // Step 4: Device Security.
+    // Step 3: Device Security. After #597 the wizard collapses the
+    // old Wi-Fi credentials step + Final Review into the terminal
+    // Apply step, so Security comes immediately after Layout.
     await expect(page.getByRole('heading', { level: 1, name: 'Device Security' })).toBeVisible();
     // SecurityStep labels render as "Password *" / "Confirm password *"
     // (the asterisk lives inside the <label>), so getByLabel with
@@ -85,12 +83,15 @@ test.describe('setup wizard @smoke', () => {
     await page.getByPlaceholder('Type the password again').fill('correct-horse');
     await page.getByRole('button', { name: 'Next' }).click();
 
-    // Step 5: Final Review. Summary contains the home name. The AP
-    // is unsecured, so Complete setup commits without opening the
-    // password dialog. The reload lands on mode-select / login.
-    await expect(page.getByRole('heading', { level: 1, name: 'Final Review' })).toBeVisible();
+    // Step 4: Save and apply. Summary contains the home name, the
+    // wifi picker shows the mocked PreviewGuest AP; clicking it
+    // selects the network. The AP is unsecured, so "Save and switch
+    // network" commits without opening the handoff modal. The reload
+    // lands on mode-select / login.
+    await expect(page.getByRole('heading', { level: 1, name: 'Save and apply' })).toBeVisible();
     await expect(page.getByText('Olivia')).toBeVisible();
-    await page.getByRole('button', { name: 'Complete setup' }).click();
+    await page.getByRole('button', { name: /PreviewGuest/i }).click();
+    await page.getByRole('button', { name: 'Save and switch network' }).click();
 
     await expect(
       page.getByTestId('mode-select-route').or(page.getByTestId('login-device-form')),
@@ -112,16 +113,15 @@ test.describe('setup wizard @smoke', () => {
     await page.goto('/');
     await page.getByLabel('Home Name').fill('Olivia');
     await page.getByRole('button', { name: 'Next' }).click(); // Home → Layout
-    await page.getByRole('button', { name: 'Next' }).click(); // Layout → Wi-Fi
-    await page.getByRole('button', { name: /PreviewGuest/i }).click();
-    await page.getByRole('button', { name: 'Next' }).click(); // Wi-Fi → Security
+    await page.getByRole('button', { name: 'Next' }).click(); // Layout → Security
     // SecurityStep labels render as "Password *" / "Confirm password *"
     // (the asterisk lives inside the <label>), so getByLabel with
     // exact:true misses. Use the placeholder text — unique per field.
     await page.getByPlaceholder('At least 8 characters').fill('correct-horse');
     await page.getByPlaceholder('Type the password again').fill('correct-horse');
-    await page.getByRole('button', { name: 'Next' }).click(); // Security → Review
-    await page.getByRole('button', { name: 'Complete setup' }).click();
+    await page.getByRole('button', { name: 'Next' }).click(); // Security → Apply
+    await page.getByRole('button', { name: /PreviewGuest/i }).click();
+    await page.getByRole('button', { name: 'Save and switch network' }).click();
     await expect(
       page.getByTestId('mode-select-route').or(page.getByTestId('login-device-form')),
     ).toBeVisible({ timeout: 10_000 });

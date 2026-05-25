@@ -28,13 +28,15 @@ import { SUPPORTED_LOCALES, isSupportedLocale, type SupportedLocale } from '@gla
 import { Select, SelectItem, type SelectItemType } from '@glaon/ui';
 import { SetupLayout, type SetupLayoutStep } from '@glaon/ui';
 
+import { ApplyStep } from './apply';
 import { HomeOverviewStep } from './home-overview';
 import { LayoutStep } from './layout';
-import { ReviewStep } from './review';
 import { SecurityStep } from './security';
-import { WifiStep } from './wifi';
 
-export type WizardStepId = 'home-overview' | 'layout' | 'wifi' | 'security' | 'review';
+// #597 collapsed the old wifi + review steps into a single terminal
+// "apply" step that hosts the summary + Wi-Fi picker + handoff
+// ceremony.
+export type WizardStepId = 'home-overview' | 'layout' | 'security' | 'apply';
 
 // `WizardStepProps`, `SETUP_STEPS`, and `SetupRouteProps` stay unexported
 // here: each subsequent step issue (#540, #545–#548) introduces its own
@@ -65,9 +67,11 @@ interface WizardStepRegistration {
 const STEP_ICON_PATHS: Record<WizardStepId, string> = {
   'home-overview': 'M9 22V12h6v10M3 9l9-7 9 7v11a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2V9z',
   layout: 'M3 4h18v16H3zM12 4v16',
-  wifi: 'M5 12.55a11 11 0 0 1 14 0M1.42 9a16 16 0 0 1 21.16 0M8.53 16.11a6 6 0 0 1 6.95 0M12 20h.01',
   security: 'M12 4v16M4 12h16M5.6 5.6l12.8 12.8M18.4 5.6L5.6 18.4',
-  review: 'M7 11v9H3v-9h4zm0 0V8a3 3 0 0 1 3-3l4 9v7H9a2 2 0 0 1-2-2v-2',
+  // Wi-Fi bars — same glyph the old wifi step used, kept because
+  // the apply step's destructive action is the network switch.
+  apply:
+    'M5 12.55a11 11 0 0 1 14 0M1.42 9a16 16 0 0 1 21.16 0M8.53 16.11a6 6 0 0 1 6.95 0M12 20h.01',
 };
 
 function StepIcon({ id }: { id: WizardStepId }): ReactNode {
@@ -87,23 +91,20 @@ function StepIcon({ id }: { id: WizardStepId }): ReactNode {
   );
 }
 
-// All 5 wizard steps now ship their real implementations (#540, #545,
-// #546, #547, #548). Adapters bridge the shared `WizardStepProps`
-// contract to each step's own (smaller) props surface.
+// Wizard ships 4 steps after #597 — the Wi-Fi credential collection
+// + the Final Review summary merged into the terminal `apply` step
+// (which owns the handoff ceremony).
 const HomeOverviewStepAdapter = (props: WizardStepProps): ReactNode => (
   <HomeOverviewStep collected={props.collected} onNext={props.onNext} />
 );
 const LayoutStepAdapter = (props: WizardStepProps): ReactNode => (
   <LayoutStep collected={props.collected} onNext={props.onNext} />
 );
-const WifiStepAdapter = (props: WizardStepProps): ReactNode => (
-  <WifiStep collected={props.collected} onNext={props.onNext} />
-);
 const SecurityStepAdapter = (props: WizardStepProps): ReactNode => (
   <SecurityStep collected={props.collected} onNext={props.onNext} />
 );
-const ReviewStepAdapter = (props: WizardStepProps): ReactNode => (
-  <ReviewStep collected={props.collected} onNext={props.onNext} />
+const ApplyStepAdapter = (props: WizardStepProps): ReactNode => (
+  <ApplyStep collected={props.collected} onNext={props.onNext} />
 );
 
 const SETUP_STEPS: readonly WizardStepRegistration[] = [
@@ -122,13 +123,6 @@ const SETUP_STEPS: readonly WizardStepRegistration[] = [
     Component: LayoutStepAdapter,
   },
   {
-    id: 'wifi',
-    title: 'Wi-Fi Configuration',
-    description: 'Connect to your network and set a secure password.',
-    icon: <StepIcon id="wifi" />,
-    Component: WifiStepAdapter,
-  },
-  {
     id: 'security',
     title: 'Device Security',
     description: 'Create a password to protect your smart devices.',
@@ -136,11 +130,11 @@ const SETUP_STEPS: readonly WizardStepRegistration[] = [
     Component: SecurityStepAdapter,
   },
   {
-    id: 'review',
-    title: 'Final Review',
-    description: 'Check your settings and complete the setup.',
-    icon: <StepIcon id="review" />,
-    Component: ReviewStepAdapter,
+    id: 'apply',
+    title: 'Save and apply',
+    description: 'Review your settings, connect Wi-Fi, finish setup.',
+    icon: <StepIcon id="apply" />,
+    Component: ApplyStepAdapter,
   },
 ];
 

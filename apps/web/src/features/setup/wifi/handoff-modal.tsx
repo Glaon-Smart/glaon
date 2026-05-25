@@ -13,9 +13,10 @@
 //     after they switch networks.
 //   - Two buttons: "Wait — go back" and "Switch network now".
 //
-// The actual commit is owned by the parent (`review-step.tsx`); this
-// modal just calls `onConfirm(password)` and lets the parent
-// dispatch the credential POST + transition to the switching state.
+// The actual commit is owned by the parent (`apply-step.tsx` after
+// #597; was `review-step.tsx` originally); this modal just calls
+// `onConfirm(password)` and lets the parent dispatch the credential
+// POST + transition to the switching state.
 
 import { Button, Modal, PasswordInput } from '@glaon/ui';
 import { useEffect, useState, type ReactNode } from 'react';

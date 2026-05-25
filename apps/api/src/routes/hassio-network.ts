@@ -162,21 +162,38 @@ function passThroughResponse(text: string, upstream: Response): Response {
 export async function probeSupervisor(
   config: Config,
   fetchImpl: typeof fetch = fetch,
-): Promise<{ readonly ok: boolean; readonly mode: 'mock' | 'live' | 'unconfigured' }> {
+  logger?: Logger,
+): Promise<{
+  readonly ok: boolean;
+  readonly mode: 'mock' | 'live' | 'unconfigured';
+  readonly status?: number;
+  readonly reason?: string;
+}> {
   if (config.supervisorMock) {
     return { ok: true, mode: 'mock' };
   }
   if (config.supervisorUrl === undefined || config.supervisorToken === undefined) {
     return { ok: false, mode: 'unconfigured' };
   }
+  const url = `${trim(config.supervisorUrl)}/network/info`;
   try {
-    const upstream = await fetchImpl(`${trim(config.supervisorUrl)}/network/info`, {
+    const upstream = await fetchImpl(url, {
       method: 'GET',
       headers: { Authorization: `Bearer ${config.supervisorToken}` },
     });
-    return { ok: upstream.ok, mode: 'live' };
-  } catch {
-    return { ok: false, mode: 'live' };
+    if (!upstream.ok) {
+      logger?.warn({
+        event: 'hassio-network.probe.non-ok',
+        url,
+        status: upstream.status,
+      });
+      return { ok: false, mode: 'live', status: upstream.status };
+    }
+    return { ok: true, mode: 'live', status: upstream.status };
+  } catch (err) {
+    const reason = err instanceof Error ? err.message : 'unknown';
+    logger?.error({ event: 'hassio-network.probe.threw', url, reason });
+    return { ok: false, mode: 'live', reason };
   }
 }
 

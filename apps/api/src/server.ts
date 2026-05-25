@@ -118,11 +118,14 @@ export function createServer(deps: ServerDeps): Hono {
   //                                  is set (the proxy will respond
   //                                  503 to wizard calls too).
   app.get('/healthz/supervisor', async (c) => {
-    const probe = await probeSupervisor(deps.config, deps.fetchImpl ?? fetch);
-    return c.json(
-      { status: probe.ok ? 'ok' : 'unavailable', mode: probe.mode },
-      probe.ok ? 200 : 503,
-    );
+    const probe = await probeSupervisor(deps.config, deps.fetchImpl ?? fetch, logger);
+    const body: Record<string, unknown> = {
+      status: probe.ok ? 'ok' : 'unavailable',
+      mode: probe.mode,
+    };
+    if (probe.status !== undefined) body.upstreamStatus = probe.status;
+    if (probe.reason !== undefined) body.reason = probe.reason;
+    return c.json(body, probe.ok ? 200 : 503);
   });
 
   // Build info — useful for the deploy pipeline + manual debugging.

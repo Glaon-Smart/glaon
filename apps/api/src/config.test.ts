@@ -55,6 +55,29 @@ describe('loadConfig', () => {
     expect(config.webOrigins).toEqual(['https://app.glaon.com', 'http://localhost:5173']);
   });
 
+  it('reads HA Supervisor env vars (#598) — URL + token + mock flag', () => {
+    const config = loadConfig({
+      ...REQUIRED_BASE,
+      HA_SUPERVISOR_URL: 'http://supervisor.test/network',
+      HA_SUPERVISOR_TOKEN: 'long-lived',
+      HA_SUPERVISOR_MOCK: 'true',
+    });
+    expect(config.supervisorUrl).toBe('http://supervisor.test/network');
+    expect(config.supervisorToken).toBe('long-lived');
+    expect(config.supervisorMock).toBe(true);
+  });
+
+  it('defaults HA_SUPERVISOR_MOCK to false and leaves URL/token undefined', () => {
+    const config = loadConfig(REQUIRED_BASE);
+    expect(config.supervisorMock).toBe(false);
+    expect(config.supervisorUrl).toBeUndefined();
+    expect(config.supervisorToken).toBeUndefined();
+  });
+
+  it('rejects an invalid HA_SUPERVISOR_URL (not a URL)', () => {
+    expect(() => loadConfig({ ...REQUIRED_BASE, HA_SUPERVISOR_URL: 'not-a-url' })).toThrow();
+  });
+
   it('honors build info env vars', () => {
     const config = loadConfig({
       ...REQUIRED_BASE,

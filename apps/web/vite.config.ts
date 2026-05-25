@@ -88,6 +88,24 @@ export default defineConfig(({ command, mode }) => {
     server: {
       port: 5173,
       strictPort: true,
+      proxy: {
+        // #598 — the setup wizard's apply step calls
+        // `/api/hassio/network/*` for HA Supervisor enumeration +
+        // commit. In dev, apps/web's bundler can't serve those
+        // paths, so route them to apps/api (which has the
+        // hassio-network proxy + mock-mode toggle). The `/api`
+        // prefix is stripped so apps/api's router mounts cleanly
+        // at `/hassio`.
+        //
+        // Production add-on bypasses this — nginx routes
+        // /api/hassio/* directly to the supervisor's Ingress
+        // endpoint, no Vite involved.
+        '/api/hassio': {
+          target: env.VITE_API_BASE_URL ?? 'http://localhost:8080',
+          changeOrigin: true,
+          rewrite: (path: string) => path.replace(/^\/api/, ''),
+        },
+      },
     },
     build: {
       target: 'es2022',

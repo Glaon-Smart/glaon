@@ -29,6 +29,7 @@ function makeDeps(overrides: { dbCommand?: () => Promise<unknown> } = {}): Serve
     sessionJwtSecret: 'a'.repeat(32),
     sessionTtlSeconds: 3600,
     webOrigins: [],
+    supervisorMock: false,
     buildInfo: {
       version: '0.0.0-test',
       commit: 'deadbeef',

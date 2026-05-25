@@ -14,6 +14,7 @@ import { observabilityMiddleware } from './middleware/observability';
 import { createLogger, type Logger } from './observability/logger';
 import { Metrics } from './observability/metrics';
 import { createAuthRouter } from './routes/auth';
+import { createHassioNetworkRouter, probeSupervisor } from './routes/hassio-network';
 import { createLayoutsRouter } from './routes/layouts';
 import { createMeRouter } from './routes/me';
 
@@ -74,6 +75,21 @@ export function createServer(deps: ServerDeps): Hono {
 
   app.route('/me', createMeRouter({ db: deps.db, secret, revocations }));
 
+  // HA Supervisor network proxy (#598). Used by the setup wizard's
+  // apply step in standalone / dev runtimes; the production add-on
+  // bypasses this entirely via its own nginx → supervisor proxy.
+  // See `docs/dev-supervisor.md` + the route header for the
+  // operational guardrails (unauthenticated by design, but CORS-
+  // gated and dev-mode).
+  app.route(
+    '/hassio',
+    createHassioNetworkRouter({
+      config: deps.config,
+      ...(deps.fetchImpl !== undefined ? { fetchImpl: deps.fetchImpl } : {}),
+      logger,
+    }),
+  );
+
   // Liveness probe with Mongo ping. Returns 200 when the driver
   // command succeeds, 503 otherwise so a load balancer can drop the
   // instance from rotation. The metrics gauge is updated on every
@@ -89,6 +105,23 @@ export function createServer(deps: ServerDeps): Hono {
         commit: deps.config.buildInfo.commit,
       },
       result.ok ? 200 : 503,
+    );
+  });
+
+  // Supervisor reachability probe (#598). Returns:
+  //   - 200 + { mode: 'mock' }       when HA_SUPERVISOR_MOCK is on.
+  //   - 200 + { mode: 'live' }       when the real supervisor proxy
+  //                                  answers /network/info OK.
+  //   - 503 + { mode: 'live' }       supervisor configured but not
+  //                                  reachable.
+  //   - 503 + { mode: 'unconfigured' } neither mock nor live config
+  //                                  is set (the proxy will respond
+  //                                  503 to wizard calls too).
+  app.get('/healthz/supervisor', async (c) => {
+    const probe = await probeSupervisor(deps.config, deps.fetchImpl ?? fetch);
+    return c.json(
+      { status: probe.ok ? 'ok' : 'unavailable', mode: probe.mode },
+      probe.ok ? 200 : 503,
     );
   });
 

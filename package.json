@@ -35,7 +35,8 @@
   "pnpm": {
     "overrides": {
       "basic-ftp": ">=5.3.1",
-      "js-cookie": ">=3.0.7"
+      "js-cookie": ">=3.0.7",
+      "tmp": ">=0.2.6"
     }
   },
   "private": true,

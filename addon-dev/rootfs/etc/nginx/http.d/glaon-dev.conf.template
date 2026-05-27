@@ -8,9 +8,18 @@ server {
     # CSP is the production add-on's CSP minus Clerk (the dev add-on is
     # local-only — no cloud auth surface). Wizard apply step + Supervisor
     # proxy are the only flows here.
-    add_header Content-Security-Policy "default-src 'self'; script-src 'self'; style-src 'self' 'unsafe-inline'; connect-src 'self' wss: https:; img-src 'self' data:; font-src 'self'; worker-src 'self' blob:; object-src 'none'; base-uri 'self'; form-action 'self'; frame-ancestors 'none'" always;
+    #
+    # `frame-ancestors 'self'` (not 'none' like production) — HA Ingress
+    # always wraps the add-on UI in an iframe even when "Open Web UI"
+    # opens in a new tab. Parent (HA Core) and iframe (this add-on) both
+    # live on the same origin (everything served via HA Core's port 8123;
+    # only the path prefix `/api/hassio_ingress/<token>/` differs), so
+    # `'self'` is sufficient and X-Frame-Options goes from DENY to
+    # SAMEORIGIN as the same-origin-only complement. Production add-on
+    # (addon/) keeps 'none' / DENY — different deployment story (#613).
+    add_header Content-Security-Policy "default-src 'self'; script-src 'self'; style-src 'self' 'unsafe-inline'; connect-src 'self' wss: https:; img-src 'self' data:; font-src 'self'; worker-src 'self' blob:; object-src 'none'; base-uri 'self'; form-action 'self'; frame-ancestors 'self'" always;
     add_header X-Content-Type-Options "nosniff" always;
-    add_header X-Frame-Options "DENY" always;
+    add_header X-Frame-Options "SAMEORIGIN" always;
     add_header Referrer-Policy "no-referrer" always;
     add_header Permissions-Policy "camera=(), microphone=(), geolocation=()" always;
 

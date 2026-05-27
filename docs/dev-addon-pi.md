@@ -118,7 +118,9 @@ UI üzerinden:
 
 ## 5. Open Web UI
 
-HA UI → Add-on sayfasında **OPEN WEB UI** butonuna bas. Wizard, Ingress URL'i üzerinden açılır (HA kullanıcı oturumu kontrolünde — harici port yok).
+HA UI → Add-on sayfasında **OPEN WEB UI** butonuna bas. Wizard, Ingress URL'i üzerinden açılır (HA kullanıcı oturumu kontrolünde — Ingress'in kendi auth gate'i devrede).
+
+> **LAN portu (#615):** Add-on aynı zamanda nginx'i `8099/tcp` üzerinden LAN'a açar. Bu port **apps/api'nın kendi `/hassio/*` route'unu Pi'deki Supervisor'a yönlendirebilmesi için** var — dev box'tan `HA_SUPERVISOR_URL=http://homeassistant.local:8099/api/hassio` ile kullanılır. Ingress yerine LAN portu kullanıldığında HA oturum kontrolü devreden çıkar; nginx side'ında auth yok — yani LAN'daki herhangi bir cihaz `/api/hassio/network/*` çağırabilir. **Sadece güvenilir LAN için.** Production add-on (`addon/`) bu portu açmaz. Detay: [docs/dev-supervisor.md](dev-supervisor.md#path-1-preferred--glaon-dev-add-on-on-a-pi-615).
 
 ## 6. Doğrulama: gerçek Wi-Fi handoff
 

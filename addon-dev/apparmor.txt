@@ -1,16 +1,23 @@
 #include <tunables/global>
 
-# Glaon dev add-on AppArmor profile (#607). Single foreground process:
-# nginx (serves the web bundle on Ingress + reverse-proxies
-# /api/hassio/network/* to http://supervisor/network/* with the
-# Supervisor-injected token).
+# Glaon dev add-on AppArmor profile (#607, expanded in #609). Single
+# foreground process: nginx (serves the web bundle on Ingress +
+# reverse-proxies /api/hassio/network/* to http://supervisor/network/*
+# with the Supervisor-injected token).
 #
-# This profile intentionally narrower than the production addon/
+# This profile is intentionally narrower than the production addon/
 # profile — no Node, no agent, no /data/options.json writes. The
 # `network inet stream` capability is required for the nginx
 # reverse-proxy connection to `supervisor` (HA's Supervisor service
 # DNS name inside the add-on network). Per-destination ACLs around
 # the container itself are HA Supervisor's job.
+#
+# `init: false` in config.yaml tells Supervisor not to add its own init
+# wrapper, but the HA base image still has s6-overlay's `/init` baked
+# in as the container's ENTRYPOINT. The s6 bootstrap chain
+# (/init → bashio → with-contenv → run.sh) must therefore be
+# permitted by AppArmor, or boot fails with
+# "/bin/sh: can't open '/init': Permission denied" (#609).
 
 profile glaon_dev flags=(attach_disconnected,mediate_deleted) {
   #include <abstractions/base>
@@ -19,16 +26,33 @@ profile glaon_dev flags=(attach_disconnected,mediate_deleted) {
 
   # 8099 binding for nginx Ingress endpoint.
   capability net_bind_service,
+  # bashio's `with-contenv` wrapper inherits the s6 contenv state.
+  capability setuid,
+  capability setgid,
 
   network inet stream,
   network inet6 stream,
   network unix stream,
 
-  # ---- Boot path (run.sh, envsubst) ---------------------------------------
+  # ---- s6-overlay init chain (base image ENTRYPOINT) ----------------------
+  # /init is the s6-overlay PID 1 that the base image runs. It bootstraps
+  # stage 2 from /etc/s6-overlay/** and writes runtime state to /run/s6/**.
+  /init rix,
+  /etc/s6-overlay/** r,
+  /etc/s6/** r,
+  /run/s6/** rw,
+  /run/s6-rc** rw,
+  /var/run/s6/** rw,
+
+  # ---- Boot path (run.sh, bashio, envsubst) -------------------------------
   /run.sh rix,
+  /usr/bin/with-contenv rix,
+  /usr/bin/bashio rix,
   /usr/bin/envsubst rix,
   /usr/bin/env rix,
+  /usr/bin/jq rix,
   /bin/sh rix,
+  /bin/bash rix,
   /etc/services r,
   /etc/passwd r,
   /etc/group r,

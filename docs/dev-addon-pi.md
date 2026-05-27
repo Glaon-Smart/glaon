@@ -74,11 +74,11 @@ UI üzerinden:
 
 1. **Glaon (dev)** kartına tıkla → **Install**. İlk install Pi üzerinde Docker image'ı **lokal olarak build eder** (~1-3 dakika; nginx + gettext apk install adımları log'da görünür).
 2. Install bittiğinde **Start** bas.
-3. **Log** sekmesini aç — şunu görmelisin:
+3. **Log** sekmesini aç — şunu görmelisin (bashio's varsayılan log formatı, `[HH:MM:SS] INFO:` prefix'iyle):
 
    ```
-   [run.sh] Rendering nginx config with Supervisor token...
-   [run.sh] Starting nginx on :8099...
+   [hh:mm:ss] INFO: Rendering nginx config with Supervisor token...
+   [hh:mm:ss] INFO: Starting nginx on :8099...
    ```
 
    `FATAL: SUPERVISOR_TOKEN is not set` görünürse `config.yaml` içinde `hassio_api: true` doğrulanmamış demektir — manifest'i kontrol et.
@@ -109,13 +109,14 @@ Yeni eklenen connection listede görünmeli.
 
 ## Sorun giderme
 
-| Belirti                                        | Olası neden                                                                                                                                                                                                                                    |
-| ---------------------------------------------- | ---------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
-| `Local add-ons` bölümünde Glaon (dev) yok      | `addons/local/glaon_dev/` path'i yanlış (slug eşleşmiyor), `ha addons reload` koşulmamış, ya da `config.yaml` parse hatası var. `ha addons logs glaon_dev` (install öncesi yok ama logs panel) yerine `ha supervisor logs` bakmak gerekebilir. |
-| Install başarısız: "BUILD_FROM not found"      | Pi mimarisi `aarch64` olmalı — `build.yaml` zaten her iki arch için image map'liyor. Pi'de `uname -m` ile doğrula.                                                                                                                             |
-| Log'da `FATAL: SUPERVISOR_TOKEN is not set`    | `config.yaml`'da `hassio_api: true` eksik veya yanlış scope. Manifest'i doğrula, add-on'u kaldırıp tekrar install et.                                                                                                                          |
-| Wi-Fi listesi boş veya mock SSID'ler görünüyor | Mock'a düşmüş — apps/web `VITE_APP_MODE=ingress` ile build edilmemiş olabilir. Build script'ini kontrol et (`apps/web/.env.production`).                                                                                                       |
-| `/api/hassio/network/info` 502                 | nginx Supervisor'a ulaşamıyor. `ha network info` çalışıyor mu? Çalışmıyorsa Supervisor'ın kendisi sorunlu. Çalışıyorsa add-on'un network ayarları (`host_network: false` doğru) gözden geçirilmeli.                                            |
+| Belirti                                                 | Olası neden                                                                                                                                                                                                                                    |
+| ------------------------------------------------------- | ---------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| `Local add-ons` bölümünde Glaon (dev) yok               | `addons/local/glaon_dev/` path'i yanlış (slug eşleşmiyor), `ha addons reload` koşulmamış, ya da `config.yaml` parse hatası var. `ha addons logs glaon_dev` (install öncesi yok ama logs panel) yerine `ha supervisor logs` bakmak gerekebilir. |
+| Install başarısız: "BUILD_FROM not found"               | Pi mimarisi `aarch64` olmalı — `build.yaml` zaten her iki arch için image map'liyor. Pi'de `uname -m` ile doğrula.                                                                                                                             |
+| Log'da `FATAL: SUPERVISOR_TOKEN is not set`             | `config.yaml`'da `hassio_api: true` eksik veya yanlış scope. Manifest'i doğrula, add-on'u kaldırıp tekrar install et.                                                                                                                          |
+| Log'da `/bin/sh: can't open '/init': Permission denied` | Eski (#609 öncesi) build'de görünür: AppArmor profili s6-overlay bootstrap chain'ine izin vermiyordu. Çözüldü — `git pull` ile en güncel `addon-dev/`'i çek, `pnpm build:addon-dev`, Pi'ye tekrar kopyala, `ha addons rebuild glaon_dev`.      |
+| Wi-Fi listesi boş veya mock SSID'ler görünüyor          | Mock'a düşmüş — apps/web `VITE_APP_MODE=ingress` ile build edilmemiş olabilir. Build script'ini kontrol et (`apps/web/.env.production`).                                                                                                       |
+| `/api/hassio/network/info` 502                          | nginx Supervisor'a ulaşamıyor. `ha network info` çalışıyor mu? Çalışmıyorsa Supervisor'ın kendisi sorunlu. Çalışıyorsa add-on'un network ayarları (`host_network: false` doğru) gözden geçirilmeli.                                            |
 
 ## Güvenlik notları
 

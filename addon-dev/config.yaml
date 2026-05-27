@@ -16,8 +16,13 @@ panel_title: Glaon (dev)
 # `$SUPERVISOR_TOKEN` and lets the container reach `http://supervisor/network/*`.
 # The production add-on (`addon/`) keeps this `false` per ADR 0026; this
 # manifest is dev-only and never ships to the HA Add-on store.
+#
+# We deliberately do NOT set `hassio_role` — the default role (which is
+# what the Supervisor assigns when the field is omitted) already permits
+# the /network/* endpoints we proxy. Setting `hassio_role: default`
+# explicitly is redundant noise; setting it to anything else widens
+# privilege past what the proxy actually exposes.
 hassio_api: true
-hassio_role: default
 homeassistant_api: false
 auth_api: false
 host_network: false

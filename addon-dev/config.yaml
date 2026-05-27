@@ -26,6 +26,23 @@ hassio_api: true
 homeassistant_api: false
 auth_api: false
 host_network: false
-apparmor: true
+# AppArmor is intentionally OFF for this dev variant (#609).
+#
+# The HA base image's s6-overlay v3 bootstrap chain (`/init` →
+# `s6-overlay-suexec` → `/package/admin/s6-overlay-*/command/**` →
+# stage-2 service spawns under `/command/**` + dozens of utilities)
+# is too broad to confine usefully — every additional path we
+# whitelist exposes the next denial. Production add-on (`addon/`)
+# keeps `apparmor: true` because it doesn't use `hassio_api: true`
+# and its bootstrap surface is smaller; that's where the hardening
+# matters.
+#
+# This add-on is dev-only, local-only, runs on the developer's own
+# Pi behind HA Ingress, and never ships to end users. Docker's
+# default seccomp + container isolation + the deny-by-default
+# Supervisor network ACLs are the remaining barriers. If the s6
+# story ever simplifies (e.g. HA base drops s6-overlay v3 for a
+# leaner init), revisit and re-enable with a tight profile.
+apparmor: false
 options: {}
 schema: {}

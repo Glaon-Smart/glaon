@@ -1,0 +1,60 @@
+#include <tunables/global>
+
+# Glaon dev add-on AppArmor profile (#607). Single foreground process:
+# nginx (serves the web bundle on Ingress + reverse-proxies
+# /api/hassio/network/* to http://supervisor/network/* with the
+# Supervisor-injected token).
+#
+# This profile intentionally narrower than the production addon/
+# profile — no Node, no agent, no /data/options.json writes. The
+# `network inet stream` capability is required for the nginx
+# reverse-proxy connection to `supervisor` (HA's Supervisor service
+# DNS name inside the add-on network). Per-destination ACLs around
+# the container itself are HA Supervisor's job.
+
+profile glaon_dev flags=(attach_disconnected,mediate_deleted) {
+  #include <abstractions/base>
+  #include <abstractions/nameservice>
+  #include <abstractions/openssl>
+
+  # 8099 binding for nginx Ingress endpoint.
+  capability net_bind_service,
+
+  network inet stream,
+  network inet6 stream,
+  network unix stream,
+
+  # ---- Boot path (run.sh, envsubst) ---------------------------------------
+  /run.sh rix,
+  /usr/bin/envsubst rix,
+  /usr/bin/env rix,
+  /bin/sh rix,
+  /etc/services r,
+  /etc/passwd r,
+  /etc/group r,
+  # envsubst reads the staged nginx template and writes the rendered
+  # config back into /etc/nginx/http.d/glaon-dev.conf at boot.
+  /etc/nginx/http.d/glaon-dev.conf.template r,
+  /etc/nginx/http.d/glaon-dev.conf rw,
+
+  # ---- nginx --------------------------------------------------------------
+  /usr/sbin/nginx rix,
+  /etc/nginx/** r,
+  /var/www/glaon/** r,
+  /var/log/nginx/** w,
+  /var/lib/nginx/** rw,
+  /run/nginx.pid rw,
+  /run/nginx/** rw,
+
+  # ---- Explicit denies for defense-in-depth ------------------------------
+  deny /etc/shadow rw,
+  deny /etc/sudoers rw,
+  deny /root/** rw,
+  deny /data/** rw,
+  deny capability sys_admin,
+  deny capability sys_module,
+  deny capability sys_ptrace,
+  deny capability dac_override,
+  deny capability mac_admin,
+  deny capability mac_override,
+}

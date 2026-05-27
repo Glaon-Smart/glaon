@@ -1,0 +1,26 @@
+name: Glaon (dev)
+version: '0.0.0-dev'
+slug: glaon_dev
+description: Glaon dev add-on — wires the setup wizard to a real HA Supervisor for Wi-Fi handoff testing on a dev HA OS box. NOT for production.
+url: https://github.com/Glaon-Smart/glaon
+arch:
+  - amd64
+  - aarch64
+init: false
+ingress: true
+ingress_port: 8099
+ingress_stream: false
+panel_icon: mdi:home-flood
+panel_title: Glaon (dev)
+# `hassio_api: true` is the whole point of this dev variant — it injects
+# `$SUPERVISOR_TOKEN` and lets the container reach `http://supervisor/network/*`.
+# The production add-on (`addon/`) keeps this `false` per ADR 0026; this
+# manifest is dev-only and never ships to the HA Add-on store.
+hassio_api: true
+hassio_role: default
+homeassistant_api: false
+auth_api: false
+host_network: false
+apparmor: true
+options: {}
+schema: {}

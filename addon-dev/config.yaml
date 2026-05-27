@@ -44,5 +44,32 @@ host_network: false
 # story ever simplifies (e.g. HA base drops s6-overlay v3 for a
 # leaner init), revisit and re-enable with a tight profile.
 apparmor: false
+# LAN-exposed port for apps/api integration (#615).
+#
+# Ingress is enough for the browser wizard, but apps/api running on a
+# dev box (laptop) can't mint Ingress tokens — those are ephemeral and
+# session-bound to a browser cookie. To let apps/api point its
+# HA_SUPERVISOR_URL at a real Supervisor, the add-on additionally
+# exposes nginx on a LAN port. Same nginx config handles both paths:
+# Ingress requests come through HA Core's wrapper, LAN requests hit
+# the container directly. Either way the `/api/hassio/network/`
+# location block overrides the incoming Authorization header with
+# the injected $SUPERVISOR_TOKEN, so apps/api can send a placeholder
+# token without weakening Supervisor's auth.
+#
+# Security trade-off: anything on the LAN can hit
+# http://homeassistant.local:8099/api/hassio/network/* and commit
+# Wi-Fi changes via Supervisor. This is dev-only, trusted-LAN
+# posture — production add-on (`addon/`) does NOT expose any LAN
+# port. If a real concern surfaces, a follow-up issue adds a
+# shared-secret header check in nginx.
+#
+# `null` host port lets HA pick (and is also a valid disclosure
+# pattern). We set "8099" for predictability; user can edit in HA
+# UI if the host port conflicts.
+ports:
+  '8099/tcp': 8099
+ports_description:
+  '8099/tcp': nginx (apps/api dev integration — LAN-trusted, see docs/dev-supervisor.md)
 options: {}
 schema: {}

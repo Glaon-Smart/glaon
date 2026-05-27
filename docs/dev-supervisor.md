@@ -44,6 +44,35 @@ Mock mode is enough for most wizard work. Switch to live when you need
 to verify the actual network-update path — e.g. credentials really
 apply, real APs come back from the scan.
 
+> **Important — user LLTs cannot reach `/api/hassio/*` (#602).** Long-lived access tokens authenticate against HA Core's REST API but the `/api/hassio/*` Supervisor proxy only accepts the Supervisor-internal token (which is injected into add-ons with `hassio_api: true`, never available outside). Any external client (apps/api on a dev box, curl from your laptop, etc.) using an LLT against `http://homeassistant.local:8123/api/hassio/*` will 401 — that's HA by-design, not a misconfig. The two real-Supervisor paths below either run **inside an add-on** (browser wizard via Ingress) or **bounce through one** (apps/api via the dev add-on's LAN port).
+
+### Path 1 (preferred) — Glaon dev add-on on a Pi (#615)
+
+The dev add-on (`addon-dev/`) is a sibling of the production add-on. It runs nginx inside an add-on container with `hassio_api: true`, so it gets the real `$SUPERVISOR_TOKEN`. The browser wizard talks to it via HA Ingress; **apps/api** on your dev box talks to it via a LAN port the add-on exposes specifically for this purpose.
+
+Full Pi install runbook: [`docs/dev-addon-pi.md`](dev-addon-pi.md). Once the add-on is running:
+
+```bash
+# apps/api/.env on the dev box
+HA_SUPERVISOR_URL=http://homeassistant.local:8099/api/hassio
+HA_SUPERVISOR_TOKEN=via-addon-proxy   # placeholder — nginx overrides
+```
+
+```bash
+# from anywhere on the LAN
+curl http://localhost:8080/healthz/supervisor
+# { "status": "ok", "mode": "live" }
+
+curl http://localhost:8080/hassio/network/info | jq '.data.interfaces[0].accesspoints | length'
+# real AP count from the Pi
+```
+
+Security trade-off: anything on the LAN can hit `http://homeassistant.local:8099/api/hassio/network/*` and commit Wi-Fi changes. Dev-only, trusted-LAN posture. Production add-on (`addon/`) doesn't expose any LAN port.
+
+### Path 2 — UTM HA OS on macOS (browser wizard only)
+
+Use this when you don't have a Pi handy and need to test the browser wizard against a real Supervisor. **apps/api integration via this path is broken** (LLT 401 against `/api/hassio/*`, see the box above); browser path works because HA Ingress generates session-bound tokens for it.
+
 ### Why not `apps/dev-ha/`?
 
 The fixture in `apps/dev-ha/` runs **HA Core** (the standalone Python
@@ -54,20 +83,13 @@ Supervisor.
 
 You need one of:
 
-1. **HA OS in UTM** (macOS dev — easiest path; covered below).
-2. **HA OS in a VM** (VirtualBox / VMware / Proxmox / Hyper-V).
-3. **HA Supervised** running natively on a Linux host.
-4. **The actual production add-on** running on a real Home Assistant
+1. **Glaon dev add-on on a Pi** (preferred — works for both browser wizard AND apps/api integration; #615 / [docs/dev-addon-pi.md](dev-addon-pi.md)).
+2. **HA OS in UTM** (macOS dev — browser wizard only; apps/api integration won't work via this path due to the LLT 401 problem).
+3. **HA OS in a VM** (VirtualBox / VMware / Proxmox / Hyper-V).
+4. **HA Supervised** running natively on a Linux host.
+5. **The actual production add-on** running on a real Home Assistant
    instance — your dev box runs apps/api + apps/web against it over
    the LAN.
-5. **The Glaon dev add-on** (`addon-dev/`, #607). When live mode below
-   keeps 401-ing on `/api/hassio/*` (it will — see "User-LLT vs
-   Supervisor token" below), this is the only path that actually
-   exercises a real Supervisor + real Wi-Fi. Skips the apps/api proxy
-   entirely; the dev add-on's nginx forwards `/api/hassio/network/*`
-   to `http://supervisor/network/*` from _inside_ the add-on container,
-   where `$SUPERVISOR_TOKEN` works. Setup runbook:
-   [docs/dev-addon-pi.md](dev-addon-pi.md).
 
 ### Live mode: HA OS in UTM (#602)
 

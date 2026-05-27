@@ -1,0 +1,8 @@
+build_from:
+  amd64: ghcr.io/home-assistant/amd64-base:3.21
+  aarch64: ghcr.io/home-assistant/aarch64-base:3.21
+labels:
+  org.opencontainers.image.title: Glaon (dev)
+  org.opencontainers.image.description: Dev-only Glaon add-on with HA Supervisor proxy for wizard testing.
+  org.opencontainers.image.source: https://github.com/Glaon-Smart/glaon
+  org.opencontainers.image.licenses: MIT

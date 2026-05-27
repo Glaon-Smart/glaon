@@ -60,6 +60,14 @@ You need one of:
 4. **The actual production add-on** running on a real Home Assistant
    instance — your dev box runs apps/api + apps/web against it over
    the LAN.
+5. **The Glaon dev add-on** (`addon-dev/`, #607). When live mode below
+   keeps 401-ing on `/api/hassio/*` (it will — see "User-LLT vs
+   Supervisor token" below), this is the only path that actually
+   exercises a real Supervisor + real Wi-Fi. Skips the apps/api proxy
+   entirely; the dev add-on's nginx forwards `/api/hassio/network/*`
+   to `http://supervisor/network/*` from _inside_ the add-on container,
+   where `$SUPERVISOR_TOKEN` works. Setup runbook:
+   [docs/dev-addon-pi.md](dev-addon-pi.md).
 
 ### Live mode: HA OS in UTM (#602)
 
@@ -105,9 +113,19 @@ curl http://localhost:8080/healthz/supervisor
 # {"status":"ok","mode":"live"}
 ```
 
-If you get `{ mode: 'live' }` with `status: 'unavailable'`, the
-URL or token is wrong (or `homeassistant.local` doesn't resolve from
-the host — check `ping homeassistant.local`).
+If you get `{ mode: 'live' }` with `status: 'unavailable'` and
+`upstreamStatus: 401`, the URL + token are reaching HA but HA is
+rejecting the auth on the `/api/hassio/*` path. **This is HA's
+by-design behaviour** — the Supervisor REST proxy only accepts the
+add-on-injected `$SUPERVISOR_TOKEN`, never an external user LLT —
+not a token misconfiguration. For most dev work mock mode is fine;
+when you specifically need real Supervisor + real Wi-Fi, switch to
+the Glaon dev add-on path (#607,
+[docs/dev-addon-pi.md](dev-addon-pi.md)).
+
+If `upstreamStatus` is anything else (404, 502, timeout), the URL is
+wrong or `homeassistant.local` doesn't resolve from the host — check
+`ping homeassistant.local`.
 
 **6. Walk the wizard.** Open `http://localhost:5173`, walk to the
 apply step, you should see the actual Wi-Fi networks the UTM VM can

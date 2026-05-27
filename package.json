@@ -35,7 +35,8 @@
   "pnpm": {
     "overrides": {
       "basic-ftp": ">=5.3.1",
-      "js-cookie": ">=3.0.7"
+      "js-cookie": ">=3.0.7",
+      "tmp": ">=0.2.6"
     }
   },
   "private": true,
@@ -43,6 +44,7 @@
   "scripts": {
     "build": "turbo run build",
     "build:addon": "pnpm --filter @glaon/web build:addon && pnpm --filter @glaon/addon-agent build && rm -rf addon/dist addon/agent && cp -R apps/web/dist addon/dist && mkdir -p addon/agent && cp apps/addon-agent/dist/agent.cjs addon/agent/agent.cjs && cp -R apps/addon-agent/dist/static addon/agent/static",
+    "build:addon-dev": "pnpm --filter @glaon/web build:addon && rm -rf addon-dev/dist && cp -R apps/web/dist addon-dev/dist",
     "build:api": "pnpm --filter @glaon/api build",
     "build:cloud": "pnpm --filter @glaon/cloud build",
     "clean": "turbo run clean && rm -rf node_modules .turbo",

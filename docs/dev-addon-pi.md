@@ -117,6 +117,37 @@ UI üzerinden:
 >
 > `ha apps rebuild local_glaon_dev` da kullanılabilir ama manifest değişikliklerinde (apparmor flag, hassio_api, **hassio_role**) uninstall-reinstall daha güvenli.
 
+## 4.5. Koruma modunu kapat (ZORUNLU — Wi-Fi tarama için)
+
+Add-on `hassio_role: admin` ister, ama HA'nın **Koruma modu (Protection mode)** açıkken (varsayılan) Supervisor add-on'u base role'e indirir — `/network/info` çalışır ama tarama (`/network/interface/{iface}/accesspoints`) ve commit (`/update`) **403** döner (#624). Koruma modu bir add-on option'ı değildir (HA güvenlik tasarımı); install sonrası **manuel** kapatılması gerekir.
+
+**En kolay yol — helper script** (HA Terminal / Advanced SSH add-on içinde, `$SUPERVISOR_TOKEN` orada):
+
+```bash
+bash /addons/local/glaon_dev/scripts/dev-grant-network.sh
+```
+
+Script koruma modunu kapatır, add-on'u restart eder, sonucu yazar (`protected: false` beklenir).
+
+**Fallback 1 — Supervisor API curl** (aynı terminalde):
+
+```bash
+curl -fsS -X POST -H "Authorization: Bearer ${SUPERVISOR_TOKEN}" \
+  -H "Content-Type: application/json" -d '{"protection": false}' \
+  http://supervisor/addons/local_glaon_dev/security
+ha apps restart local_glaon_dev
+```
+
+**Fallback 2 — UI:** Profil → **Gelişmiş Mod**'u aç → Add-on Info sayfası → sağ üst **⋮** menü veya sayfadaki **Koruma modu** toggle → kapat. (Bazı HA build'lerinde toggle UI'da hiç görünmez; o zaman script/curl kullan.)
+
+Doğrula:
+
+```bash
+ha apps info local_glaon_dev | grep -i protected   # protected: false
+```
+
+> `ha apps` CLI'sında `security`/`--protection` subcommand'i **yok**; UI toggle'ı da güvenilmez. Script + curl yolu en sağlamı.
+
 ## 5. Open Web UI
 
 HA UI → Add-on sayfasında **OPEN WEB UI** butonuna bas. Wizard, Ingress URL'i üzerinden açılır (HA kullanıcı oturumu kontrolünde — Ingress'in kendi auth gate'i devrede).
@@ -145,17 +176,17 @@ Yeni eklenen connection listede görünmeli.
 
 ## Sorun giderme
 
-| Belirti                                                             | Olası neden                                                                                                                                                                                                                                                                                                                                 |
-| ------------------------------------------------------------------- | ------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
-| `Local add-ons` bölümünde Glaon (dev) yok                           | `addons/local/glaon_dev/` path'i yanlış (en sık sebep: rsync hedefinde `/local/` segmenti unutulmuş — yukarı bak), slug eşleşmiyor, `ha apps reload` koşulmamış, ya da `config.yaml` parse hatası var. `ha supervisor logs` parse hatalarını gösterir.                                                                                      |
-| Install başarısız: "BUILD_FROM not found"                           | Pi mimarisi `aarch64` olmalı — `build.yaml` zaten her iki arch için image map'liyor. Pi'de `uname -m` ile doğrula.                                                                                                                                                                                                                          |
-| Log'da `FATAL: SUPERVISOR_TOKEN is not set`                         | `config.yaml`'da `hassio_api: true` eksik veya yanlış scope. Manifest'i doğrula, add-on'u kaldırıp tekrar install et.                                                                                                                                                                                                                       |
-| Log'da `/bin/sh: can't open '/init': Permission denied`             | Eski (#609 öncesi, AppArmor on) build'de çıkıyordu. Şimdi `apparmor: false` dev variant'ta — bu hatayı görüyorsan Pi'deki kaynaklar hâlâ eski. `head -1 /addons/local/glaon_dev/rootfs/run.sh` çıktısı `#!/usr/bin/with-contenv bashio` olmalı; değilse rsync hedefini + `ha apps rebuild` adımını tekrarla.                                |
-| Log'da `/init: exec: line 45: s6-overlay-suexec: Permission denied` | Aynı kök sebep — AppArmor s6-overlay v3 zincirini engelliyor. #611 ile `apparmor: false` yapıldı; eski install'ı silip yeniden install et (`ha apps uninstall local_glaon_dev && ha apps reload && ha apps install local_glaon_dev`). Rebuild tek başına AppArmor profile'ını yenilemiyor.                                                  |
-| `App glaon_dev does not exist` (CLI)                                | HA CLI local add-on'ları `local_<slug>` prefix'iyle saklıyor. `ha apps rebuild local_glaon_dev` (önekli) doğru komut.                                                                                                                                                                                                                       |
-| `403 Forbidden` (gövde `403: Forbidden`) accesspoints/update'te     | Add-on rolü yetersiz (#622). HA Supervisor `/network/.+` endpoint'lerini `manager`/`admin` rolüne kapatıyor; varsayılan rol yalnız `GET /network/info`'ya izin verir. `config.yaml`'da `hassio_role: admin` olduğundan emin ol; manifest değiştiğinde uninstall + reload + install ile yeniden kur (rebuild rol değişikliğini almayabilir). |
-| Wi-Fi listesi boş ama HA UI ağları buluyor                          | Eski (#622 öncesi) build: AP'ler `/network/info`'dan okunuyordu ama Supervisor onları orada döndürmüyor. Düzeldi — tarama artık `/network/interface/{iface}/accesspoints`'ten gelir. Pi'deki kaynakları güncelle + yeniden install et.                                                                                                      |
-| `/api/hassio/network/info` 502                                      | nginx Supervisor'a ulaşamıyor. `ha network info` çalışıyor mu? Çalışmıyorsa Supervisor'ın kendisi sorunlu. Çalışıyorsa add-on'un network ayarları (`host_network: false` doğru) gözden geçirilmeli.                                                                                                                                         |
+| Belirti                                                             | Olası neden                                                                                                                                                                                                                                                                                                                                                  |
+| ------------------------------------------------------------------- | ------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------ |
+| `Local add-ons` bölümünde Glaon (dev) yok                           | `addons/local/glaon_dev/` path'i yanlış (en sık sebep: rsync hedefinde `/local/` segmenti unutulmuş — yukarı bak), slug eşleşmiyor, `ha apps reload` koşulmamış, ya da `config.yaml` parse hatası var. `ha supervisor logs` parse hatalarını gösterir.                                                                                                       |
+| Install başarısız: "BUILD_FROM not found"                           | Pi mimarisi `aarch64` olmalı — `build.yaml` zaten her iki arch için image map'liyor. Pi'de `uname -m` ile doğrula.                                                                                                                                                                                                                                           |
+| Log'da `FATAL: SUPERVISOR_TOKEN is not set`                         | `config.yaml`'da `hassio_api: true` eksik veya yanlış scope. Manifest'i doğrula, add-on'u kaldırıp tekrar install et.                                                                                                                                                                                                                                        |
+| Log'da `/bin/sh: can't open '/init': Permission denied`             | Eski (#609 öncesi, AppArmor on) build'de çıkıyordu. Şimdi `apparmor: false` dev variant'ta — bu hatayı görüyorsan Pi'deki kaynaklar hâlâ eski. `head -1 /addons/local/glaon_dev/rootfs/run.sh` çıktısı `#!/usr/bin/with-contenv bashio` olmalı; değilse rsync hedefini + `ha apps rebuild` adımını tekrarla.                                                 |
+| Log'da `/init: exec: line 45: s6-overlay-suexec: Permission denied` | Aynı kök sebep — AppArmor s6-overlay v3 zincirini engelliyor. #611 ile `apparmor: false` yapıldı; eski install'ı silip yeniden install et (`ha apps uninstall local_glaon_dev && ha apps reload && ha apps install local_glaon_dev`). Rebuild tek başına AppArmor profile'ını yenilemiyor.                                                                   |
+| `App glaon_dev does not exist` (CLI)                                | HA CLI local add-on'ları `local_<slug>` prefix'iyle saklıyor. `ha apps rebuild local_glaon_dev` (önekli) doğru komut.                                                                                                                                                                                                                                        |
+| `403 Forbidden` (gövde `403: Forbidden`) accesspoints/update'te     | İki sebep: (a) `config.yaml`'da `hassio_role: admin` yok (#622) — manifest'i doğrula, uninstall+install et; (b) **Koruma modu açık** (#624) — admin rolü inert kalır, §4.5'teki script ile kapat. `/network/info` çalışıp accesspoints 403 dönüyorsa neredeyse kesin (b): `ha apps info local_glaon_dev \| grep protected` → `true` ise koruma modunu kapat. |
+| Wi-Fi listesi boş ama HA UI ağları buluyor                          | Eski (#622 öncesi) build: AP'ler `/network/info`'dan okunuyordu ama Supervisor onları orada döndürmüyor. Düzeldi — tarama artık `/network/interface/{iface}/accesspoints`'ten gelir. Pi'deki kaynakları güncelle + yeniden install et.                                                                                                                       |
+| `/api/hassio/network/info` 502                                      | nginx Supervisor'a ulaşamıyor. `ha network info` çalışıyor mu? Çalışmıyorsa Supervisor'ın kendisi sorunlu. Çalışıyorsa add-on'un network ayarları (`host_network: false` doğru) gözden geçirilmeli.                                                                                                                                                          |
 
 ## Güvenlik notları
 

@@ -67,6 +67,67 @@ export const WifiConfigSchema = z.object({
 });
 export type WifiConfig = z.infer<typeof WifiConfigSchema>;
 
+/**
+ * Supervisor IP-method vocabulary (matches HA's `ipv4`/`ipv6` `method`):
+ * `auto` = DHCP / SLAAC, `static` = manual addressing, `disabled` = no
+ * addressing on this family.
+ */
+export const IpMethodSchema = z.enum(['auto', 'static', 'disabled']);
+export type IpMethod = z.infer<typeof IpMethodSchema>;
+
+/**
+ * Per-family (IPv4 or IPv6) addressing for one interface, mirroring the
+ * HA Supervisor block. `address`/`gateway`/`nameservers` are only
+ * meaningful when `method === 'static'`. The schema enforces *shape*
+ * (non-empty strings), not IP semantics — friendlier per-field IP-format
+ * validation lives in the wizard's form layer, the same split that keeps
+ * `country` the only regex-validated field on DeviceConfig.
+ */
+export const IpConfigSchema = z.object({
+  method: IpMethodSchema,
+  /** CIDR strings, e.g. "192.168.1.50/24". Present for static config. */
+  address: z.array(z.string().min(1)).max(8).optional(),
+  gateway: z.string().min(1).optional(),
+  /** DNS servers, in priority order. */
+  nameservers: z.array(z.string().min(1)).max(8).optional(),
+});
+export type IpConfig = z.infer<typeof IpConfigSchema>;
+
+/**
+ * One network interface's collected IP config. `name` matches the
+ * Supervisor interface id (e.g. "end0", "wlan0"). Wi-Fi credentials stay
+ * on `DeviceConfig.wifi`; this block is wired/wireless addressing only.
+ */
+export const InterfaceConfigSchema = z.object({
+  name: z.string().min(1),
+  ipv4: IpConfigSchema.optional(),
+  ipv6: IpConfigSchema.optional(),
+});
+export type InterfaceConfig = z.infer<typeof InterfaceConfigSchema>;
+
+/**
+ * Device-level network settings collected in the wizard's Network step
+ * (#629): the LAN hostname + per-interface IPv4/IPv6. Fully optional and
+ * additive — blobs written before this field parse clean, so no
+ * `schemaVersion` bump (same reasoning as latitude/longitude/layout).
+ */
+export const NetworkConfigSchema = z.object({
+  /**
+   * RFC 1123 hostname label: 1–63 chars of letters, digits, and hyphens,
+   * with no leading or trailing hyphen. Case is preserved here; the
+   * Supervisor lowercases and re-validates host-side on commit.
+   */
+  hostname: z
+    .string()
+    .regex(
+      /^[A-Za-z0-9]([A-Za-z0-9-]{0,61}[A-Za-z0-9])?$/,
+      'hostname must be an RFC 1123 label (1–63 chars: letters, digits, hyphen; no leading/trailing hyphen)',
+    )
+    .optional(),
+  interfaces: z.array(InterfaceConfigSchema).max(16).optional(),
+});
+export type NetworkConfig = z.infer<typeof NetworkConfigSchema>;
+
 export const DeviceConfigSchema = z
   .object({
     schemaVersion: z.literal(DEVICE_CONFIG_SCHEMA_VERSION),
@@ -107,6 +168,13 @@ export const DeviceConfigSchema = z
      */
     layout: LayoutSchema.optional(),
     wifi: WifiConfigSchema.optional(),
+    /**
+     * LAN hostname + per-interface IPv4/IPv6 collected in the wizard's
+     * Network step (#629). Optional + additive; see NetworkConfigSchema.
+     * The terminal commit pushes hostname to the Supervisor host API and
+     * the IP config to `/network/interface/{iface}/update`.
+     */
+    network: NetworkConfigSchema.optional(),
     /** SHA-256 hex (64 lowercase hex chars). Plaintext PIN never leaves the device. */
     securityPinHash: z
       .string()

@@ -4,7 +4,11 @@ import {
   DEVICE_CONFIG_SCHEMA_VERSION,
   DeviceConfigSchema,
   FloorSchema,
+  InterfaceConfigSchema,
+  IpConfigSchema,
+  IpMethodSchema,
   LayoutSchema,
+  NetworkConfigSchema,
   RoomSchema,
   RoomTypeSchema,
   UnitSystemSchema,
@@ -46,6 +50,22 @@ describe('DeviceConfigSchema', () => {
         ],
       },
       wifi: { ssid: 'home', passwordCipher: 'AES-GCM:abc123' },
+      network: {
+        hostname: 'glaon-wall',
+        interfaces: [
+          {
+            name: 'end0',
+            ipv4: {
+              method: 'static' as const,
+              address: ['192.168.1.50/24'],
+              gateway: '192.168.1.1',
+              nameservers: ['1.1.1.1', '8.8.8.8'],
+            },
+            ipv6: { method: 'auto' as const },
+          },
+          { name: 'wlan0', ipv4: { method: 'auto' as const } },
+        ],
+      },
       securityPinHash: 'a'.repeat(64),
       completedAt: '2026-05-17T18:30:00.000Z',
     } as const;
@@ -133,6 +153,40 @@ describe('DeviceConfigSchema', () => {
       }),
     ).toThrow();
   });
+
+  it('accepts a network block with hostname + static/auto interfaces', () => {
+    const network = {
+      hostname: 'glaon-wall',
+      interfaces: [
+        {
+          name: 'end0',
+          ipv4: { method: 'static' as const, address: ['10.0.0.5/24'], gateway: '10.0.0.1' },
+        },
+        { name: 'wlan0', ipv4: { method: 'auto' as const } },
+      ],
+    };
+    expect(
+      DeviceConfigSchema.parse({ schemaVersion: DEVICE_CONFIG_SCHEMA_VERSION, network }),
+    ).toEqual({ schemaVersion: DEVICE_CONFIG_SCHEMA_VERSION, network });
+  });
+
+  it('rejects an invalid hostname (leading hyphen)', () => {
+    expect(() =>
+      DeviceConfigSchema.parse({
+        schemaVersion: DEVICE_CONFIG_SCHEMA_VERSION,
+        network: { hostname: '-glaon' },
+      }),
+    ).toThrow(/RFC 1123/);
+  });
+
+  it('rejects a network interface with an empty name', () => {
+    expect(() =>
+      DeviceConfigSchema.parse({
+        schemaVersion: DEVICE_CONFIG_SCHEMA_VERSION,
+        network: { interfaces: [{ name: '', ipv4: { method: 'auto' } }] },
+      }),
+    ).toThrow();
+  });
 });
 
 describe('LayoutSchema', () => {
@@ -197,5 +251,71 @@ describe('WifiConfigSchema', () => {
       ssid: 'home',
       passwordCipher: 'x',
     });
+  });
+});
+
+describe('IpMethodSchema', () => {
+  it('accepts auto, static, and disabled', () => {
+    expect(IpMethodSchema.parse('auto')).toBe('auto');
+    expect(IpMethodSchema.parse('static')).toBe('static');
+    expect(IpMethodSchema.parse('disabled')).toBe('disabled');
+  });
+
+  it('rejects anything else', () => {
+    expect(() => IpMethodSchema.parse('dhcp')).toThrow();
+  });
+});
+
+describe('IpConfigSchema', () => {
+  it('accepts a bare auto entry', () => {
+    expect(IpConfigSchema.parse({ method: 'auto' })).toEqual({ method: 'auto' });
+  });
+
+  it('round-trips a full static entry', () => {
+    const entry = {
+      method: 'static' as const,
+      address: ['192.168.1.50/24'],
+      gateway: '192.168.1.1',
+      nameservers: ['1.1.1.1'],
+    };
+    expect(IpConfigSchema.parse(entry)).toEqual(entry);
+  });
+
+  it('requires a method', () => {
+    expect(() => IpConfigSchema.parse({ address: ['10.0.0.1/24'] })).toThrow();
+  });
+
+  it('rejects an empty address string', () => {
+    expect(() => IpConfigSchema.parse({ method: 'static', address: [''] })).toThrow();
+  });
+});
+
+describe('InterfaceConfigSchema', () => {
+  it('accepts an interface with only a name', () => {
+    expect(InterfaceConfigSchema.parse({ name: 'end0' })).toEqual({ name: 'end0' });
+  });
+
+  it('rejects an empty interface name', () => {
+    expect(() => InterfaceConfigSchema.parse({ name: '' })).toThrow();
+  });
+});
+
+describe('NetworkConfigSchema', () => {
+  it('accepts an empty block', () => {
+    expect(NetworkConfigSchema.parse({})).toEqual({});
+  });
+
+  it('accepts a 63-char hostname but rejects 64', () => {
+    expect(NetworkConfigSchema.parse({ hostname: 'a'.repeat(63) })).toBeDefined();
+    expect(() => NetworkConfigSchema.parse({ hostname: 'a'.repeat(64) })).toThrow(/RFC 1123/);
+  });
+
+  it('rejects a hostname with an underscore or space', () => {
+    expect(() => NetworkConfigSchema.parse({ hostname: 'glaon_wall' })).toThrow(/RFC 1123/);
+    expect(() => NetworkConfigSchema.parse({ hostname: 'glaon wall' })).toThrow(/RFC 1123/);
+  });
+
+  it('rejects a trailing hyphen', () => {
+    expect(() => NetworkConfigSchema.parse({ hostname: 'glaon-' })).toThrow(/RFC 1123/);
   });
 });

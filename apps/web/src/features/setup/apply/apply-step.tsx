@@ -36,6 +36,7 @@ import { Button, PasswordInput, useToast } from '@glaon/ui';
 import { useCallback, useEffect, useId, useMemo, useState, type ReactNode } from 'react';
 import { useTranslation } from 'react-i18next';
 
+import type { ApplyHaResponse } from '@glaon/core/api-client';
 import type { DeviceConfigInput, Layout } from '@glaon/core/config';
 
 import { useDeviceConfig } from '../../../config/config-provider';
@@ -58,6 +59,10 @@ interface ApplyStepProps {
 const SUPERVISOR_NETWORK_INTERFACE = 'wlan0';
 const SUPERVISOR_NETWORK_UPDATE = `/api/hassio/network/${SUPERVISOR_NETWORK_INTERFACE}/update`;
 const SUPERVISOR_NETWORK_INFO = '/api/hassio/network/info';
+
+// #617 — apps/api endpoint that pushes the collected home settings into
+// HA Core (config/core/update + floor/area registry) over WebSocket.
+const HA_APPLY_SETTINGS = '/api/setup/apply-ha';
 
 // Hard-coded URL the QR code encodes. The mDNS responder advertises
 // the device under `glaon.local` on the home network (addon-side
@@ -133,6 +138,58 @@ async function pushWifiToSupervisor({ ssid, password, secured }: PushWifiArgs): 
   if (!response.ok) {
     throw new Error(`Supervisor responded ${String(response.status)}`);
   }
+}
+
+/**
+ * Outcome of pushing the collected home settings into HA Core (#617).
+ *   - `ok`       every command landed.
+ *   - `skipped`  apps/api has no HA Core configured (503) — expected in
+ *                dev when HA_CORE_* is unset; not a user-facing error.
+ *   - `partial`  some commands failed (HA reachable, rejected a step).
+ *   - `error`    couldn't reach apps/api / HA, or a malformed response.
+ */
+type HaApplyOutcome =
+  | { readonly kind: 'ok' }
+  | { readonly kind: 'skipped' }
+  | { readonly kind: 'partial' }
+  | { readonly kind: 'error' };
+
+/**
+ * POST the wizard's home settings to apps/api, which pushes them into HA
+ * Core over WebSocket. The room/floor extras (ids, room `type`) ride
+ * along — apps/api's Zod schema strips anything it doesn't consume.
+ * Non-blocking by contract: callers decide what a non-`ok`/`skipped`
+ * outcome means for the commit ceremony.
+ */
+async function pushSettingsToHa(collected: DeviceConfigInput): Promise<HaApplyOutcome> {
+  const body: Record<string, unknown> = {};
+  if (collected.latitude !== undefined) body.latitude = collected.latitude;
+  if (collected.longitude !== undefined) body.longitude = collected.longitude;
+  if (collected.unitSystem !== undefined) body.unitSystem = collected.unitSystem;
+  if (collected.timezone !== undefined) body.timezone = collected.timezone;
+  if (collected.country !== undefined) body.country = collected.country;
+  if (collected.locale !== undefined) body.locale = collected.locale;
+  if (collected.layout !== undefined) body.layout = collected.layout;
+
+  // Nothing collected that maps to HA → no-op success.
+  if (Object.keys(body).length === 0) return { kind: 'ok' };
+
+  let response: Response;
+  try {
+    response = await fetch(HA_APPLY_SETTINGS, {
+      method: 'POST',
+      credentials: 'include',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify(body),
+    });
+  } catch {
+    return { kind: 'error' };
+  }
+  if (response.status === 503) return { kind: 'skipped' };
+  if (!response.ok) return { kind: 'error' };
+  const json = (await response.json().catch(() => null)) as ApplyHaResponse | null;
+  if (json === null) return { kind: 'error' };
+  return json.ok ? { kind: 'ok' } : { kind: 'partial' };
 }
 
 // =============================================================
@@ -218,6 +275,26 @@ export function ApplyStep({ collected }: ApplyStepProps): ReactNode {
 
   async function runCommit(secureWifiPassword: string): Promise<void> {
     setHandoffPhase('committing');
+
+    // Push home settings to HA *before* the Wi-Fi handoff (#617). This
+    // step is non-destructive and the network is still stable, so a
+    // failure can abort cleanly before we switch Wi-Fi. A `skipped`
+    // outcome (apps/api has no HA Core configured — dev) is fine and
+    // proceeds silently; only a hard failure / partial apply stops the
+    // ceremony so the user can retry without a half-applied home.
+    if (!isStandaloneMode()) {
+      const haOutcome = await pushSettingsToHa(collected);
+      if (haOutcome.kind === 'error' || haOutcome.kind === 'partial') {
+        setHandoffPhase(passwordRequired ? 'confirming' : 'idle');
+        toast.show({
+          intent: 'danger',
+          title: t('setup.apply.haSettingsFailed.title'),
+          description: t('setup.apply.haSettingsFailed.description'),
+        });
+        return;
+      }
+    }
+
     try {
       // The plaintext password lives in the modal's confirm field
       // (`secureWifiPassword`) — used as-is for the supervisor POST

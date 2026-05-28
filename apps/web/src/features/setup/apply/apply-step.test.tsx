@@ -56,6 +56,33 @@ const sampleSupervisorPayload = {
   },
 };
 
+/** Default success response for the HA-settings push (#617). */
+const haApplyOk = { ok: true, steps: [] };
+
+/**
+ * URL-aware default mock: the wizard's commit fires two POSTs —
+ * `/api/setup/apply-ha` (HA config push) then the supervisor wifi
+ * update — plus the GET network scan. Route each so one doesn't get the
+ * other's payload.
+ */
+function defaultFetch(url: unknown): Promise<Response> {
+  const u = String(url);
+  if (u.includes('/api/setup/apply-ha')) {
+    return Promise.resolve(mockFetchResponse({ json: haApplyOk }));
+  }
+  return Promise.resolve(mockFetchResponse({ json: sampleSupervisorPayload }));
+}
+
+/** Find the supervisor wifi-update POST specifically (not the apply-ha POST). */
+function findWifiPost(): unknown[] | undefined {
+  const calls = (global.fetch as unknown as { mock: { calls: unknown[][] } }).mock.calls;
+  return calls.find(
+    ([url, init]) =>
+      (init as { method?: string } | undefined)?.method === 'POST' &&
+      String(url).includes('/hassio/'),
+  );
+}
+
 const reloadSpy = vi.fn();
 
 beforeEach(() => {
@@ -66,7 +93,7 @@ beforeEach(() => {
   reloadSpy.mockReset();
   vi.stubGlobal(
     'fetch',
-    vi.fn(() => Promise.resolve(mockFetchResponse({ json: sampleSupervisorPayload }))),
+    vi.fn((url: unknown) => defaultFetch(url)),
   );
 });
 
@@ -143,10 +170,7 @@ describe('ApplyStep — populated mode', () => {
     await waitFor(() => {
       expect(reloadSpy).toHaveBeenCalledTimes(1);
     });
-    const calls = (global.fetch as unknown as { mock: { calls: unknown[][] } }).mock.calls;
-    const postCall = calls.find(
-      ([, init]) => (init as { method?: string } | undefined)?.method === 'POST',
-    );
+    const postCall = findWifiPost();
     expect(postCall).toBeDefined();
     const body = JSON.parse((postCall?.[1] as { body: string }).body) as {
       wifi: { auth: string };
@@ -190,10 +214,7 @@ describe('ApplyStep — populated mode', () => {
     const persistedCipher = persisted?.wifi?.passwordCipher ?? '';
     expect(isWrapped(persistedCipher)).toBe(true);
     expect(persistedCipher).not.toBe('fresh-secret');
-    const calls = (global.fetch as unknown as { mock: { calls: unknown[][] } }).mock.calls;
-    const postCall = calls.find(
-      ([, init]) => (init as { method?: string } | undefined)?.method === 'POST',
-    );
+    const postCall = findWifiPost();
     const body = JSON.parse((postCall?.[1] as { body: string }).body) as {
       wifi: { auth: string; psk: string };
     };
@@ -202,16 +223,18 @@ describe('ApplyStep — populated mode', () => {
   });
 
   it('surfaces a Toast and stays on the apply step when the Supervisor commit fails', async () => {
-    // Scan succeeds; the network-update POST fails.
-    let callCount = 0;
+    // Scan + HA-settings push succeed; the supervisor wifi-update POST fails.
     vi.stubGlobal(
       'fetch',
-      vi.fn(() => {
-        callCount += 1;
-        if (callCount === 1) {
-          return Promise.resolve(mockFetchResponse({ json: sampleSupervisorPayload }));
+      vi.fn((url: unknown, init?: { method?: string }) => {
+        const u = String(url);
+        if (u.includes('/api/setup/apply-ha')) {
+          return Promise.resolve(mockFetchResponse({ json: haApplyOk }));
         }
-        return Promise.resolve(mockFetchResponse({ ok: false, status: 500 }));
+        if (init?.method === 'POST' && u.includes('/hassio/')) {
+          return Promise.resolve(mockFetchResponse({ ok: false, status: 500 }));
+        }
+        return Promise.resolve(mockFetchResponse({ json: sampleSupervisorPayload }));
       }),
     );
     const { findByText, getByRole, findByRole } = render(
@@ -221,6 +244,34 @@ describe('ApplyStep — populated mode', () => {
     fireEvent.click(getByRole('button', { name: 'Save and switch network' }));
     expect(await findByRole('status')).toBeInTheDocument();
     expect(reloadSpy).not.toHaveBeenCalled();
+  });
+
+  it('aborts before the wifi handoff and toasts when the HA-settings push fails', async () => {
+    // HA-settings push reports a partial failure; the wizard must not
+    // switch wifi (no /hassio/ POST) and must stay on the apply step.
+    vi.stubGlobal(
+      'fetch',
+      vi.fn((url: unknown) => {
+        const u = String(url);
+        if (u.includes('/api/setup/apply-ha')) {
+          return Promise.resolve(
+            mockFetchResponse({
+              json: { ok: false, steps: [{ step: 'core', ok: false, error: 'boom' }] },
+            }),
+          );
+        }
+        return Promise.resolve(mockFetchResponse({ json: sampleSupervisorPayload }));
+      }),
+    );
+    const { findByText, getByRole, findByRole } = render(
+      wrap(<ApplyStep collected={baseCollected} />),
+    );
+    fireEvent.click(await findByText('Guest'));
+    fireEvent.click(getByRole('button', { name: 'Save and switch network' }));
+    expect(await findByRole('status')).toBeInTheDocument();
+    expect(reloadSpy).not.toHaveBeenCalled();
+    // Crucially, the destructive wifi switch never fired.
+    expect(findWifiPost()).toBeUndefined();
   });
 });
 

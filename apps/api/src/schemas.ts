@@ -8,6 +8,7 @@
 // request validators are surfaced here.
 
 export {
+  ApplyHaRequestSchema,
   AuthExchangeRequestSchema,
   AuthRefreshRequestSchema,
   HaPasswordGrantRequestSchema,

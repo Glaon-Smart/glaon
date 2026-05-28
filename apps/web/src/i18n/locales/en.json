@@ -216,6 +216,10 @@
         "title": "Couldn't complete setup",
         "description": "Home Assistant didn't accept the configuration. Check the connection and try again."
       },
+      "haSettingsFailed": {
+        "title": "Couldn't save settings to Home Assistant",
+        "description": "We didn't switch your Wi-Fi yet. Some home settings couldn't be applied — check the connection and try again."
+      },
       "actions": {
         "save": "Save and switch network"
       }

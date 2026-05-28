@@ -69,6 +69,29 @@ curl http://localhost:8080/hassio/network/info | jq '.data.interfaces[0].accessp
 
 Security trade-off: anything on the LAN can hit `http://homeassistant.local:8099/api/hassio/network/*` and commit Wi-Fi changes. Dev-only, trusted-LAN posture. Production add-on (`addon/`) doesn't expose any LAN port.
 
+#### Wizard settings → HA Core (`config/*`, #617)
+
+The Wi-Fi handoff above is only one half of "apply". The wizard also collects location, timezone, unit-system, country, language, and the floors/rooms layout — these get pushed into HA Core via `POST /api/setup/apply-ha`, which apps/api translates into HA Core **WebSocket** commands (`config/core/update`, `config/{floor,area}_registry/create` — WS-only, no REST).
+
+Unlike the Supervisor `/api/hassio/*` proxy, HA Core's WebSocket auth **accepts an LLT** (#602). So this path works directly from a dev box against HA Core — no add-on bounce. Set it alongside the supervisor vars:
+
+```bash
+# apps/api/.env on the dev box
+HA_CORE_URL=http://homeassistant.local:8123
+HA_CORE_TOKEN=<long-lived-access-token>   # HA UI → profile → Security
+```
+
+```bash
+# verify the push end-to-end (after walking the wizard, or by hand)
+curl -X POST http://localhost:8080/setup/apply-ha \
+  -H 'Content-Type: application/json' \
+  -d '{"timezone":"Europe/Istanbul","unitSystem":"metric","country":"TR",
+       "layout":{"floors":[{"name":"Ground","rooms":[{"name":"Living"}]}]}}'
+# { "ok": true, "steps": [ { "step": "core", "ok": true }, ... ] }
+```
+
+Then check HA UI → Settings → System → General (location/timezone/unit-system) and Settings → Areas (the floors/rooms). Both unset → `POST /setup/apply-ha` responds 503. This is a **dev-first** capability ([ADR 0029](adr/0029-apps-api-ha-core-direct-ws.md)); production onboarding routes the same settings through the relay / add-on, not a direct apps/api → HA Core WS.
+
 ### Path 2 — UTM HA OS on macOS (browser wizard only)
 
 Use this when you don't have a Pi handy and need to test the browser wizard against a real Supervisor. **apps/api integration via this path is broken** (LLT 401 against `/api/hassio/*`, see the box above); browser path works because HA Ingress generates session-bound tokens for it.

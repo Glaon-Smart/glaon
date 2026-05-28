@@ -19,6 +19,15 @@ import type { HaEntityState } from '../types';
 
 export type ConnectionState = 'connecting' | 'open' | 'closed' | 'reconnecting';
 
+/** `Omit` that distributes over a union, preserving each member's discriminant. */
+type DistributiveOmit<T, K extends keyof never> = T extends unknown ? Omit<T, K> : never;
+
+/**
+ * Accepted shape for `HaClient.request`: every numbered outbound frame with
+ * its auto-stamped `id` removed, as a union (not collapsed to common keys).
+ */
+type OutboundRequestFrame = DistributiveOmit<Extract<HaOutboundFrame, { id: number }>, 'id'>;
+
 export interface HaClientOptions {
   /** Returns the current HA access token. Called on each (re)auth. */
   readonly getAccessToken: () => Promise<string>;
@@ -177,10 +186,14 @@ export class HaClient {
    * Send a typed request and resolve with the HA `result` payload. Rejects with
    * `HaConnectionLostError` if the WS drops mid-flight or `HaServiceError` if HA
    * surfaces an error response.
+   *
+   * The frame param uses a *distributive* Omit (`OutboundRequestFrame`) so the
+   * parameter stays a union of each frame-minus-id rather than collapsing to the
+   * union members' common keys. Without that, a frame with a required
+   * non-common property (e.g. `config/area_registry/create`'s `name`) would be
+   * rejected by excess-property checking on an inline object literal.
    */
-  request<TResult = unknown>(
-    frame: Omit<Extract<HaOutboundFrame, { id: number }>, 'id'>,
-  ): Promise<TResult> {
+  request<TResult = unknown>(frame: OutboundRequestFrame): Promise<TResult> {
     if (this.transport === null || this.connectionState !== 'open') {
       return Promise.reject(new HaConnectionLostError());
     }

@@ -1,0 +1,64 @@
+// Setup-wizard → HA config push (#617). The request is the subset of
+// the device-config the wizard collects that maps onto HA Core config +
+// the area/floor registry. apps/web POSTs it to apps/api's
+// `POST /setup/apply-ha`; apps/api translates it (via @glaon/core's
+// `buildHaSetupPlan`) into HA WebSocket `config/*` commands.
+//
+// The field names mirror `DeviceConfig` (config/types.ts) so the wizard
+// can forward its `collected` blob almost verbatim. The shape is also
+// structurally assignable to `HaSetupInput` (ha/setup-commands.ts) — the
+// mapper's input type — so apps/api hands the parsed body straight to
+// the mapper.
+
+import { z } from 'zod';
+
+const ApplyHaRoomSchema = z.object({
+  name: z.string().min(1).max(64),
+});
+
+const ApplyHaFloorSchema = z.object({
+  name: z.string().min(1).max(64),
+  rooms: z.array(ApplyHaRoomSchema).max(50),
+});
+
+export const ApplyHaRequestSchema = z.object({
+  latitude: z.number().min(-90).max(90).optional(),
+  longitude: z.number().min(-180).max(180).optional(),
+  unitSystem: z.union([z.literal('metric'), z.literal('imperial')]).optional(),
+  /** IANA TZ name (e.g. `Europe/Istanbul`). */
+  timezone: z.string().min(1).optional(),
+  /** ISO 3166-1 alpha-2, uppercase. */
+  country: z
+    .string()
+    .regex(/^[A-Z]{2}$/, 'country must be ISO 3166-1 alpha-2 uppercase')
+    .optional(),
+  /** BCP-47 locale tag (e.g. `tr`, `en-US`). */
+  locale: z.string().min(1).optional(),
+  layout: z
+    .object({
+      floors: z.array(ApplyHaFloorSchema).min(1).max(10),
+    })
+    .optional(),
+});
+export type ApplyHaRequest = z.infer<typeof ApplyHaRequestSchema>;
+
+/**
+ * Per-command outcome. `step` is a stable label —
+ * `core` | `floor:<name>` | `area:<name>` — so the client can map a
+ * failure back to a specific section if it wants. apps/api runs every
+ * step even when an earlier one fails (best-effort), so the array
+ * always reflects the full attempted set.
+ */
+export const ApplyHaStepResultSchema = z.object({
+  step: z.string().min(1),
+  ok: z.boolean(),
+  error: z.string().optional(),
+});
+export type ApplyHaStepResult = z.infer<typeof ApplyHaStepResultSchema>;
+
+export const ApplyHaResponseSchema = z.object({
+  /** True only when every attempted step succeeded. */
+  ok: z.boolean(),
+  steps: z.array(ApplyHaStepResultSchema),
+});
+export type ApplyHaResponse = z.infer<typeof ApplyHaResponseSchema>;

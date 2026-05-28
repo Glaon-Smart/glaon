@@ -48,7 +48,9 @@ interface Listeners {
   error: Set<(err: Error) => void>;
 }
 
-export interface NodeWsTransportOptions {
+// Not exported — callers construct NodeWsTransport with an object
+// literal; knip flags an exported-but-unconsumed interface otherwise.
+interface NodeWsTransportOptions {
   /** HA base URL (e.g. `http://homeassistant.local:8123`). Scheme rewritten to ws/wss. */
   readonly baseUrl: string;
   /** Constructor injection for tests; defaults to Node's global WebSocket. */

@@ -18,16 +18,15 @@
 
 import { Hono } from 'hono';
 
-import { ApplyHaRequestSchema } from '@glaon/core/api-client';
-
 import type { Config } from '../config';
-import type { Logger } from '../observability/logger';
 import {
   applyHaSetup,
   createHaCoreClientFactory,
   HaCoreUnreachableError,
   type HaSetupClient,
 } from '../ha/ha-setup-service';
+import type { Logger } from '../observability/logger';
+import { ApplyHaRequestSchema } from '../schemas';
 
 interface SetupRouterDeps {
   readonly config: Config;

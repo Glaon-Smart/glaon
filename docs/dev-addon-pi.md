@@ -119,26 +119,34 @@ UI üzerinden:
 
 ## 4.5. Koruma modunu kapat (ZORUNLU — Wi-Fi tarama için)
 
-Add-on `hassio_role: admin` ister, ama HA'nın **Koruma modu (Protection mode)** açıkken (varsayılan) Supervisor add-on'u base role'e indirir — `/network/info` çalışır ama tarama (`/network/interface/{iface}/accesspoints`) ve commit (`/update`) **403** döner (#624). Koruma modu bir add-on option'ı değildir (HA güvenlik tasarımı); install sonrası **manuel** kapatılması gerekir.
+Add-on `hassio_role: admin` ister, ama HA'nın **Koruma modu (Protection mode)** açıkken (varsayılan) Supervisor add-on'u base role'e indirir — `ha apps info local_glaon_dev` çıktısında `protected: true` iken etkin `hassio_role: default` görünür, `/network/info` çalışır ama tarama (`/network/interface/{iface}/accesspoints`) + commit (`/update`) **403** döner (#624). Koruma modu bir add-on option'ı değildir (HA güvenlik tasarımı); install sonrası **manuel** kapatılması gerekir.
 
-**En kolay yol — helper script** (HA Terminal / Advanced SSH add-on içinde, `$SUPERVISOR_TOKEN` orada):
+> **İki tuzak (ikisi de bu işte yaşandı):**
+>
+> 1. **Anahtar `protected`, `protection` DEĞİL.** Yanlış anahtar → `extra keys not allowed @ data['protection']`.
+> 2. **Toggle admin gerektirir.** `/addons/{slug}/security`'yi çağıran tarafın admin olması lazım. Normal terminal add-on'unun `$SUPERVISOR_TOKEN`'ı en fazla `manager` → script/curl **403** döner. UI toggle'ı da çoğu HA build'inde hiç görünmez. **En güvenilir yol senin admin tarayıcı oturumun** (aşağıdaki Yöntem 1).
+
+**Yöntem 1 (önerilen) — tarayıcı konsolu (admin oturumun):** HA'da admin login'ken `F12` → Console:
+
+```js
+const hass = document.querySelector('home-assistant').hass;
+await hass.callWS({
+  type: 'supervisor/api',
+  endpoint: '/addons/local_glaon_dev/security',
+  method: 'post',
+  data: { protected: false },
+});
+```
+
+Bu, (çoğu zaman görünmeyen) UI toggle'ının arka planda yaptığı şeyin aynısı; admin oturumla çalışır.
+
+**Yöntem 2 — helper script** (yalnızca terminal add-on'un admin + kendi protection'ı kapalıysa; değilse 403 verir, Yöntem 1'e geç):
 
 ```bash
 bash /addons/local/glaon_dev/scripts/dev-grant-network.sh
 ```
 
-Script koruma modunu kapatır, add-on'u restart eder, sonucu yazar (`protected: false` beklenir).
-
-**Fallback 1 — Supervisor API curl** (aynı terminalde):
-
-```bash
-curl -fsS -X POST -H "Authorization: Bearer ${SUPERVISOR_TOKEN}" \
-  -H "Content-Type: application/json" -d '{"protection": false}' \
-  http://supervisor/addons/local_glaon_dev/security
-ha apps restart local_glaon_dev
-```
-
-**Fallback 2 — UI:** Profil → **Gelişmiş Mod**'u aç → Add-on Info sayfası → sağ üst **⋮** menü veya sayfadaki **Koruma modu** toggle → kapat. (Bazı HA build'lerinde toggle UI'da hiç görünmez; o zaman script/curl kullan.)
+**Yöntem 3 — UI toggle:** Profil → **Gelişmiş Mod** aç → Add-on Info → sağ üst **⋮** menü veya toggle listesi → **Koruma modu** kapat. (Bu add-on'un capability setinde toggle UI'da hiç çıkmayabilir — o zaman Yöntem 1.)
 
 Doğrula:
 

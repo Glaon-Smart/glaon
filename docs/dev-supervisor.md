@@ -1,11 +1,19 @@
 # HA Supervisor proxy — dev guide
 
-The setup wizard's apply step (#597) talks to HA Supervisor at two
-endpoints:
+The setup wizard's Network step (#629) + apply step (#597) talk to HA
+Supervisor at these endpoints:
 
-- `GET /api/hassio/network/info` — enumerate Wi-Fi access points.
-- `POST /api/hassio/network/wlan0/update` — commit the chosen SSID +
-  password (this is the disconnect / handoff moment).
+- `GET /api/hassio/network/info` — enumerate interfaces, each with its
+  `ipv4`/`ipv6` config (`method` / `address` / `gateway` / `nameservers`).
+- `GET /api/hassio/network/interface/{iface}/accesspoints` — Wi-Fi scan.
+- `POST /api/hassio/network/interface/{iface}/update` — commit Wi-Fi
+  credentials and/or `ipv4`/`ipv6` config (the Wi-Fi case is the
+  disconnect / handoff moment).
+- `GET /api/hassio/host/info` — device host metadata; the Network step
+  seeds its hostname field from `data.hostname` (#627).
+- `POST /api/hassio/host/options` — set the device hostname. The proxy
+  validates `hostname` as an RFC 1123 label and rejects bad input with
+  `400 invalid-hostname` before touching the Supervisor (#627).
 
 Two runtime modes:
 
@@ -18,9 +26,12 @@ This doc covers **standalone / dev**.
 
 ## Quick start (mock mode — recommended for daily dev)
 
-Mock mode gives you a canned 3-network payload from `GET /network/info`
-and accepts any `POST /network/:iface/update` with a 200. The wizard's
-apply step walks end-to-end without a real HA running anywhere.
+Mock mode gives you canned payloads: two interfaces with `ipv4`/`ipv6`
+config from `GET /network/info`, a 3-network scan from the accesspoints
+endpoint, a hostname from `GET /host/info`, and a 200 for any
+`POST /network/interface/:iface/update` or `POST /host/options` (a bad
+hostname still gets `400`). The wizard's Network + apply steps walk
+end-to-end without a real HA running anywhere.
 
 ```bash
 cp apps/api/.env.example apps/api/.env

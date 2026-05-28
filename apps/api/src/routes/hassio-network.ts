@@ -46,12 +46,57 @@ interface HassioNetworkRouterDeps {
 // `/network/info` returns interfaces only — the real Supervisor does NOT
 // embed access points here (#622). The wizard discovers the wireless
 // interface from this list, then scans it via the accesspoints endpoint.
+//
+// Each interface carries `ipv4`/`ipv6` blocks matching the Supervisor
+// shape (`{ method, address, gateway, nameservers, ready }`) so the
+// Network step (#629) has real config to render in mock / HA-less dev.
+// `end0` is a static ethernet, `wlan0` an auto/DHCP wireless — two shapes
+// to exercise the UI's static vs. DHCP branches.
 const MOCK_NETWORK_INFO = {
   data: {
     interfaces: [
-      { interface: 'wlan0', type: 'wireless', enabled: true, connected: false, primary: false },
-      { interface: 'end0', type: 'ethernet', enabled: true, connected: true, primary: true },
+      {
+        interface: 'wlan0',
+        type: 'wireless',
+        enabled: true,
+        connected: false,
+        primary: false,
+        ipv4: { method: 'auto', address: [], gateway: null, nameservers: [], ready: false },
+        ipv6: { method: 'auto', address: [], gateway: null, nameservers: [], ready: false },
+      },
+      {
+        interface: 'end0',
+        type: 'ethernet',
+        enabled: true,
+        connected: true,
+        primary: true,
+        ipv4: {
+          method: 'static',
+          address: ['192.168.1.50/24'],
+          gateway: '192.168.1.1',
+          nameservers: ['192.168.1.1', '1.1.1.1'],
+          ready: true,
+        },
+        ipv6: {
+          method: 'auto',
+          address: ['fe80::5c7d:aeff:fec1:7ff8/64'],
+          gateway: null,
+          nameservers: [],
+          ready: true,
+        },
+      },
     ],
+  },
+};
+
+// `/host/info` — device host metadata. The wizard's Network step (#629)
+// seeds its hostname field from `data.hostname`.
+const MOCK_HOST_INFO = {
+  data: {
+    hostname: 'glaon',
+    operating_system: 'Home Assistant OS 12.0',
+    kernel: '6.6.0',
+    chassis: 'embedded',
   },
 };
 
@@ -199,7 +244,86 @@ export function createHassioNetworkRouter(deps: HassioNetworkRouterDeps): Hono {
     }
   });
 
+  // Host metadata — the wizard's Network step (#629) seeds its hostname
+  // field from `data.hostname`. Maps to the Supervisor `/host/info`.
+  router.get('/host/info', async (c) => {
+    if (supervisorMock) {
+      return c.json(MOCK_HOST_INFO);
+    }
+    if (supervisorUrl === undefined || supervisorToken === undefined) {
+      return c.json(NOT_CONFIGURED_BODY, 503);
+    }
+    try {
+      const upstream = await fetchImpl(`${trim(supervisorUrl)}/host/info`, {
+        method: 'GET',
+        headers: { Authorization: `Bearer ${supervisorToken}` },
+      });
+      const text = await upstream.text();
+      deps.logger?.info({ event: 'hassio-network.proxy.host.get', status: upstream.status });
+      return passThroughResponse(text, upstream);
+    } catch (err) {
+      deps.logger?.error({
+        event: 'hassio-network.proxy.host.get.failed',
+        message: err instanceof Error ? err.message : 'unknown',
+      });
+      return c.json({ error: 'supervisor-unreachable' }, 502);
+    }
+  });
+
+  // Set the device hostname. Maps to the Supervisor `/host/options`.
+  // `hostname`, when present, must be an RFC 1123 label — rejected with
+  // 400 before touching the Supervisor (the host-side validator also
+  // enforces this, but a clear 400 beats a cryptic upstream 4xx).
+  router.post('/host/options', async (c) => {
+    const body: unknown = await c.req.json().catch(() => null);
+    if (body === null || typeof body !== 'object') {
+      return c.json({ error: 'invalid-body' }, 400);
+    }
+    const { hostname } = body as { hostname?: unknown };
+    if (hostname !== undefined && (typeof hostname !== 'string' || !isValidHostname(hostname))) {
+      return c.json({ error: 'invalid-hostname' }, 400);
+    }
+    if (supervisorMock) {
+      return c.json({ result: 'ok', mocked: true });
+    }
+    if (supervisorUrl === undefined || supervisorToken === undefined) {
+      return c.json(NOT_CONFIGURED_BODY, 503);
+    }
+    try {
+      const upstream = await fetchImpl(`${trim(supervisorUrl)}/host/options`, {
+        method: 'POST',
+        headers: {
+          Authorization: `Bearer ${supervisorToken}`,
+          'Content-Type': 'application/json',
+        },
+        body: JSON.stringify(body),
+      });
+      const text = await upstream.text();
+      deps.logger?.info({
+        event: 'hassio-network.proxy.host.post',
+        status: upstream.status,
+        hostname,
+      });
+      return passThroughResponse(text, upstream);
+    } catch (err) {
+      deps.logger?.error({
+        event: 'hassio-network.proxy.host.post.failed',
+        message: err instanceof Error ? err.message : 'unknown',
+      });
+      return c.json({ error: 'supervisor-unreachable' }, 502);
+    }
+  });
+
   return router;
+}
+
+// RFC 1123 hostname label: 1–63 chars of letters, digits, and hyphens,
+// no leading/trailing hyphen. Mirrors @glaon/core's NetworkConfigSchema
+// (kept inline so this proxy carries no @glaon/core dependency).
+const HOSTNAME_RE = /^[A-Za-z0-9]([A-Za-z0-9-]{0,61}[A-Za-z0-9])?$/;
+
+function isValidHostname(value: string): boolean {
+  return HOSTNAME_RE.test(value);
 }
 
 // Mirror the upstream supervisor response back to the caller. Returning

@@ -60,6 +60,61 @@ describe('hassio-network — mock mode', () => {
     expect(res.status).toBe(200);
     expect(await res.json()).toMatchObject({ mocked: true });
   });
+
+  it('embeds ipv4/ipv6 blocks per interface on GET /network/info', async () => {
+    const router = createHassioNetworkRouter({ config: baseConfig({ supervisorMock: true }) });
+    const res = await router.request('/network/info');
+    const body = (await res.json()) as {
+      data: { interfaces: { interface: string; ipv4?: { method: string } }[] };
+    };
+    const end0 = body.data.interfaces.find((i) => i.interface === 'end0');
+    expect(end0?.ipv4?.method).toBe('static');
+    const wlan0 = body.data.interfaces.find((i) => i.interface === 'wlan0');
+    expect(wlan0?.ipv4?.method).toBe('auto');
+  });
+
+  it('accepts an ipv4 static payload on POST /network/interface/:iface/update', async () => {
+    const router = createHassioNetworkRouter({ config: baseConfig({ supervisorMock: true }) });
+    const res = await router.request('/network/interface/end0/update', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({
+        ipv4: { method: 'static', address: ['192.168.1.50/24'], gateway: '192.168.1.1' },
+      }),
+    });
+    expect(res.status).toBe(200);
+    expect(await res.json()).toMatchObject({ mocked: true });
+  });
+
+  it('returns a hostname on GET /host/info', async () => {
+    const router = createHassioNetworkRouter({ config: baseConfig({ supervisorMock: true }) });
+    const res = await router.request('/host/info');
+    expect(res.status).toBe(200);
+    const body = (await res.json()) as { data: { hostname: string } };
+    expect(body.data.hostname).toBe('glaon');
+  });
+
+  it('accepts a valid hostname on POST /host/options', async () => {
+    const router = createHassioNetworkRouter({ config: baseConfig({ supervisorMock: true }) });
+    const res = await router.request('/host/options', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ hostname: 'glaon-wall' }),
+    });
+    expect(res.status).toBe(200);
+    expect(await res.json()).toMatchObject({ mocked: true });
+  });
+
+  it('rejects an invalid hostname on POST /host/options with 400', async () => {
+    const router = createHassioNetworkRouter({ config: baseConfig({ supervisorMock: true }) });
+    const res = await router.request('/host/options', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ hostname: '-bad_host name' }),
+    });
+    expect(res.status).toBe(400);
+    expect(await res.json()).toMatchObject({ error: 'invalid-hostname' });
+  });
 });
 
 describe('hassio-network — unconfigured', () => {
@@ -82,6 +137,22 @@ describe('hassio-network — unconfigured', () => {
       method: 'POST',
       headers: { 'Content-Type': 'application/json' },
       body: JSON.stringify({ wifi: { auth: 'open', ssid: 'X' } }),
+    });
+    expect(res.status).toBe(503);
+  });
+
+  it('returns 503 on GET /host/info when neither URL nor mock is set', async () => {
+    const router = createHassioNetworkRouter({ config: baseConfig() });
+    const res = await router.request('/host/info');
+    expect(res.status).toBe(503);
+  });
+
+  it('returns 503 on POST /host/options (valid hostname) when neither URL nor mock is set', async () => {
+    const router = createHassioNetworkRouter({ config: baseConfig() });
+    const res = await router.request('/host/options', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ hostname: 'glaon' }),
     });
     expect(res.status).toBe(503);
   });
@@ -163,6 +234,54 @@ describe('hassio-network — live proxy', () => {
       method: 'POST',
       headers: { 'Content-Type': 'application/json' },
       body: 'not-json',
+    });
+    expect(res.status).toBe(400);
+    expect(vi.mocked(fetchImpl)).not.toHaveBeenCalled();
+  });
+
+  it('forwards GET /host/info to the upstream supervisor with the bearer token', async () => {
+    const fetchImpl: typeof fetch = vi.fn(() =>
+      Promise.resolve(mockResponse({ body: { data: { hostname: 'pi-ha' } } })),
+    );
+    const router = createHassioNetworkRouter({ config, fetchImpl });
+    const res = await router.request('/host/info');
+    expect(res.status).toBe(200);
+    const call = vi.mocked(fetchImpl).mock.calls[0];
+    if (call === undefined) throw new Error('expected upstream call');
+    expect(call[0]).toBe('http://supervisor.test/network/host/info');
+    const init = call[1];
+    if (init === undefined) throw new Error('expected init');
+    expect(init.method).toBe('GET');
+    expect((init.headers as Record<string, string>).Authorization).toBe('Bearer long-lived-token');
+  });
+
+  it('forwards POST /host/options body to the upstream with the bearer token', async () => {
+    const fetchImpl: typeof fetch = vi.fn(() =>
+      Promise.resolve(mockResponse({ status: 202, body: { result: 'ok' } })),
+    );
+    const router = createHassioNetworkRouter({ config, fetchImpl });
+    const res = await router.request('/host/options', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ hostname: 'glaon-wall' }),
+    });
+    expect(res.status).toBe(202);
+    const call = vi.mocked(fetchImpl).mock.calls[0];
+    if (call === undefined) throw new Error('expected upstream call');
+    expect(call[0]).toBe('http://supervisor.test/network/host/options');
+    const init = call[1];
+    if (init === undefined) throw new Error('expected init');
+    expect(init.method).toBe('POST');
+    expect(JSON.parse(init.body as string)).toMatchObject({ hostname: 'glaon-wall' });
+  });
+
+  it('rejects an invalid hostname on POST /host/options with 400 before touching the supervisor', async () => {
+    const fetchImpl: typeof fetch = vi.fn();
+    const router = createHassioNetworkRouter({ config, fetchImpl });
+    const res = await router.request('/host/options', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ hostname: 'bad host' }),
     });
     expect(res.status).toBe(400);
     expect(vi.mocked(fetchImpl)).not.toHaveBeenCalled();

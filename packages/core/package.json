@@ -16,6 +16,7 @@
     "./auth": "./src/auth/index.ts",
     "./config": "./src/config/index.ts",
     "./ha": "./src/ha/index.ts",
+    "./ha/direct-ws": "./src/ha/transports/direct-ws.ts",
     "./i18n": "./src/i18n/index.ts",
     "./observability": "./src/observability/index.ts",
     "./protocol": "./src/protocol/index.ts",

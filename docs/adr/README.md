@@ -45,36 +45,37 @@ Deprecated durumu, kararı yapılacak işin dışına çıkarttığımızda kull
 
 ## Index
 
-| #    | Başlık                                                                                  | Durum              | Tarih      |
-| ---- | --------------------------------------------------------------------------------------- | ------------------ | ---------- |
-| 0001 | [Turborepo + pnpm workspaces](0001-turborepo-pnpm-workspaces.md)                        | Accepted           | 2026-04-20 |
-| 0002 | [Vite + React 19 (web)](0002-vite-react-19-web.md)                                      | Accepted           | 2026-04-20 |
-| 0003 | [Expo SDK + new architecture (mobile)](0003-expo-new-architecture-mobile.md)            | Accepted           | 2026-04-20 |
-| 0004 | [`@glaon/core` platform-agnostic paylaşım paketi](0004-glaon-core-platform-agnostic.md) | Accepted           | 2026-04-20 |
-| 0005 | [OAuth2 Authorization Code + PKCE (tek auth yöntemi)](0005-oauth2-pkce-only-auth.md)    | Superseded by 0017 | 2026-04-20 |
-| 0006 | [Token storage — in-memory + httpOnly / SecureStore](0006-token-storage.md)             | Accepted           | 2026-04-20 |
-| 0007 | [Sentry observability backend olarak](0007-sentry-observability.md)                     | Accepted           | 2026-04-20 |
-| 0008 | [Chromatic tek görsel regresyon aracı](0008-chromatic-visual-regression.md)             | Accepted           | 2026-04-21 |
-| 0009 | [HA Add-on + Ingress teslim kanalı](0009-ha-addon-ingress-delivery.md)                  | Accepted           | 2026-04-20 |
-| 0010 | [Figma tasarım kaynağı + plugin bridge](0010-figma-source-of-truth.md)                  | Accepted           | 2026-04-22 |
-| 0011 | [Untitled UI React kit + CLI source-based delivery](0011-untitled-ui-react-kit.md)      | Accepted           | 2026-04-27 |
-| 0012 | [Tailwind CSS for `@glaon/ui`](0012-tailwind-css-for-glaon-ui.md)                       | Superseded by 0013 | 2026-04-27 |
-| 0013 | [Tailwind v4 + Untitled UI theme.css](0013-tailwind-v4-uui-theme.md)                    | Accepted           | 2026-04-27 |
-| 0014 | [`apps/api` ayrı backend service (Next.js geçişi yerine)](0014-apps-api-over-nextjs.md) | Accepted           | 2026-05-06 |
-| 0015 | [State yönetimi — Zustand + Immer + TanStack Query](0015-state-management.md)           | Accepted           | 2026-05-07 |
-| 0016 | [HA WebSocket transport mimarisi](0016-ha-ws-transport.md)                              | Accepted           | 2026-05-07 |
-| 0017 | [Dual-mode auth — local HA OAuth + cloud-relay (Clerk)](0017-dual-mode-auth.md)         | Accepted           | 2026-05-07 |
-| 0018 | [Cloud relay topology + wire protocol](0018-cloud-relay-topology.md)                    | Accepted           | 2026-05-07 |
-| 0019 | [Identity provider — Clerk (cloud mod için)](0019-identity-provider-clerk.md)           | Accepted           | 2026-05-07 |
-| 0020 | [Cloud hosting platform — CF Workers + Durable Objects](0020-cloud-hosting-platform.md) | Accepted           | 2026-05-07 |
-| 0021 | [Pairing protocol + relay credential lifecycle](0021-pairing-and-relay-credentials.md)  | Accepted           | 2026-05-07 |
-| 0022 | [Cloud deployment + secrets pipeline](0022-cloud-deployment-secrets.md)                 | Accepted           | 2026-05-07 |
-| 0023 | [i18n library + file format + RTL strategy](0023-i18n-library-format-rtl.md)            | Accepted           | 2026-05-07 |
-| 0024 | [Lokal keşif: HA hostname'ine bağ kal](0024-local-discovery-rely-on-ha-hostname.md)     | Accepted           | 2026-05-08 |
-| 0025 | [apps/api stack pick — Hono + native MongoDB + Zod](0025-apps-api-stack.md)             | Accepted           | 2026-05-09 |
-| 0026 | [apps/api delivery: Glaon-managed hosted](0026-apps-api-delivery-hosted.md)             | Accepted           | 2026-05-10 |
-| 0027 | [HA `login_flow` password-grant proxy (cloud-side)](0027-ha-login-flow-proxy.md)        | Accepted           | 2026-05-10 |
-| 0028 | [Cihaz konfigürasyon state'i (first-run setup wizard)](0028-device-config-state.md)     | Accepted           | 2026-05-17 |
+| #    | Başlık                                                                                         | Durum              | Tarih      |
+| ---- | ---------------------------------------------------------------------------------------------- | ------------------ | ---------- |
+| 0001 | [Turborepo + pnpm workspaces](0001-turborepo-pnpm-workspaces.md)                               | Accepted           | 2026-04-20 |
+| 0002 | [Vite + React 19 (web)](0002-vite-react-19-web.md)                                             | Accepted           | 2026-04-20 |
+| 0003 | [Expo SDK + new architecture (mobile)](0003-expo-new-architecture-mobile.md)                   | Accepted           | 2026-04-20 |
+| 0004 | [`@glaon/core` platform-agnostic paylaşım paketi](0004-glaon-core-platform-agnostic.md)        | Accepted           | 2026-04-20 |
+| 0005 | [OAuth2 Authorization Code + PKCE (tek auth yöntemi)](0005-oauth2-pkce-only-auth.md)           | Superseded by 0017 | 2026-04-20 |
+| 0006 | [Token storage — in-memory + httpOnly / SecureStore](0006-token-storage.md)                    | Accepted           | 2026-04-20 |
+| 0007 | [Sentry observability backend olarak](0007-sentry-observability.md)                            | Accepted           | 2026-04-20 |
+| 0008 | [Chromatic tek görsel regresyon aracı](0008-chromatic-visual-regression.md)                    | Accepted           | 2026-04-21 |
+| 0009 | [HA Add-on + Ingress teslim kanalı](0009-ha-addon-ingress-delivery.md)                         | Accepted           | 2026-04-20 |
+| 0010 | [Figma tasarım kaynağı + plugin bridge](0010-figma-source-of-truth.md)                         | Accepted           | 2026-04-22 |
+| 0011 | [Untitled UI React kit + CLI source-based delivery](0011-untitled-ui-react-kit.md)             | Accepted           | 2026-04-27 |
+| 0012 | [Tailwind CSS for `@glaon/ui`](0012-tailwind-css-for-glaon-ui.md)                              | Superseded by 0013 | 2026-04-27 |
+| 0013 | [Tailwind v4 + Untitled UI theme.css](0013-tailwind-v4-uui-theme.md)                           | Accepted           | 2026-04-27 |
+| 0014 | [`apps/api` ayrı backend service (Next.js geçişi yerine)](0014-apps-api-over-nextjs.md)        | Accepted           | 2026-05-06 |
+| 0015 | [State yönetimi — Zustand + Immer + TanStack Query](0015-state-management.md)                  | Accepted           | 2026-05-07 |
+| 0016 | [HA WebSocket transport mimarisi](0016-ha-ws-transport.md)                                     | Accepted           | 2026-05-07 |
+| 0017 | [Dual-mode auth — local HA OAuth + cloud-relay (Clerk)](0017-dual-mode-auth.md)                | Accepted           | 2026-05-07 |
+| 0018 | [Cloud relay topology + wire protocol](0018-cloud-relay-topology.md)                           | Accepted           | 2026-05-07 |
+| 0019 | [Identity provider — Clerk (cloud mod için)](0019-identity-provider-clerk.md)                  | Accepted           | 2026-05-07 |
+| 0020 | [Cloud hosting platform — CF Workers + Durable Objects](0020-cloud-hosting-platform.md)        | Accepted           | 2026-05-07 |
+| 0021 | [Pairing protocol + relay credential lifecycle](0021-pairing-and-relay-credentials.md)         | Accepted           | 2026-05-07 |
+| 0022 | [Cloud deployment + secrets pipeline](0022-cloud-deployment-secrets.md)                        | Accepted           | 2026-05-07 |
+| 0023 | [i18n library + file format + RTL strategy](0023-i18n-library-format-rtl.md)                   | Accepted           | 2026-05-07 |
+| 0024 | [Lokal keşif: HA hostname'ine bağ kal](0024-local-discovery-rely-on-ha-hostname.md)            | Accepted           | 2026-05-08 |
+| 0025 | [apps/api stack pick — Hono + native MongoDB + Zod](0025-apps-api-stack.md)                    | Accepted           | 2026-05-09 |
+| 0026 | [apps/api delivery: Glaon-managed hosted](0026-apps-api-delivery-hosted.md)                    | Accepted           | 2026-05-10 |
+| 0027 | [HA `login_flow` password-grant proxy (cloud-side)](0027-ha-login-flow-proxy.md)               | Accepted           | 2026-05-10 |
+| 0028 | [Cihaz konfigürasyon state'i (first-run setup wizard)](0028-device-config-state.md)            | Accepted           | 2026-05-17 |
+| 0029 | [Setup wizard ayar push'u: apps/api → HA Core doğrudan WS](0029-apps-api-ha-core-direct-ws.md) | Accepted           | 2026-05-28 |
 
 ## Konvansiyonlar
 

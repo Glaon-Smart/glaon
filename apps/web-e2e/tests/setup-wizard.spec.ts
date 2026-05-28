@@ -53,6 +53,15 @@ async function mockSupervisorNetworkScan(page: Page): Promise<void> {
   await page.route('**/api/hassio/network/wlan0/update', async (route) => {
     await route.fulfill({ status: 200, contentType: 'application/json', body: '{"result":"ok"}' });
   });
+  // #617 — the apply step pushes home settings to HA Core before the
+  // Wi-Fi handoff. Mock a clean success so the commit ceremony proceeds.
+  await page.route('**/api/setup/apply-ha', async (route) => {
+    await route.fulfill({
+      status: 200,
+      contentType: 'application/json',
+      body: JSON.stringify({ ok: true, steps: [] }),
+    });
+  });
 }
 
 test.describe('setup wizard @smoke', () => {

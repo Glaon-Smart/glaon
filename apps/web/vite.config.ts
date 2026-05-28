@@ -105,6 +105,16 @@ export default defineConfig(({ command, mode }) => {
           changeOrigin: true,
           rewrite: (path: string) => path.replace(/^\/api/, ''),
         },
+        // #617 — the apply step also POSTs the collected home settings
+        // to `/api/setup/apply-ha`; apps/api pushes them into HA Core
+        // over WebSocket. Same `/api` strip → apps/api mounts at
+        // `/setup`. Production add-on bypasses this (onboarding routes
+        // through the relay / add-on, not apps/api — ADR 0029).
+        '/api/setup': {
+          target: env.VITE_API_BASE_URL ?? 'http://localhost:8080',
+          changeOrigin: true,
+          rewrite: (path: string) => path.replace(/^\/api/, ''),
+        },
       },
     },
     build: {

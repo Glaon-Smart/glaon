@@ -17,6 +17,7 @@ import { createAuthRouter } from './routes/auth';
 import { createHassioNetworkRouter, probeSupervisor } from './routes/hassio-network';
 import { createLayoutsRouter } from './routes/layouts';
 import { createMeRouter } from './routes/me';
+import { createSetupRouter } from './routes/setup';
 
 export interface ServerDeps {
   readonly db: Db;
@@ -86,6 +87,19 @@ export function createServer(deps: ServerDeps): Hono {
     createHassioNetworkRouter({
       config: deps.config,
       ...(deps.fetchImpl !== undefined ? { fetchImpl: deps.fetchImpl } : {}),
+      logger,
+    }),
+  );
+
+  // Setup-wizard → HA config push (#617). The wizard's apply step POSTs
+  // the collected home settings; we translate them into HA Core
+  // WebSocket commands. Unauthenticated by design (wizard is pre-login),
+  // same posture as /hassio. Dev-first — production onboarding routes
+  // through the relay / add-on, not this route (ADR 0029).
+  app.route(
+    '/setup',
+    createSetupRouter({
+      config: deps.config,
       logger,
     }),
   );

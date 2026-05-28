@@ -48,3 +48,11 @@ export {
   type UserPreferences,
   type UserPreferencesUpdate,
 } from './me';
+export {
+  ApplyHaRequestSchema,
+  ApplyHaResponseSchema,
+  ApplyHaStepResultSchema,
+  type ApplyHaRequest,
+  type ApplyHaResponse,
+  type ApplyHaStepResult,
+} from './setup';

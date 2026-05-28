@@ -216,6 +216,10 @@
         "title": "Kurulum tamamlanamadı",
         "description": "Home Assistant ayarları kabul etmedi. Bağlantıyı kontrol edip tekrar dene."
       },
+      "haSettingsFailed": {
+        "title": "Ayarlar Home Assistant'a kaydedilemedi",
+        "description": "Wi-Fi henüz değiştirilmedi. Bazı ev ayarları uygulanamadı — bağlantıyı kontrol edip tekrar dene."
+      },
       "actions": {
         "save": "Kaydet ve ağa geç"
       }

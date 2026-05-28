@@ -109,6 +109,69 @@ export interface HaGetStatesFrame {
   readonly type: 'get_states';
 }
 
+/* ---------- Config writes (setup wizard → HA, #617) ---------- */
+
+/**
+ * `config/core/update` — sets HA Core's home location + locale prefs.
+ * Every field is optional; HA leaves anything omitted untouched.
+ *
+ * `unit_system` takes HA's enum values (`metric` / `us_customary`),
+ * NOT Glaon's `imperial` — the setup-commands mapper translates.
+ */
+export interface HaConfigCoreUpdateFrame {
+  readonly id: number;
+  readonly type: 'config/core/update';
+  readonly latitude?: number;
+  readonly longitude?: number;
+  readonly elevation?: number;
+  readonly unit_system?: 'metric' | 'us_customary';
+  readonly time_zone?: string;
+  readonly currency?: string;
+  /** ISO 3166-1 alpha-2 (uppercase). */
+  readonly country?: string;
+  /** BCP-47 language tag HA recognises (e.g. `en`, `tr`). */
+  readonly language?: string;
+}
+
+/**
+ * `config/floor_registry/create` — creates a floor. Returns the created
+ * floor (incl. `floor_id`) in the result frame. `level` orders floors
+ * vertically in the HA UI; optional.
+ */
+export interface HaFloorRegistryCreateFrame {
+  readonly id: number;
+  readonly type: 'config/floor_registry/create';
+  readonly name: string;
+  readonly level?: number;
+  readonly icon?: string;
+}
+
+/** Shape of the `result` payload from `config/floor_registry/create`. */
+export interface HaFloorRegistryEntry {
+  readonly floor_id: string;
+  readonly name: string;
+  readonly level?: number | null;
+}
+
+/**
+ * `config/area_registry/create` — creates an area (room). `floor_id`
+ * links it to a floor created earlier in the same run; omit it for the
+ * graceful-degrade path on HA builds without a floor registry.
+ */
+export interface HaAreaRegistryCreateFrame {
+  readonly id: number;
+  readonly type: 'config/area_registry/create';
+  readonly name: string;
+  readonly floor_id?: string;
+}
+
+/** Shape of the `result` payload from `config/area_registry/create`. */
+export interface HaAreaRegistryEntry {
+  readonly area_id: string;
+  readonly name: string;
+  readonly floor_id?: string | null;
+}
+
 /* ---------- frontend/get_translations (i18n-D / #426) ---------- */
 
 /**
@@ -153,4 +216,7 @@ export type HaOutboundFrame =
   | HaUnsubscribeEventsFrame
   | HaCallServiceFrame
   | HaGetStatesFrame
-  | HaGetTranslationsFrame;
+  | HaGetTranslationsFrame
+  | HaConfigCoreUpdateFrame
+  | HaFloorRegistryCreateFrame
+  | HaAreaRegistryCreateFrame;

@@ -41,6 +41,21 @@ const ConfigSchema = z.object({
   supervisorUrl: z.string().url().optional(),
   supervisorToken: z.string().optional(),
   supervisorMock: z.boolean().default(false),
+  // HA Core WebSocket (#617). The setup wizard's apply step pushes the
+  // collected home settings (location, timezone, unit-system, country,
+  // language, floors/rooms) into HA via `config/core/update` +
+  // `config/{floor,area}_registry/create` — all WebSocket-only commands
+  // with no REST equivalent. apps/api opens a WS to HA Core with the
+  // long-lived access token (which HA Core accepts, unlike the
+  // Supervisor `/api/hassio/*` proxy — see #602).
+  //
+  // `haCoreUrl` is the HA Core HTTP base (e.g.
+  // `http://homeassistant.local:8123`); the WS transport rewrites the
+  // scheme. Both unset → `POST /setup/apply-ha` responds 503. This is a
+  // dev-first capability (ADR 0029) — production onboarding routes
+  // through the relay / add-on, not a direct apps/api → HA Core WS.
+  haCoreUrl: z.string().url().optional(),
+  haCoreToken: z.string().optional(),
   buildInfo: z.object({
     commit: z.string().default('unknown'),
     builtAt: z.string().default(''),
@@ -69,6 +84,12 @@ export function loadConfig(env: NodeJS.ProcessEnv = process.env): Config {
     supervisorUrl: env.HA_SUPERVISOR_URL === '' ? undefined : env.HA_SUPERVISOR_URL,
     supervisorToken: env.HA_SUPERVISOR_TOKEN === '' ? undefined : env.HA_SUPERVISOR_TOKEN,
     supervisorMock: parseBool(env.HA_SUPERVISOR_MOCK),
+    // Empty-string → undefined, same rationale as the supervisor vars:
+    // a fresh .env-from-example leaves these blank, and the route's
+    // "ha-core-not-configured" 503 branch must fire rather than apps/api
+    // dialing an empty WS URL with an empty token.
+    haCoreUrl: env.HA_CORE_URL === '' ? undefined : env.HA_CORE_URL,
+    haCoreToken: env.HA_CORE_TOKEN === '' ? undefined : env.HA_CORE_TOKEN,
     buildInfo: {
       commit: env.GLAON_API_COMMIT ?? 'unknown',
       builtAt: env.GLAON_API_BUILT_AT ?? '',

@@ -17,12 +17,18 @@ panel_title: Glaon (dev)
 # The production add-on (`addon/`) keeps this `false` per ADR 0026; this
 # manifest is dev-only and never ships to the HA Add-on store.
 #
-# We deliberately do NOT set `hassio_role` — the default role (which is
-# what the Supervisor assigns when the field is omitted) already permits
-# the /network/* endpoints we proxy. Setting `hassio_role: default`
-# explicitly is redundant noise; setting it to anything else widens
-# privilege past what the proxy actually exposes.
+# `hassio_role: admin` is REQUIRED for the network scan + update endpoints
+# (#622). The Supervisor SecurityMiddleware gates `/network/.+` behind
+# ROLE_MANAGER (admin matches every path); the implicit default role only
+# grants `GET /network/info`, so `/network/interface/{iface}/accesspoints`
+# and `/network/interface/{iface}/update` returned 403. An earlier commit
+# (#611/#612) dropped `hassio_role` on the wrong assumption that the
+# default role covered all of `/network/*` — it doesn't. This add-on's
+# entire purpose is driving the Wi-Fi handoff, so full network access via
+# admin is the intended grant; it's dev-only, local, behind Ingress + a
+# trusted-LAN port. The production add-on never sets hassio_api/role.
 hassio_api: true
+hassio_role: admin
 homeassistant_api: false
 auth_api: false
 host_network: false

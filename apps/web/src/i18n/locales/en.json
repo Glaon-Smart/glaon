@@ -194,11 +194,11 @@
         "list": {
           "ariaLabel": "Available Wi-Fi networks"
         },
-        "unsecured": "Unsecured",
+        "signal": "Signal {signal}%",
         "password": {
           "label": "Network password",
           "placeholder": "Type the password",
-          "hint": "We'll ask again in the confirmation dialog so a typo can't lock you out."
+          "optionalHint": "Optional — leave empty for an open network. We'll ask again in the confirmation dialog so a typo can't lock you out."
         },
         "loading": "Looking for nearby Wi-Fi networks…",
         "empty": "No Wi-Fi networks found nearby. Move closer to your router or try again.",

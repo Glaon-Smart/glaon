@@ -39,18 +39,28 @@ import { expect, test, type Page } from '@playwright/test';
 const DEVICE_CONFIG_KEY = 'glaon.device-config';
 
 async function mockSupervisorNetworkScan(page: Page): Promise<void> {
+  // #622 — /network/info carries interfaces only (for wireless-interface
+  // discovery); the AP list comes from the accesspoints endpoint, which
+  // has no `auth` field (signal only).
   await page.route('**/api/hassio/network/info', async (route) => {
     await route.fulfill({
       status: 200,
       contentType: 'application/json',
       body: JSON.stringify({
-        data: {
-          interfaces: [{ accesspoints: [{ ssid: 'PreviewGuest', auth: 'none' }] }],
-        },
+        data: { interfaces: [{ interface: 'wlan0', type: 'wireless', enabled: true }] },
       }),
     });
   });
-  await page.route('**/api/hassio/network/wlan0/update', async (route) => {
+  await page.route('**/api/hassio/network/interface/wlan0/accesspoints', async (route) => {
+    await route.fulfill({
+      status: 200,
+      contentType: 'application/json',
+      body: JSON.stringify({
+        data: { accesspoints: [{ ssid: 'PreviewGuest', mac: 'aa:bb:cc:00:00:01', signal: 64 }] },
+      }),
+    });
+  });
+  await page.route('**/api/hassio/network/interface/wlan0/update', async (route) => {
     await route.fulfill({ status: 200, contentType: 'application/json', body: '{"result":"ok"}' });
   });
   // #617 — the apply step pushes home settings to HA Core before the

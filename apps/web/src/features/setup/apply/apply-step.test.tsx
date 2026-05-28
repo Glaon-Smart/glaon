@@ -43,15 +43,23 @@ const baseCollected = {
   unitSystem: 'metric' as const,
 };
 
-const sampleSupervisorPayload = {
+// #622 — /network/info carries interfaces only (for wireless-interface
+// discovery); the AP list comes from the accesspoints endpoint and has
+// no `auth` field (signal only).
+const sampleNetworkInfo = {
   data: {
     interfaces: [
-      {
-        accesspoints: [
-          { ssid: 'HomeWifi', auth: 'wpa-psk' },
-          { ssid: 'Guest', auth: 'none' },
-        ],
-      },
+      { interface: 'wlan0', type: 'wireless', enabled: true },
+      { interface: 'end0', type: 'ethernet', enabled: true },
+    ],
+  },
+};
+
+const sampleAccessPoints = {
+  data: {
+    accesspoints: [
+      { ssid: 'HomeWifi', mac: 'aa:bb:cc:00:00:01', signal: 70, mode: 'infrastructure' },
+      { ssid: 'Guest', mac: 'aa:bb:cc:00:00:02', signal: 55, mode: 'infrastructure' },
     ],
   },
 };
@@ -59,18 +67,28 @@ const sampleSupervisorPayload = {
 /** Default success response for the HA-settings push (#617). */
 const haApplyOk = { ok: true, steps: [] };
 
+/** Route a GET network request to the right canned payload, else null. */
+function networkScanResponse(url: string): Response | null {
+  if (url.includes('/network/info')) return mockFetchResponse({ json: sampleNetworkInfo });
+  if (url.includes('/accesspoints')) return mockFetchResponse({ json: sampleAccessPoints });
+  return null;
+}
+
 /**
- * URL-aware default mock: the wizard's commit fires two POSTs —
- * `/api/setup/apply-ha` (HA config push) then the supervisor wifi
- * update — plus the GET network scan. Route each so one doesn't get the
- * other's payload.
+ * URL-aware default mock. The wizard's scan is two GETs (/network/info
+ * then /network/interface/wlan0/accesspoints); the commit fires
+ * /api/setup/apply-ha then the supervisor update POST. Route each so one
+ * doesn't get another's payload.
  */
 function defaultFetch(url: unknown): Promise<Response> {
   const u = String(url);
   if (u.includes('/api/setup/apply-ha')) {
     return Promise.resolve(mockFetchResponse({ json: haApplyOk }));
   }
-  return Promise.resolve(mockFetchResponse({ json: sampleSupervisorPayload }));
+  const scan = networkScanResponse(u);
+  if (scan !== null) return Promise.resolve(scan);
+  // Update POST (or anything else) → ok.
+  return Promise.resolve(mockFetchResponse({ json: { result: 'ok' } }));
 }
 
 /** Find the supervisor wifi-update POST specifically (not the apply-ha POST). */
@@ -127,7 +145,8 @@ describe('ApplyStep — Wi-Fi scan unavailable (503)', () => {
       'fetch',
       vi.fn((url: unknown) => {
         const u = String(url);
-        if (u.includes('/api/hassio/network/info') || u.includes('/api/setup/apply-ha')) {
+        // Every Supervisor + HA-settings path 503s (HA-less env).
+        if (u.includes('/api/hassio/network/') || u.includes('/api/setup/apply-ha')) {
           return Promise.resolve(
             mockFetchResponse({
               ok: false,
@@ -136,7 +155,7 @@ describe('ApplyStep — Wi-Fi scan unavailable (503)', () => {
             }),
           );
         }
-        return Promise.resolve(mockFetchResponse({ json: sampleSupervisorPayload }));
+        return Promise.resolve(mockFetchResponse({ json: { result: 'ok' } }));
       }),
     );
   });
@@ -250,7 +269,9 @@ describe('ApplyStep — populated mode', () => {
         if (init?.method === 'POST' && u.includes('/hassio/')) {
           return Promise.resolve(mockFetchResponse({ ok: false, status: 500 }));
         }
-        return Promise.resolve(mockFetchResponse({ json: sampleSupervisorPayload }));
+        const scan = networkScanResponse(u);
+        if (scan !== null) return Promise.resolve(scan);
+        return Promise.resolve(mockFetchResponse({ json: { result: 'ok' } }));
       }),
     );
     const { findByText, getByRole, findByRole } = render(
@@ -276,7 +297,9 @@ describe('ApplyStep — populated mode', () => {
             }),
           );
         }
-        return Promise.resolve(mockFetchResponse({ json: sampleSupervisorPayload }));
+        const scan = networkScanResponse(u);
+        if (scan !== null) return Promise.resolve(scan);
+        return Promise.resolve(mockFetchResponse({ json: { result: 'ok' } }));
       }),
     );
     const { findByText, getByRole, findByRole } = render(

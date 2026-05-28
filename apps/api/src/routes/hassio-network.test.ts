@@ -27,19 +27,32 @@ function mockResponse(init: { status?: number; body: unknown; contentType?: stri
 }
 
 describe('hassio-network — mock mode', () => {
-  it('returns a canned access-point list on GET /network/info', async () => {
+  it('returns interfaces (no embedded accesspoints) on GET /network/info', async () => {
     const router = createHassioNetworkRouter({ config: baseConfig({ supervisorMock: true }) });
     const res = await router.request('/network/info');
     expect(res.status).toBe(200);
     const body = (await res.json()) as {
-      data: { interfaces: { accesspoints: { ssid: string }[] }[] };
+      data: { interfaces: { interface: string; type: string }[] };
     };
-    expect(body.data.interfaces[0]?.accesspoints.length).toBeGreaterThan(0);
+    const wireless = body.data.interfaces.find((i) => i.type === 'wireless');
+    expect(wireless?.interface).toBe('wlan0');
+    // /network/info carries interfaces only — APs come from the
+    // accesspoints endpoint (#622).
+    expect(body.data.interfaces[0]).not.toHaveProperty('accesspoints');
   });
 
-  it('accepts any POST /network/:iface/update with 200 + { mocked: true }', async () => {
+  it('returns a canned AP list on GET /network/interface/:iface/accesspoints', async () => {
     const router = createHassioNetworkRouter({ config: baseConfig({ supervisorMock: true }) });
-    const res = await router.request('/network/wlan0/update', {
+    const res = await router.request('/network/interface/wlan0/accesspoints');
+    expect(res.status).toBe(200);
+    const body = (await res.json()) as { data: { accesspoints: { ssid: string }[] } };
+    expect(body.data.accesspoints.length).toBeGreaterThan(0);
+    expect(body.data.accesspoints[0]?.ssid).toBe('GlaonDev-Home');
+  });
+
+  it('accepts any POST /network/interface/:iface/update with 200 + { mocked: true }', async () => {
+    const router = createHassioNetworkRouter({ config: baseConfig({ supervisorMock: true }) });
+    const res = await router.request('/network/interface/wlan0/update', {
       method: 'POST',
       headers: { 'Content-Type': 'application/json' },
       body: JSON.stringify({ wifi: { mode: 'infrastructure', auth: 'open', ssid: 'X' } }),
@@ -50,16 +63,22 @@ describe('hassio-network — mock mode', () => {
 });
 
 describe('hassio-network — unconfigured', () => {
-  it('returns 503 on GET when neither URL nor mock is set', async () => {
+  it('returns 503 on GET /network/info when neither URL nor mock is set', async () => {
     const router = createHassioNetworkRouter({ config: baseConfig() });
     const res = await router.request('/network/info');
     expect(res.status).toBe(503);
     expect(await res.json()).toMatchObject({ error: 'supervisor-not-configured' });
   });
 
-  it('returns 503 on POST when neither URL nor mock is set', async () => {
+  it('returns 503 on GET accesspoints when neither URL nor mock is set', async () => {
     const router = createHassioNetworkRouter({ config: baseConfig() });
-    const res = await router.request('/network/wlan0/update', {
+    const res = await router.request('/network/interface/wlan0/accesspoints');
+    expect(res.status).toBe(503);
+  });
+
+  it('returns 503 on POST update when neither URL nor mock is set', async () => {
+    const router = createHassioNetworkRouter({ config: baseConfig() });
+    const res = await router.request('/network/interface/wlan0/update', {
       method: 'POST',
       headers: { 'Content-Type': 'application/json' },
       body: JSON.stringify({ wifi: { auth: 'open', ssid: 'X' } }),
@@ -91,13 +110,29 @@ describe('hassio-network — live proxy', () => {
     expect((init.headers as Record<string, string>).Authorization).toBe('Bearer long-lived-token');
   });
 
-  it('forwards POST body verbatim, preserves status, and re-emits content-type', async () => {
+  it('forwards GET accesspoints to the canonical /interface/ path with the bearer token', async () => {
+    const fetchImpl: typeof fetch = vi.fn(() =>
+      Promise.resolve(mockResponse({ body: { data: { accesspoints: [{ ssid: 'Doyran' }] } } })),
+    );
+    const router = createHassioNetworkRouter({ config, fetchImpl });
+    const res = await router.request('/network/interface/wlan0/accesspoints');
+    expect(res.status).toBe(200);
+    const call = vi.mocked(fetchImpl).mock.calls[0];
+    if (call === undefined) throw new Error('expected upstream call');
+    expect(call[0]).toBe('http://supervisor.test/network/network/interface/wlan0/accesspoints');
+    const init = call[1];
+    if (init === undefined) throw new Error('expected init');
+    expect(init.method).toBe('GET');
+    expect((init.headers as Record<string, string>).Authorization).toBe('Bearer long-lived-token');
+  });
+
+  it('forwards POST body verbatim to the canonical /interface/ update path', async () => {
     const upstreamBody = { result: 'ok' };
     const fetchImpl: typeof fetch = vi.fn(() =>
       Promise.resolve(mockResponse({ status: 202, body: upstreamBody })),
     );
     const router = createHassioNetworkRouter({ config, fetchImpl });
-    const res = await router.request('/network/wlan0/update', {
+    const res = await router.request('/network/interface/wlan0/update', {
       method: 'POST',
       headers: { 'Content-Type': 'application/json' },
       body: JSON.stringify({ wifi: { auth: 'wpa-psk', psk: 'secret' } }),
@@ -107,7 +142,7 @@ describe('hassio-network — live proxy', () => {
     const mock = vi.mocked(fetchImpl);
     const call = mock.mock.calls[0];
     if (call === undefined) throw new Error('expected upstream call');
-    expect(call[0]).toBe('http://supervisor.test/network/network/wlan0/update');
+    expect(call[0]).toBe('http://supervisor.test/network/network/interface/wlan0/update');
     const init = call[1];
     if (init === undefined) throw new Error('expected init');
     expect(init.method).toBe('POST');
@@ -124,7 +159,7 @@ describe('hassio-network — live proxy', () => {
   it('rejects malformed POST bodies with 400 before touching the supervisor', async () => {
     const fetchImpl: typeof fetch = vi.fn();
     const router = createHassioNetworkRouter({ config, fetchImpl });
-    const res = await router.request('/network/wlan0/update', {
+    const res = await router.request('/network/interface/wlan0/update', {
       method: 'POST',
       headers: { 'Content-Type': 'application/json' },
       body: 'not-json',

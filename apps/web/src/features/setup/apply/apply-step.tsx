@@ -62,9 +62,16 @@ interface ApplyStepProps {
 // Supervisor wiring (carried over from review-step + wifi-step)
 // =============================================================
 
-const SUPERVISOR_NETWORK_INTERFACE = 'wlan0';
-const SUPERVISOR_NETWORK_UPDATE = `/api/hassio/network/${SUPERVISOR_NETWORK_INTERFACE}/update`;
 const SUPERVISOR_NETWORK_INFO = '/api/hassio/network/info';
+const DEFAULT_WIRELESS_INTERFACE = 'wlan0';
+
+// HA Supervisor's scan results + commit are per-interface and carry the
+// canonical `/interface/` segment (#622). The AP list is NOT in
+// /network/info — it lives on the accesspoints endpoint.
+const networkAccesspointsUrl = (iface: string): string =>
+  `/api/hassio/network/interface/${encodeURIComponent(iface)}/accesspoints`;
+const networkUpdateUrl = (iface: string): string =>
+  `/api/hassio/network/interface/${encodeURIComponent(iface)}/update`;
 
 // #617 — apps/api endpoint that pushes the collected home settings into
 // HA Core (config/core/update + floor/area registry) over WebSocket.
@@ -76,17 +83,15 @@ const HA_APPLY_SETTINGS = '/api/setup/apply-ha';
 // in #594's open questions.
 const DEVICE_URL_AFTER_HANDOFF = 'http://glaon.local';
 
-function isSecuredAuth(auth: string): boolean {
-  return auth !== '' && auth.toLowerCase() !== 'none';
-}
-
 function isSecuredCipher(cipher: string | undefined): boolean {
   return cipher !== undefined && cipher !== '' && cipher !== '(unsecured)';
 }
 
+// Scan results carry no security/auth field (#622) — only signal. We
+// can't tell secured from open networks; the password field decides.
 interface AccessPoint {
   readonly ssid: string;
-  readonly auth: string;
+  readonly signal?: number;
 }
 
 type FetchState =
@@ -98,42 +103,65 @@ type FetchState =
   | { readonly kind: 'unavailable' };
 
 /**
- * Normalise the HA Supervisor `/api/hassio/network/info` response
- * into a flat, deduplicated list of access points. The endpoint
- * returns `{ data: { interfaces: [{ accesspoints: [...] }] } }` —
- * one entry per wireless interface; merge them.
+ * Pick the wireless interface from a `/network/info` payload
+ * (`{ data: { interfaces: [{ interface, type }] } }`). Falls back to
+ * `wlan0` when discovery is inconclusive — matches the device default.
  */
-function parseAccessPoints(json: unknown): readonly AccessPoint[] {
+function findWirelessInterface(json: unknown): string {
   const root = json as
-    | { data?: { interfaces?: readonly { accesspoints?: readonly unknown[] }[] } }
+    | { data?: { interfaces?: readonly { interface?: unknown; type?: unknown }[] } }
     | undefined;
-  const interfaces = root?.data?.interfaces ?? [];
-  const seen = new Set<string>();
-  const out: AccessPoint[] = [];
-  for (const iface of interfaces) {
-    for (const raw of iface.accesspoints ?? []) {
-      const ap = raw as { ssid?: unknown; auth?: unknown };
-      const ssid = typeof ap.ssid === 'string' ? ap.ssid : '';
-      const auth = typeof ap.auth === 'string' ? ap.auth : '';
-      if (ssid === '' || seen.has(ssid)) continue;
-      seen.add(ssid);
-      out.push({ ssid, auth });
+  for (const iface of root?.data?.interfaces ?? []) {
+    if (
+      iface.type === 'wireless' &&
+      typeof iface.interface === 'string' &&
+      iface.interface !== ''
+    ) {
+      return iface.interface;
     }
   }
-  return out;
+  return DEFAULT_WIRELESS_INTERFACE;
+}
+
+/**
+ * Normalise the Supervisor accesspoints response
+ * (`{ data: { accesspoints: [{ ssid, mac, signal, ... }] } }`) into a
+ * deduplicated AP list. Dedup by SSID keeping the strongest signal;
+ * sort strongest-first.
+ */
+function parseAccessPoints(json: unknown): readonly AccessPoint[] {
+  const root = json as { data?: { accesspoints?: readonly unknown[] } } | undefined;
+  const bySsid = new Map<string, AccessPoint>();
+  for (const raw of root?.data?.accesspoints ?? []) {
+    const ap = raw as { ssid?: unknown; signal?: unknown };
+    const ssid = typeof ap.ssid === 'string' ? ap.ssid : '';
+    if (ssid === '') continue;
+    const signal = typeof ap.signal === 'number' ? ap.signal : undefined;
+    const existing = bySsid.get(ssid);
+    if (existing === undefined || (signal ?? -Infinity) > (existing.signal ?? -Infinity)) {
+      bySsid.set(ssid, signal === undefined ? { ssid } : { ssid, signal });
+    }
+  }
+  return [...bySsid.values()].sort((a, b) => (b.signal ?? -Infinity) - (a.signal ?? -Infinity));
 }
 
 interface PushWifiArgs {
+  readonly iface: string;
   readonly ssid: string;
   readonly password: string;
   readonly secured: boolean;
 }
 
-async function pushWifiToSupervisor({ ssid, password, secured }: PushWifiArgs): Promise<void> {
+async function pushWifiToSupervisor({
+  iface,
+  ssid,
+  password,
+  secured,
+}: PushWifiArgs): Promise<void> {
   const body = secured
     ? { wifi: { mode: 'infrastructure', auth: 'wpa-psk', ssid, psk: password } }
     : { wifi: { mode: 'infrastructure', auth: 'open', ssid } };
-  const response = await fetch(SUPERVISOR_NETWORK_UPDATE, {
+  const response = await fetch(networkUpdateUrl(iface), {
     method: 'POST',
     credentials: 'include',
     headers: { 'Content-Type': 'application/json' },
@@ -213,40 +241,65 @@ export function ApplyStep({ collected }: ApplyStepProps): ReactNode {
   const [fetchState, setFetchState] = useState<FetchState>({ kind: 'loading' });
   const [selectedSsid, setSelectedSsid] = useState<string>(collected.wifi?.ssid ?? '');
   const [draftPassword, setDraftPassword] = useState<string>('');
+  // Wireless interface discovered from /network/info; used for both the
+  // accesspoints scan and the commit. Defaults to wlan0 until discovered.
+  const [wirelessIface, setWirelessIface] = useState<string>(DEFAULT_WIRELESS_INTERFACE);
+
+  const failScan = useCallback(() => {
+    setFetchState({ kind: 'error' });
+    toast.show({
+      intent: 'danger',
+      title: t('setup.apply.wifi.scanFailed.title'),
+      description: t('setup.apply.wifi.scanFailed.description'),
+    });
+  }, [t, toast]);
 
   const loadNetworks = useCallback(async () => {
     setFetchState({ kind: 'loading' });
-    let response: Response;
+
+    // Step 1: discover the wireless interface from /network/info.
+    let iface = DEFAULT_WIRELESS_INTERFACE;
+    let infoResponse: Response;
     try {
-      response = await fetch(SUPERVISOR_NETWORK_INFO, { credentials: 'include' });
+      infoResponse = await fetch(SUPERVISOR_NETWORK_INFO, { credentials: 'include' });
     } catch {
-      setFetchState({ kind: 'error' });
-      toast.show({
-        intent: 'danger',
-        title: t('setup.apply.wifi.scanFailed.title'),
-        description: t('setup.apply.wifi.scanFailed.description'),
-      });
+      failScan();
       return;
     }
     // 503 = supervisor-not-configured. The scan genuinely can't run in
-    // this environment (e.g. a dev box with no HA). This is an expected,
-    // handled state — render an inline notice, no danger toast.
-    if (response.status === 503) {
+    // this environment (HA-less dev). Expected, handled — inline notice,
+    // no danger toast.
+    if (infoResponse.status === 503) {
       setFetchState({ kind: 'unavailable' });
       return;
     }
-    if (!response.ok) {
-      setFetchState({ kind: 'error' });
-      toast.show({
-        intent: 'danger',
-        title: t('setup.apply.wifi.scanFailed.title'),
-        description: t('setup.apply.wifi.scanFailed.description'),
-      });
+    if (infoResponse.ok) {
+      iface = findWirelessInterface(await infoResponse.json().catch(() => null));
+    }
+    // A non-ok, non-503 /network/info falls through to the wlan0 default
+    // and still attempts the scan — the accesspoints call is the real
+    // signal of whether scanning works.
+    setWirelessIface(iface);
+
+    // Step 2: scan that interface's access points (the real AP list).
+    let apResponse: Response;
+    try {
+      apResponse = await fetch(networkAccesspointsUrl(iface), { credentials: 'include' });
+    } catch {
+      failScan();
       return;
     }
-    const json: unknown = await response.json().catch(() => null);
+    if (apResponse.status === 503) {
+      setFetchState({ kind: 'unavailable' });
+      return;
+    }
+    if (!apResponse.ok) {
+      failScan();
+      return;
+    }
+    const json: unknown = await apResponse.json().catch(() => null);
     setFetchState({ kind: 'success', networks: parseAccessPoints(json) });
-  }, [t, toast]);
+  }, [failScan]);
 
   useEffect(() => {
     void loadNetworks();
@@ -257,8 +310,11 @@ export function ApplyStep({ collected }: ApplyStepProps): ReactNode {
     return fetchState.networks.find((n) => n.ssid === selectedSsid) ?? null;
   }, [fetchState, selectedSsid]);
 
-  const passwordRequired = selectedNetwork !== null && isSecuredAuth(selectedNetwork.auth);
   const wifiPicked = selectedNetwork !== null;
+  // Scan results carry no security info (#622), so "secured" is decided
+  // by whether the user typed a password — non-empty → WPA-PSK, empty →
+  // open. The password field is always optional for a picked network.
+  const passwordProvided = draftPassword.trim() !== '';
 
   // ---- Commit ceremony state (carried from review-step.tsx) ----
 
@@ -266,29 +322,26 @@ export function ApplyStep({ collected }: ApplyStepProps): ReactNode {
   const isCommitting = handoffPhase === 'committing';
 
   // CTA enablement: when the scan is unavailable (HA-less env) the user
-  // commits without a network change; otherwise wait for a picked
-  // network and (if secured) the inline password.
-  const ctaDisabled =
-    isCommitting ||
-    (fetchState.kind !== 'unavailable' &&
-      (!wifiPicked || (passwordRequired && draftPassword.trim() === '')));
+  // commits without a network change; otherwise just need a picked
+  // network (the password is optional — open networks exist and the scan
+  // can't tell us which is secured).
+  const ctaDisabled = isCommitting || (fetchState.kind !== 'unavailable' && !wifiPicked);
 
   const onApplyClick = (): void => {
     if (ctaDisabled) return;
-    if (passwordRequired) {
-      // Secured wifi → open handoff modal so the user re-confirms the
-      // password and reads the disconnect warning.
+    if (passwordProvided) {
+      // A password was entered → treat as secured: open the handoff modal
+      // so the user re-confirms the password and reads the disconnect
+      // warning.
       setHandoffPhase('confirming');
       return;
     }
-    // Open / no-wifi networks skip the modal (no password to
-    // re-confirm, no AP→home handoff to warn about for the no-wifi
-    // case).
+    // No password → open network (or no-wifi). Commit directly.
     void runCommit('');
   };
 
   const onHandoffConfirm = (password: string): void => {
-    if (passwordRequired && password.trim() === '') return;
+    if (password.trim() === '') return;
     void runCommit(password);
   };
 
@@ -305,7 +358,7 @@ export function ApplyStep({ collected }: ApplyStepProps): ReactNode {
     // handling covers the HA-less environment.
     const haOutcome = await pushSettingsToHa(collected);
     if (haOutcome.kind === 'error' || haOutcome.kind === 'partial') {
-      setHandoffPhase(passwordRequired ? 'confirming' : 'idle');
+      setHandoffPhase(secureWifiPassword.trim() !== '' ? 'confirming' : 'idle');
       toast.show({
         intent: 'danger',
         title: t('setup.apply.haSettingsFailed.title'),
@@ -315,19 +368,23 @@ export function ApplyStep({ collected }: ApplyStepProps): ReactNode {
     }
 
     try {
-      // The plaintext password lives in the modal's confirm field
+      // The plaintext password comes from the modal's confirm field
       // (`secureWifiPassword`) — used as-is for the supervisor POST
       // (the wire format expects plaintext PSK), then wrapped via
       // Web Crypto AES-GCM before it lands in the persisted blob
       // (#595, Security-First Rule "no plaintext credentials").
-      const secured = passwordRequired;
-      const password = secured ? secureWifiPassword : '';
-      if (secured && password === '') {
-        throw new Error('missing wifi password');
-      }
+      // "secured" is decided by password presence (#622) — the scan
+      // can't tell us the network's security type.
+      const password = secureWifiPassword;
+      const secured = password.trim() !== '';
 
       if (selectedNetwork !== null) {
-        await pushWifiToSupervisor({ ssid: selectedNetwork.ssid, password, secured });
+        await pushWifiToSupervisor({
+          iface: wirelessIface,
+          ssid: selectedNetwork.ssid,
+          password,
+          secured,
+        });
         const persistedCipher = secured ? await wrapPassword(password) : '(unsecured)';
         await setPartial({
           ...collected,
@@ -341,10 +398,10 @@ export function ApplyStep({ collected }: ApplyStepProps): ReactNode {
       // future visit to the URL never resurrects this run's state.
       clearWizardScratch();
       clearDeviceKey();
-      // `passwordRequired` already implies `selectedNetwork !== null`
-      // (see its derivation above), so the wifi handoff overlay path
-      // matches the secured-network case 1:1.
-      if (passwordRequired) {
+      // Secured (password-bearing) commits route through the handoff
+      // overlay — that's the AP→home disconnect moment. Open / no-wifi
+      // commits reload straight away.
+      if (secured) {
         setHandoffPhase('switching');
         // Defer the reload by a moment so the user catches a beat of
         // the HandoffOverlay before the page goes away. In practice
@@ -359,7 +416,7 @@ export function ApplyStep({ collected }: ApplyStepProps): ReactNode {
       // Secured-wifi failure re-opens the modal so the user can
       // retry / re-enter the password; everything else returns to
       // idle since there's no modal to re-open. Toast fires in both.
-      setHandoffPhase(passwordRequired ? 'confirming' : 'idle');
+      setHandoffPhase(secureWifiPassword.trim() !== '' ? 'confirming' : 'idle');
       toast.show({
         intent: 'danger',
         title: t('setup.apply.commitFailed.title'),
@@ -371,7 +428,7 @@ export function ApplyStep({ collected }: ApplyStepProps): ReactNode {
   // ---- Derived summary value for the embedded Wi-Fi row ----
 
   const wifiSummaryValue = wifiPicked
-    ? passwordRequired
+    ? passwordProvided
       ? t('setup.apply.summary.wifiSecured', { ssid: selectedNetwork.ssid })
       : t('setup.apply.summary.wifiUnsecured', { ssid: selectedNetwork.ssid })
     : collected.wifi !== undefined
@@ -459,7 +516,7 @@ export function ApplyStep({ collected }: ApplyStepProps): ReactNode {
             ))}
           </ul>
         )}
-        {passwordRequired && (
+        {wifiPicked && (
           <div className="flex max-w-[480px] flex-col gap-1.5">
             <label
               id={passwordLabelId}
@@ -475,7 +532,9 @@ export function ApplyStep({ collected }: ApplyStepProps): ReactNode {
               placeholder={t('setup.apply.wifi.password.placeholder')}
               autoComplete="off"
             />
-            <p className="text-xs text-tertiary">{t('setup.apply.wifi.password.hint')}</p>
+            {/* No security info in scan results (#622) — the field is
+                optional; an empty password commits as an open network. */}
+            <p className="text-xs text-tertiary">{t('setup.apply.wifi.password.optionalHint')}</p>
           </div>
         )}
       </section>
@@ -498,7 +557,7 @@ export function ApplyStep({ collected }: ApplyStepProps): ReactNode {
           if (!open) setHandoffPhase('idle');
         }}
         ssid={selectedNetwork?.ssid ?? ''}
-        requiresPassword={passwordRequired}
+        requiresPassword={passwordProvided}
         deviceUrl={DEVICE_URL_AFTER_HANDOFF}
         onConfirm={onHandoffConfirm}
         isCommitting={isCommitting}
@@ -524,7 +583,8 @@ interface WifiNetworkRowProps {
 
 function WifiNetworkRow({ network, isSelected, onSelect }: WifiNetworkRowProps): ReactNode {
   const { t } = useTranslation();
-  const secured = isSecuredAuth(network.auth);
+  // Scan results carry no security type (#622); the secondary line shows
+  // signal strength instead, mirroring HA's own network UI.
   return (
     <button
       type="button"
@@ -538,13 +598,15 @@ function WifiNetworkRow({ network, isSelected, onSelect }: WifiNetworkRowProps):
         aria-hidden="true"
         className="flex size-8 shrink-0 items-center justify-center rounded-md bg-primary text-secondary shadow-xs-skeuomorphic ring-1 ring-primary ring-inset"
       >
-        {secured ? <LockIcon /> : <LockUnlockedIcon />}
+        <WifiIcon />
       </span>
       <span className="flex flex-1 flex-col">
         <span className="text-sm font-medium leading-5 text-secondary">{network.ssid}</span>
-        <span className="text-sm font-normal leading-5 text-tertiary">
-          {secured ? network.auth.toUpperCase() : t('setup.apply.wifi.unsecured')}
-        </span>
+        {network.signal !== undefined && (
+          <span className="text-sm font-normal leading-5 text-tertiary">
+            {t('setup.apply.wifi.signal', { signal: network.signal })}
+          </span>
+        )}
       </span>
       <span
         aria-hidden="true"
@@ -612,7 +674,7 @@ function EmptyNotice({ onRetry }: RetryProps): ReactNode {
   );
 }
 
-function LockIcon(): ReactNode {
+function WifiIcon(): ReactNode {
   return (
     <svg
       width="16"
@@ -625,27 +687,10 @@ function LockIcon(): ReactNode {
       strokeLinejoin="round"
       aria-hidden="true"
     >
-      <rect x="2.667" y="7.333" width="10.667" height="6.667" rx="1.333" />
-      <path d="M4.667 7.333V4.667a3.333 3.333 0 0 1 6.666 0v2.666" />
-    </svg>
-  );
-}
-
-function LockUnlockedIcon(): ReactNode {
-  return (
-    <svg
-      width="16"
-      height="16"
-      viewBox="0 0 16 16"
-      fill="none"
-      stroke="currentColor"
-      strokeWidth="1.5"
-      strokeLinecap="round"
-      strokeLinejoin="round"
-      aria-hidden="true"
-    >
-      <rect x="2.667" y="7.333" width="10.667" height="6.667" rx="1.333" />
-      <path d="M4.667 7.333V4.667a3.333 3.333 0 0 1 6.666 0" />
+      <path d="M1.667 6a9 9 0 0 1 12.666 0" />
+      <path d="M4 8.667a5.333 5.333 0 0 1 8 0" />
+      <path d="M6.333 11.333a2 2 0 0 1 3.334 0" />
+      <path d="M8 14h.007" />
     </svg>
   );
 }

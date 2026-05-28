@@ -43,19 +43,53 @@ interface HassioNetworkRouterDeps {
   readonly logger?: Logger;
 }
 
+// `/network/info` returns interfaces only — the real Supervisor does NOT
+// embed access points here (#622). The wizard discovers the wireless
+// interface from this list, then scans it via the accesspoints endpoint.
 const MOCK_NETWORK_INFO = {
   data: {
     interfaces: [
+      { interface: 'wlan0', type: 'wireless', enabled: true, connected: false, primary: false },
+      { interface: 'end0', type: 'ethernet', enabled: true, connected: true, primary: true },
+    ],
+  },
+};
+
+// `/network/interface/{iface}/accesspoints` — the real scan results.
+// Shape mirrors HA Supervisor: { mode, ssid, mac, frequency, signal } and
+// crucially NO `auth`/security field (#622).
+const MOCK_ACCESSPOINTS = {
+  data: {
+    accesspoints: [
       {
-        accesspoints: [
-          { ssid: 'GlaonDev-Home', auth: 'wpa-psk' },
-          { ssid: 'GlaonDev-Guest', auth: 'none' },
-          { ssid: 'GlaonDev-Office', auth: 'wpa-psk' },
-        ],
+        mode: 'infrastructure',
+        ssid: 'GlaonDev-Home',
+        mac: '00:11:22:33:44:01',
+        frequency: 2412,
+        signal: 72,
+      },
+      {
+        mode: 'infrastructure',
+        ssid: 'GlaonDev-Guest',
+        mac: '00:11:22:33:44:02',
+        frequency: 5180,
+        signal: 58,
+      },
+      {
+        mode: 'infrastructure',
+        ssid: 'GlaonDev-Office',
+        mac: '00:11:22:33:44:03',
+        frequency: 2437,
+        signal: 41,
       },
     ],
   },
 };
+
+const NOT_CONFIGURED_BODY = {
+  error: 'supervisor-not-configured',
+  hint: 'Set HA_SUPERVISOR_URL + HA_SUPERVISOR_TOKEN, or HA_SUPERVISOR_MOCK=true for a canned payload. See docs/dev-supervisor.md.',
+} as const;
 
 export function createHassioNetworkRouter(deps: HassioNetworkRouterDeps): Hono {
   const router = new Hono();
@@ -67,13 +101,7 @@ export function createHassioNetworkRouter(deps: HassioNetworkRouterDeps): Hono {
       return c.json(MOCK_NETWORK_INFO);
     }
     if (supervisorUrl === undefined || supervisorToken === undefined) {
-      return c.json(
-        {
-          error: 'supervisor-not-configured',
-          hint: 'Set HA_SUPERVISOR_URL + HA_SUPERVISOR_TOKEN, or HA_SUPERVISOR_MOCK=true for a canned payload. See docs/dev-supervisor.md.',
-        },
-        503,
-      );
+      return c.json(NOT_CONFIGURED_BODY, 503);
     }
     try {
       const upstream = await fetchImpl(`${trim(supervisorUrl)}/network/info`, {
@@ -92,7 +120,42 @@ export function createHassioNetworkRouter(deps: HassioNetworkRouterDeps): Hono {
     }
   });
 
-  router.post('/network/:iface/update', async (c) => {
+  // Wi-Fi scan results for a wireless interface (#622). Separate from
+  // /network/info — the Supervisor only exposes access points here.
+  router.get('/network/interface/:iface/accesspoints', async (c) => {
+    const iface = c.req.param('iface');
+    if (supervisorMock) {
+      return c.json(MOCK_ACCESSPOINTS);
+    }
+    if (supervisorUrl === undefined || supervisorToken === undefined) {
+      return c.json(NOT_CONFIGURED_BODY, 503);
+    }
+    try {
+      const upstream = await fetchImpl(
+        `${trim(supervisorUrl)}/network/interface/${encodeURIComponent(iface)}/accesspoints`,
+        { method: 'GET', headers: { Authorization: `Bearer ${supervisorToken}` } },
+      );
+      const text = await upstream.text();
+      deps.logger?.info({
+        event: 'hassio-network.proxy.accesspoints',
+        iface,
+        status: upstream.status,
+      });
+      return passThroughResponse(text, upstream);
+    } catch (err) {
+      deps.logger?.error({
+        event: 'hassio-network.proxy.accesspoints.failed',
+        iface,
+        message: err instanceof Error ? err.message : 'unknown',
+      });
+      return c.json({ error: 'supervisor-unreachable' }, 502);
+    }
+  });
+
+  // Commit a Wi-Fi connection. Canonical Supervisor path carries the
+  // `/interface/` segment (#622) — the earlier `/network/:iface/update`
+  // form 404s against a real Supervisor.
+  router.post('/network/interface/:iface/update', async (c) => {
     const iface = c.req.param('iface');
     const body: unknown = await c.req.json().catch(() => null);
     if (body === null || typeof body !== 'object') {
@@ -102,17 +165,11 @@ export function createHassioNetworkRouter(deps: HassioNetworkRouterDeps): Hono {
       return c.json({ result: 'ok', mocked: true });
     }
     if (supervisorUrl === undefined || supervisorToken === undefined) {
-      return c.json(
-        {
-          error: 'supervisor-not-configured',
-          hint: 'Set HA_SUPERVISOR_URL + HA_SUPERVISOR_TOKEN, or HA_SUPERVISOR_MOCK=true for a canned payload. See docs/dev-supervisor.md.',
-        },
-        503,
-      );
+      return c.json(NOT_CONFIGURED_BODY, 503);
     }
     try {
       const upstream = await fetchImpl(
-        `${trim(supervisorUrl)}/network/${encodeURIComponent(iface)}/update`,
+        `${trim(supervisorUrl)}/network/interface/${encodeURIComponent(iface)}/update`,
         {
           method: 'POST',
           headers: {

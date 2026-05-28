@@ -202,7 +202,7 @@
         },
         "loading": "Yakındaki Wi-Fi ağları aranıyor…",
         "empty": "Yakında Wi-Fi ağı bulunamadı. Router'a yaklaş ya da tekrar dene.",
-        "standalone": "Wi-Fi ayarı yalnız Glaon Home Assistant add-on olarak çalışırken kullanılabilir. Ağ değişimi atlanır.",
+        "unavailable": "Bu ortamda Wi-Fi taraması yapılamıyor, bu yüzden ağ değişimi atlanacak. Diğer ayarların yine de kaydedilir.",
         "scanFailed": {
           "title": "Wi-Fi taraması başarısız",
           "description": "Home Assistant ağ taramasına cevap vermedi. Add-on çalışıyor mu kontrol et ve tekrar dene.",

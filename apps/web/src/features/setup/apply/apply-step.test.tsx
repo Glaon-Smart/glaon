@@ -117,28 +117,44 @@ describe('ApplyStep — summary', () => {
   });
 });
 
-describe('ApplyStep — standalone mode', () => {
+describe('ApplyStep — Wi-Fi scan unavailable (503)', () => {
+  // #619: availability is server-driven, not a build flag. When the
+  // network-info endpoint answers 503 (supervisor-not-configured) the
+  // Wi-Fi block degrades to an informational notice and the user can
+  // commit without a network switch — the HA-less dev environment.
   beforeEach(() => {
-    vi.stubEnv('VITE_APP_MODE', 'standalone');
+    vi.stubGlobal(
+      'fetch',
+      vi.fn((url: unknown) => {
+        const u = String(url);
+        if (u.includes('/api/hassio/network/info') || u.includes('/api/setup/apply-ha')) {
+          return Promise.resolve(
+            mockFetchResponse({
+              ok: false,
+              status: 503,
+              json: { error: 'supervisor-not-configured' },
+            }),
+          );
+        }
+        return Promise.resolve(mockFetchResponse({ json: sampleSupervisorPayload }));
+      }),
+    );
   });
 
   it('renders the informational notice and commits without a wifi handoff', async () => {
     const configStore = new InMemoryConfigStore();
-    const { getByRole, getByText } = render(
+    const { getByRole, findByText } = render(
       wrap(<ApplyStep collected={baseCollected} />, configStore),
     );
-    expect(getByText(/Wi-Fi setup is only available/i)).toBeInTheDocument();
+    expect(await findByText(/Wi-Fi scanning isn't available/i)).toBeInTheDocument();
     fireEvent.click(getByRole('button', { name: 'Save and switch network' }));
     await waitFor(() => {
       expect(reloadSpy).toHaveBeenCalledTimes(1);
     });
     expect(await configStore.isConfigured()).toBe(true);
-    // No supervisor call in standalone mode — fetch is mocked but
-    // the wifi block short-circuits before posting.
-    const calls = (global.fetch as unknown as { mock: { calls: unknown[][] } }).mock.calls;
-    expect(
-      calls.some(([, init]) => (init as { method?: string } | undefined)?.method === 'POST'),
-    ).toBe(false);
+    // No supervisor wifi-update POST — the wifi block had nothing to
+    // commit (the HA-settings push 503s to a silent skip).
+    expect(findWifiPost()).toBeUndefined();
   });
 });
 

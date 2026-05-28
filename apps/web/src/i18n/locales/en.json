@@ -202,7 +202,7 @@
         },
         "loading": "Looking for nearby Wi-Fi networks…",
         "empty": "No Wi-Fi networks found nearby. Move closer to your router or try again.",
-        "standalone": "Wi-Fi setup is only available when Glaon runs as the Home Assistant add-on. We'll skip the network switch.",
+        "unavailable": "Wi-Fi scanning isn't available in this environment, so we'll skip the network switch. Your other settings will still be saved.",
         "scanFailed": {
           "title": "Couldn't scan Wi-Fi networks",
           "description": "Home Assistant didn't respond to the network scan. Check that the add-on is running and try again.",

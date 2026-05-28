@@ -22,11 +22,17 @@
 //     is no "step 6" after a successful commit. A terminal step
 //     should look terminal.
 //
-// Wi-Fi enumeration still goes through the HA Supervisor's
-// `/api/hassio/network/info` endpoint. In standalone mode
-// (`VITE_APP_MODE === 'standalone'`) the wifi block collapses to an
-// informational placeholder and the CTA commits without a network
-// change — same dev affordance #546 shipped with.
+// Wi-Fi enumeration goes through `/api/hassio/network/info`. Whether a
+// scan is possible is decided at runtime by the *server*, not a build
+// flag (#619): apps/api (or the add-on's nginx) proxies the request to
+// a real HA Supervisor. The apply step always attempts the scan and
+// reacts to the response — 200 shows networks, 503
+// (`supervisor-not-configured`) means this environment genuinely can't
+// scan (an HA-less dev box) so the Wi-Fi step degrades to an
+// informational notice and the CTA commits without a network change.
+// There is deliberately no `VITE_APP_MODE` gate here: the end user
+// never perceives Glaon as "an add-on", so availability can't hang off
+// the build target.
 //
 // Per the API Error Toast Rule (CLAUDE.md), commit failures surface
 // through useToast; inline error blocks would mask the cross-section
@@ -70,10 +76,6 @@ const HA_APPLY_SETTINGS = '/api/setup/apply-ha';
 // in #594's open questions.
 const DEVICE_URL_AFTER_HANDOFF = 'http://glaon.local';
 
-function isStandaloneMode(): boolean {
-  return import.meta.env.VITE_APP_MODE === 'standalone';
-}
-
 function isSecuredAuth(auth: string): boolean {
   return auth !== '' && auth.toLowerCase() !== 'none';
 }
@@ -91,7 +93,9 @@ type FetchState =
   | { readonly kind: 'loading' }
   | { readonly kind: 'success'; readonly networks: readonly AccessPoint[] }
   | { readonly kind: 'error' }
-  | { readonly kind: 'standalone' };
+  // Server answered 503 supervisor-not-configured: no scan possible in
+  // this environment (HA-less dev). Informational, not an error.
+  | { readonly kind: 'unavailable' };
 
 /**
  * Normalise the HA Supervisor `/api/hassio/network/info` response
@@ -206,19 +210,15 @@ export function ApplyStep({ collected }: ApplyStepProps): ReactNode {
 
   // ---- Wi-Fi enumeration state (carried from wifi-step.tsx) ----
 
-  const [fetchState, setFetchState] = useState<FetchState>(() =>
-    isStandaloneMode() ? { kind: 'standalone' } : { kind: 'loading' },
-  );
+  const [fetchState, setFetchState] = useState<FetchState>({ kind: 'loading' });
   const [selectedSsid, setSelectedSsid] = useState<string>(collected.wifi?.ssid ?? '');
   const [draftPassword, setDraftPassword] = useState<string>('');
 
   const loadNetworks = useCallback(async () => {
     setFetchState({ kind: 'loading' });
+    let response: Response;
     try {
-      const response = await fetch(SUPERVISOR_NETWORK_INFO, { credentials: 'include' });
-      if (!response.ok) throw new Error(`Supervisor responded ${String(response.status)}`);
-      const json: unknown = await response.json();
-      setFetchState({ kind: 'success', networks: parseAccessPoints(json) });
+      response = await fetch(SUPERVISOR_NETWORK_INFO, { credentials: 'include' });
     } catch {
       setFetchState({ kind: 'error' });
       toast.show({
@@ -226,11 +226,29 @@ export function ApplyStep({ collected }: ApplyStepProps): ReactNode {
         title: t('setup.apply.wifi.scanFailed.title'),
         description: t('setup.apply.wifi.scanFailed.description'),
       });
+      return;
     }
+    // 503 = supervisor-not-configured. The scan genuinely can't run in
+    // this environment (e.g. a dev box with no HA). This is an expected,
+    // handled state — render an inline notice, no danger toast.
+    if (response.status === 503) {
+      setFetchState({ kind: 'unavailable' });
+      return;
+    }
+    if (!response.ok) {
+      setFetchState({ kind: 'error' });
+      toast.show({
+        intent: 'danger',
+        title: t('setup.apply.wifi.scanFailed.title'),
+        description: t('setup.apply.wifi.scanFailed.description'),
+      });
+      return;
+    }
+    const json: unknown = await response.json().catch(() => null);
+    setFetchState({ kind: 'success', networks: parseAccessPoints(json) });
   }, [t, toast]);
 
   useEffect(() => {
-    if (isStandaloneMode()) return;
     void loadNetworks();
   }, [loadNetworks]);
 
@@ -247,11 +265,12 @@ export function ApplyStep({ collected }: ApplyStepProps): ReactNode {
   const [handoffPhase, setHandoffPhase] = useState<HandoffPhase>('idle');
   const isCommitting = handoffPhase === 'committing';
 
-  // CTA enablement: standalone mode commits without wifi; otherwise
-  // wait for a picked network and (if secured) the inline password.
+  // CTA enablement: when the scan is unavailable (HA-less env) the user
+  // commits without a network change; otherwise wait for a picked
+  // network and (if secured) the inline password.
   const ctaDisabled =
     isCommitting ||
-    (fetchState.kind !== 'standalone' &&
+    (fetchState.kind !== 'unavailable' &&
       (!wifiPicked || (passwordRequired && draftPassword.trim() === '')));
 
   const onApplyClick = (): void => {
@@ -279,20 +298,20 @@ export function ApplyStep({ collected }: ApplyStepProps): ReactNode {
     // Push home settings to HA *before* the Wi-Fi handoff (#617). This
     // step is non-destructive and the network is still stable, so a
     // failure can abort cleanly before we switch Wi-Fi. A `skipped`
-    // outcome (apps/api has no HA Core configured — dev) is fine and
-    // proceeds silently; only a hard failure / partial apply stops the
-    // ceremony so the user can retry without a half-applied home.
-    if (!isStandaloneMode()) {
-      const haOutcome = await pushSettingsToHa(collected);
-      if (haOutcome.kind === 'error' || haOutcome.kind === 'partial') {
-        setHandoffPhase(passwordRequired ? 'confirming' : 'idle');
-        toast.show({
-          intent: 'danger',
-          title: t('setup.apply.haSettingsFailed.title'),
-          description: t('setup.apply.haSettingsFailed.description'),
-        });
-        return;
-      }
+    // outcome (apps/api has no HA Core configured — dev, 503) is fine
+    // and proceeds silently; only a hard failure / partial apply stops
+    // the ceremony so the user can retry without a half-applied home.
+    // No build-flag guard (#619): pushSettingsToHa's own 503→skipped
+    // handling covers the HA-less environment.
+    const haOutcome = await pushSettingsToHa(collected);
+    if (haOutcome.kind === 'error' || haOutcome.kind === 'partial') {
+      setHandoffPhase(passwordRequired ? 'confirming' : 'idle');
+      toast.show({
+        intent: 'danger',
+        title: t('setup.apply.haSettingsFailed.title'),
+        description: t('setup.apply.haSettingsFailed.description'),
+      });
+      return;
     }
 
     try {
@@ -418,7 +437,7 @@ export function ApplyStep({ collected }: ApplyStepProps): ReactNode {
           <p className="text-sm text-tertiary">{t('setup.apply.wifi.subtitle')}</p>
         </div>
 
-        {fetchState.kind === 'standalone' && <StandaloneNotice />}
+        {fetchState.kind === 'unavailable' && <UnavailableNotice />}
         {fetchState.kind === 'loading' && <LoadingNotice />}
         {fetchState.kind === 'error' && <ErrorRetry onRetry={() => void loadNetworks()} />}
         {fetchState.kind === 'success' && fetchState.networks.length === 0 && (
@@ -539,11 +558,11 @@ function WifiNetworkRow({ network, isSelected, onSelect }: WifiNetworkRowProps):
   );
 }
 
-function StandaloneNotice(): ReactNode {
+function UnavailableNotice(): ReactNode {
   const { t } = useTranslation();
   return (
     <div className="rounded-lg border border-secondary bg-secondary/50 p-4 text-sm text-tertiary">
-      {t('setup.apply.wifi.standalone')}
+      {t('setup.apply.wifi.unavailable')}
     </div>
   );
 }

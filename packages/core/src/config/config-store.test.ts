@@ -57,6 +57,27 @@ describe('InMemoryConfigStore', () => {
     });
   });
 
+  it('round-trips a network block through setPartial and preserves it across merges', async () => {
+    const store = new InMemoryConfigStore();
+    const network = {
+      hostname: 'glaon-wall',
+      interfaces: [
+        {
+          name: 'end0',
+          ipv4: { method: 'static' as const, address: ['192.168.1.50/24'], gateway: '192.168.1.1' },
+          ipv6: { method: 'auto' as const },
+        },
+      ],
+    };
+    await store.setPartial({ network });
+    await store.setPartial({ homeName: 'Olivia' });
+    expect(await store.get()).toEqual({
+      schemaVersion: DEVICE_CONFIG_SCHEMA_VERSION,
+      network,
+      homeName: 'Olivia',
+    });
+  });
+
   it('markComplete stamps an ISO timestamp and flips isConfigured', async () => {
     const store = new InMemoryConfigStore();
     await store.setPartial({ homeName: 'Olivia' });

@@ -27,6 +27,14 @@ panel_title: Glaon (dev)
 # entire purpose is driving the Wi-Fi handoff, so full network access via
 # admin is the intended grant; it's dev-only, local, behind Ingress + a
 # trusted-LAN port. The production add-on never sets hassio_api/role.
+#
+# NOTE (#624): `hassio_role: admin` is INERT until HA's per-install
+# Protection mode is turned OFF — while Protection mode is on the
+# Supervisor caps the add-on at the base role and the scan/update
+# endpoints 403. Protection mode can't be set from this manifest (HA
+# security design); disable it after install with
+# `addon-dev/scripts/dev-grant-network.sh` (or the UI/CLI fallbacks in
+# docs/dev-addon-pi.md).
 hassio_api: true
 hassio_role: admin
 homeassistant_api: false

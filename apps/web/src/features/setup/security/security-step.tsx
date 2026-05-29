@@ -21,11 +21,15 @@ import { useTranslation } from 'react-i18next';
 
 import type { DeviceConfigInput } from '@glaon/core/config';
 
+import { WizardBackButton } from '../wizard-back-button';
+
 interface SecurityStepProps {
   /** Partial DeviceConfig collected from earlier steps in this run. */
   readonly collected: DeviceConfigInput;
   /** Merge the form's output into `collected` and advance to the next step. */
   readonly onNext: (partial: DeviceConfigInput) => void;
+  /** Go back one step (#637). */
+  readonly onBack?: () => void;
 }
 
 const MIN_PASSWORD_LENGTH = 8;
@@ -51,7 +55,11 @@ function validatePasswords(password: string, confirm: string): PasswordValidatio
   return { kind: 'ok' };
 }
 
-export function SecurityStep({ collected: _collected, onNext }: SecurityStepProps): ReactNode {
+export function SecurityStep({
+  collected: _collected,
+  onNext,
+  onBack,
+}: SecurityStepProps): ReactNode {
   const { t } = useTranslation();
   const toast = useToast();
   const passwordId = useId();
@@ -138,7 +146,8 @@ export function SecurityStep({ collected: _collected, onNext }: SecurityStepProp
           />
         </FormRow>
 
-        <div className="flex justify-end gap-3 border-t border-secondary py-6">
+        <div className="flex items-center justify-between gap-3 border-t border-secondary py-6">
+          {onBack !== undefined ? <WizardBackButton onBack={onBack} /> : <span />}
           <Button type="submit" size="md" isLoading={isHashing}>
             {t('setup.security.actions.next')}
           </Button>

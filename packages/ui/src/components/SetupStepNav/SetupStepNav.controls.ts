@@ -1,7 +1,7 @@
 // `SetupStepNav.controls.ts` — Storybook control spec for SetupStepNav.
-// `steps`, `completedStepIds`, `onSelect`, `className` live in
-// `excludeFromArgs` because they carry ReactNode / callable / array
-// values that don't render through the controls panel.
+// `steps`, `completedStepIds`, `onSelect`, `navigableStepIds`, `className`
+// live in `excludeFromArgs` because they carry ReactNode / callable /
+// array values that don't render through the controls panel.
 
 import type { ControlSpec } from '../_internal/controls';
 import { excludeFromArgs as defineExcludeFromArgs } from '../_internal/controls';
@@ -20,5 +20,6 @@ export const setupStepNavExcludeFromArgs = defineExcludeFromArgs([
   'steps',
   'completedStepIds',
   'onSelect',
+  'navigableStepIds',
   'className',
 ] as const);

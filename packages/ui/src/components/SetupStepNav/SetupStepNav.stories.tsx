@@ -146,6 +146,26 @@ export const WithOnSelect: Story = {
   },
 };
 
+// `navigableStepIds` gates which rows are clickable when `onSelect` is
+// set — the wizard passes only the reached steps (active + earlier) so
+// the user can jump back but not skip ahead (#637). Here the user is on
+// `wifi`, so only the first three rows render as buttons.
+export const WithNavigableSteps: Story = {
+  args: { activeStepId: 'wifi' },
+  render: (args) => (
+    <SetupStepNav
+      {...args}
+      steps={wizardSteps}
+      onSelect={fn()}
+      navigableStepIds={['home-overview', 'layout', 'wifi']}
+    />
+  ),
+  play: async ({ canvasElement }) => {
+    const buttons = canvasElement.querySelectorAll('button');
+    await expect(buttons.length).toBe(3);
+  },
+};
+
 const singleStepFixture: SetupStepNavStep[] = [
   {
     id: 'home-overview',

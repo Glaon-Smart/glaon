@@ -267,6 +267,9 @@
       "actions": {
         "save": "Save and switch network"
       }
+    },
+    "actions": {
+      "back": "Back"
     }
   }
 }

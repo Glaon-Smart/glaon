@@ -47,6 +47,12 @@ export interface SetupLayoutProps {
    */
   onSelectStep?: (id: string) => void;
   /**
+   * Restricts which rail rows are clickable when `onSelectStep` is set.
+   * Forwarded to SetupStepNav as `navigableStepIds`. The wizard passes the
+   * already-reached steps so the user can jump back but not skip ahead.
+   */
+  navigableStepIds?: readonly string[];
+  /**
    * Override for the brand logo at the top-left of the sidebar. Defaults
    * to `<Logo size={133} />` (matches Figma's 133×60 wordmark). Pass
    * `null` to suppress.
@@ -80,6 +86,7 @@ export function SetupLayout({
   activeStepId,
   completedStepIds,
   onSelectStep,
+  navigableStepIds,
   logoSlot,
   controlsSlot,
   footerSlot,
@@ -105,6 +112,7 @@ export function SetupLayout({
             activeStepId={activeStepId}
             {...(completedStepIds === undefined ? {} : { completedStepIds })}
             {...(onSelectStep === undefined ? {} : { onSelect: onSelectStep })}
+            {...(navigableStepIds === undefined ? {} : { navigableStepIds })}
           />
         </div>
         <div className="flex flex-col">

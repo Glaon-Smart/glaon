@@ -38,12 +38,15 @@ import {
 import { HandoffModal } from '../wifi/handoff-modal';
 import { HandoffOverlay } from '../wifi/handoff-overlay';
 import { clearDeviceKey, unwrapPassword } from '../wifi/wifi-crypto';
+import { WizardBackButton } from '../wizard-back-button';
 
 interface ApplyStepProps {
   /** Final accumulated partial from prior steps. */
   readonly collected: DeviceConfigInput;
   /** Hint from the wizard route that this is the last step (unused — the apply step owns its CTA copy). */
   readonly onNext?: (partial: DeviceConfigInput) => void;
+  /** Go back to the Network step (#637). Undefined would hide Back, but apply is never first. */
+  readonly onBack?: () => void;
 }
 
 // #617 — apps/api endpoint that pushes the collected home settings into
@@ -117,7 +120,7 @@ async function discoverWirelessInterface(): Promise<string> {
 
 type HandoffPhase = 'idle' | 'confirming' | 'committing' | 'switching';
 
-export function ApplyStep({ collected }: ApplyStepProps): ReactNode {
+export function ApplyStep({ collected, onBack }: ApplyStepProps): ReactNode {
   const { t } = useTranslation();
   const toast = useToast();
   const { setPartial, markComplete } = useDeviceConfig();
@@ -294,7 +297,8 @@ export function ApplyStep({ collected }: ApplyStepProps): ReactNode {
         </ReviewCard>
       </div>
 
-      <div className="mt-4 flex justify-end gap-3 border-t border-secondary py-6">
+      <div className="mt-4 flex items-center justify-between gap-3 border-t border-secondary py-6">
+        {onBack !== undefined ? <WizardBackButton onBack={onBack} /> : <span />}
         <Button
           size="md"
           color="primary"

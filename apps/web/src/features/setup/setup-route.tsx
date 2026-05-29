@@ -51,6 +51,11 @@ interface WizardStepProps {
   readonly collected: DeviceConfigInput;
   /** Merge `partial` into `collected` and advance to the next step. */
   readonly onNext: (partial: DeviceConfigInput) => void;
+  /**
+   * Go back one step (#637). `undefined` on the first step so the step
+   * hides its Back affordance. Navigating back keeps `collected` intact.
+   */
+  readonly onBack?: () => void;
   /** Step-level cancel affordance. v1 hides it; the prop is plumbed for future use. */
   readonly onCancel: () => void;
   /** True when this is the last step — the active step component owns the commit ceremony (#548). */
@@ -106,16 +111,32 @@ const HomeOverviewStepAdapter = (props: WizardStepProps): ReactNode => (
   <HomeOverviewStep collected={props.collected} onNext={props.onNext} />
 );
 const LayoutStepAdapter = (props: WizardStepProps): ReactNode => (
-  <LayoutStep collected={props.collected} onNext={props.onNext} />
+  <LayoutStep
+    collected={props.collected}
+    onNext={props.onNext}
+    {...(props.onBack !== undefined ? { onBack: props.onBack } : {})}
+  />
 );
 const SecurityStepAdapter = (props: WizardStepProps): ReactNode => (
-  <SecurityStep collected={props.collected} onNext={props.onNext} />
+  <SecurityStep
+    collected={props.collected}
+    onNext={props.onNext}
+    {...(props.onBack !== undefined ? { onBack: props.onBack } : {})}
+  />
 );
 const NetworkStepAdapter = (props: WizardStepProps): ReactNode => (
-  <NetworkStep collected={props.collected} onNext={props.onNext} />
+  <NetworkStep
+    collected={props.collected}
+    onNext={props.onNext}
+    {...(props.onBack !== undefined ? { onBack: props.onBack } : {})}
+  />
 );
 const ApplyStepAdapter = (props: WizardStepProps): ReactNode => (
-  <ApplyStep collected={props.collected} onNext={props.onNext} />
+  <ApplyStep
+    collected={props.collected}
+    onNext={props.onNext}
+    {...(props.onBack !== undefined ? { onBack: props.onBack } : {})}
+  />
 );
 
 const SETUP_STEPS: readonly WizardStepRegistration[] = [
@@ -207,6 +228,37 @@ export function SetupRoute({ initialStepId }: SetupRouteProps = {}): ReactNode {
     // affordance.
   }, []);
 
+  // Back-navigation (#637). `onBack` steps one back; `onSelectStep` jumps
+  // to any already-reached step from the rail. Forward jumps are blocked
+  // (the Next button is the only way forward, so each step re-validates).
+  // `collected` persists across both, so entered data survives.
+  const onBack = useCallback(() => {
+    const prevStep = SETUP_STEPS[activeIndex - 1];
+    if (prevStep !== undefined) {
+      setActiveStepId(prevStep.id);
+    }
+  }, [activeIndex, setActiveStepId]);
+
+  const onSelectStep = useCallback(
+    (id: string) => {
+      const targetIndex = SETUP_STEPS.findIndex((step) => step.id === id);
+      // Only allow jumping to the current step or earlier — never skipping
+      // ahead past unvisited steps.
+      const target = SETUP_STEPS[targetIndex];
+      if (target !== undefined && targetIndex <= activeIndex) {
+        setActiveStepId(target.id);
+      }
+    },
+    [activeIndex, setActiveStepId],
+  );
+
+  // Steps the user can jump to from the rail: the active step and every
+  // step before it. Future steps stay non-interactive.
+  const navigableStepIds = useMemo<readonly string[]>(
+    () => SETUP_STEPS.slice(0, activeIndex + 1).map((step) => step.id),
+    [activeIndex],
+  );
+
   const navSteps = useMemo<readonly SetupLayoutStep[]>(
     () =>
       SETUP_STEPS.map((step) => ({
@@ -248,11 +300,14 @@ export function SetupRoute({ initialStepId }: SetupRouteProps = {}): ReactNode {
       steps={navSteps}
       activeStepId={activeStepId}
       completedStepIds={completedStepIds}
+      onSelectStep={onSelectStep}
+      navigableStepIds={navigableStepIds}
       controlsSlot={<WizardLocaleSwitcher onLocaleChange={onLocaleChange} />}
     >
       <ActiveStepComponent
         collected={collected}
         onNext={onNext}
+        {...(activeIndex > 0 ? { onBack } : {})}
         onCancel={onCancel}
         isLastStep={isLastStep}
       />

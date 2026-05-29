@@ -126,6 +126,24 @@ describe('ApplyStep — summary', () => {
     const { getAllByText } = render(wrap(<ApplyStep collected={{}} />));
     expect(getAllByText('—').length).toBeGreaterThan(0);
   });
+
+  it('surfaces per-interface IPv4/IPv6 config in the Network card (#630)', () => {
+    const collected = {
+      ...baseCollected,
+      network: {
+        interfaces: [
+          {
+            name: 'end0',
+            ipv4: { method: 'static' as const, address: ['192.168.1.50/24'] },
+            ipv6: { method: 'auto' as const },
+          },
+        ],
+      },
+    };
+    const { getByText } = render(wrap(<ApplyStep collected={collected} />));
+    expect(getByText('end0')).toBeInTheDocument();
+    expect(getByText(/192\.168\.1\.50\/24/)).toBeInTheDocument();
+  });
 });
 
 describe('ApplyStep — commit', () => {

@@ -24,11 +24,13 @@ interface RecordedFrame {
   readonly [key: string]: unknown;
 }
 
-/** Fake HaSetupClient: records frames, returns registry ids by type. */
+/** Fake HaSetupClient: records frames, returns registry ids/lists by type. */
 function fakeClient(opts: {
   connectError?: Error;
   failTypes?: Set<string>;
   sink: RecordedFrame[];
+  floors?: readonly unknown[];
+  areas?: readonly unknown[];
 }): HaSetupClient {
   return {
     connect: () => (opts.connectError ? Promise.reject(opts.connectError) : Promise.resolve()),
@@ -43,6 +45,12 @@ function fakeClient(opts: {
       }
       if (f.type === 'config/area_registry/create') {
         return Promise.resolve({ area_id: `area_${String(f.name)}`, name: f.name } as TResult);
+      }
+      if (f.type === 'config/floor_registry/list') {
+        return Promise.resolve((opts.floors ?? []) as TResult);
+      }
+      if (f.type === 'config/area_registry/list') {
+        return Promise.resolve((opts.areas ?? []) as TResult);
       }
       return Promise.resolve({} as TResult);
     },
@@ -168,6 +176,70 @@ describe('setup — unreachable', () => {
       clientFactory: () => fakeClient({ sink, connectError: new Error('ECONNREFUSED') }),
     });
     const res = await post(router, FULL_BODY);
+    expect(res.status).toBe(502);
+    expect(await res.json()).toMatchObject({ error: 'ha-unreachable' });
+  });
+});
+
+describe('setup — ha-layout (#638)', () => {
+  const floors = [
+    { floor_id: 'f-ground', name: 'Ground', level: 0 },
+    { floor_id: 'f-up', name: 'Upstairs', level: 1 },
+  ];
+  const areas = [
+    { area_id: 'a-living', name: 'Living', floor_id: 'f-ground' },
+    { area_id: 'a-bed', name: 'Bedroom', floor_id: 'f-up' },
+    { area_id: 'a-garage', name: 'Garage', floor_id: null },
+  ];
+
+  it('responds 503 when HA Core is not configured', async () => {
+    const router = createSetupRouter({ config: baseConfig() });
+    const res = await router.request('/ha-layout');
+    expect(res.status).toBe(503);
+    expect(await res.json()).toMatchObject({ error: 'ha-core-not-configured' });
+  });
+
+  it('returns the device floors + areas grouped, with floorless areas unassigned', async () => {
+    const sink: RecordedFrame[] = [];
+    const router = createSetupRouter({
+      config: baseConfig(),
+      clientFactory: () => fakeClient({ sink, floors, areas }),
+    });
+    const res = await router.request('/ha-layout');
+    expect(res.status).toBe(200);
+    const body = (await res.json()) as {
+      floors: { id: string; name: string; rooms: { name: string }[] }[];
+      unassigned: { name: string }[];
+    };
+    expect(body.floors.map((f) => f.name)).toEqual(['Ground', 'Upstairs']);
+    expect(body.floors.find((f) => f.id === 'f-ground')?.rooms.map((r) => r.name)).toEqual([
+      'Living',
+    ]);
+    expect(body.unassigned.map((r) => r.name)).toEqual(['Garage']);
+  });
+
+  it('degrades to areas-only when the floor list fails', async () => {
+    const sink: RecordedFrame[] = [];
+    const router = createSetupRouter({
+      config: baseConfig(),
+      clientFactory: () =>
+        fakeClient({ sink, areas, failTypes: new Set(['config/floor_registry/list']) }),
+    });
+    const res = await router.request('/ha-layout');
+    expect(res.status).toBe(200);
+    const body = (await res.json()) as { floors: unknown[]; unassigned: { name: string }[] };
+    expect(body.floors).toEqual([]);
+    // With no floors, every area is unassigned.
+    expect(body.unassigned.map((r) => r.name)).toEqual(['Living', 'Bedroom', 'Garage']);
+  });
+
+  it('responds 502 when the HA Core connection cannot be established', async () => {
+    const sink: RecordedFrame[] = [];
+    const router = createSetupRouter({
+      config: baseConfig(),
+      clientFactory: () => fakeClient({ sink, connectError: new Error('ECONNREFUSED') }),
+    });
+    const res = await router.request('/ha-layout');
     expect(res.status).toBe(502);
     expect(await res.json()).toMatchObject({ error: 'ha-unreachable' });
   });

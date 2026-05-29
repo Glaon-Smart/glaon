@@ -14,6 +14,8 @@
 //     unit-testable without a WS, and lets the service own the one
 //     imperative concern (id threading + graceful degrade).
 
+import type { HaAreaRegistryEntry, HaFloorRegistryEntry } from './protocol/messages';
+
 /**
  * The wizard-collected fields this mapper reads. Structurally a subset
  * of `DeviceConfigInput` (config/types.ts) — kept as a standalone shape
@@ -104,6 +106,67 @@ export function buildHaSetupPlan(input: HaSetupInput): HaSetupPlan {
   }));
 
   return { coreUpdate, floors };
+}
+
+// ---- Reverse direction: HA registries → wizard layout seed (#638) ----
+
+export interface HaLayoutRoom {
+  readonly id: string;
+  readonly name: string;
+}
+
+export interface HaLayoutFloor {
+  readonly id: string;
+  readonly name: string;
+  readonly rooms: readonly HaLayoutRoom[];
+}
+
+/**
+ * Result of reading HA's floor + area registries: floors with their
+ * rooms, plus the areas that have no floor link. The consumer (the
+ * wizard's Layout step) buckets `unassigned` under a default-named floor
+ * — naming stays in the UI layer where i18n lives.
+ */
+export interface HaLayoutResult {
+  readonly floors: readonly HaLayoutFloor[];
+  readonly unassigned: readonly HaLayoutRoom[];
+}
+
+/**
+ * Group HA areas under their floors to seed the wizard's layout editor.
+ * Pure. Floors are ordered by `level` (nullish last, stable otherwise);
+ * areas whose `floor_id` is null/absent/unknown land in `unassigned`.
+ */
+export function buildLayoutFromRegistries(
+  floors: readonly HaFloorRegistryEntry[],
+  areas: readonly HaAreaRegistryEntry[],
+): HaLayoutResult {
+  const knownFloorIds = new Set(floors.map((f) => f.floor_id));
+  const roomsByFloor = new Map<string, HaLayoutRoom[]>();
+  const unassigned: HaLayoutRoom[] = [];
+
+  for (const area of areas) {
+    const room: HaLayoutRoom = { id: area.area_id, name: area.name };
+    const floorId = area.floor_id;
+    if (floorId !== null && floorId !== undefined && floorId !== '' && knownFloorIds.has(floorId)) {
+      const list = roomsByFloor.get(floorId) ?? [];
+      list.push(room);
+      roomsByFloor.set(floorId, list);
+    } else {
+      unassigned.push(room);
+    }
+  }
+
+  const ordered = [...floors].sort(
+    (a, b) => (a.level ?? Number.POSITIVE_INFINITY) - (b.level ?? Number.POSITIVE_INFINITY),
+  );
+  const mappedFloors: HaLayoutFloor[] = ordered.map((floor) => ({
+    id: floor.floor_id,
+    name: floor.name,
+    rooms: roomsByFloor.get(floor.floor_id) ?? [],
+  }));
+
+  return { floors: mappedFloors, unassigned };
 }
 
 /**

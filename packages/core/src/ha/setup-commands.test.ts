@@ -1,6 +1,7 @@
 import { describe, expect, it } from 'vitest';
 
-import { buildHaSetupPlan, type HaSetupInput } from './setup-commands';
+import type { HaAreaRegistryEntry, HaFloorRegistryEntry } from './protocol/messages';
+import { buildHaSetupPlan, buildLayoutFromRegistries, type HaSetupInput } from './setup-commands';
 
 describe('buildHaSetupPlan — core config', () => {
   it('maps every collected core field into config/core/update', () => {
@@ -74,5 +75,45 @@ describe('buildHaSetupPlan — floors + rooms', () => {
   it('returns an empty floor list when no layout is present', () => {
     const plan = buildHaSetupPlan({ latitude: 1 });
     expect(plan.floors).toEqual([]);
+  });
+});
+
+describe('buildLayoutFromRegistries — device layout seed (#638)', () => {
+  const floors: HaFloorRegistryEntry[] = [
+    { floor_id: 'f-up', name: 'Upstairs', level: 1 },
+    { floor_id: 'f-ground', name: 'Ground', level: 0 },
+  ];
+  const areas: HaAreaRegistryEntry[] = [
+    { area_id: 'a-living', name: 'Living', floor_id: 'f-ground' },
+    { area_id: 'a-kitchen', name: 'Kitchen', floor_id: 'f-ground' },
+    { area_id: 'a-bed', name: 'Bedroom', floor_id: 'f-up' },
+    { area_id: 'a-garage', name: 'Garage', floor_id: null },
+    { area_id: 'a-attic', name: 'Attic' },
+  ];
+
+  it('groups areas under their floors, ordered by level', () => {
+    const result = buildLayoutFromRegistries(floors, areas);
+    expect(result.floors.map((f) => f.name)).toEqual(['Ground', 'Upstairs']);
+    const ground = result.floors.find((f) => f.id === 'f-ground');
+    expect(ground?.rooms.map((r) => r.name)).toEqual(['Living', 'Kitchen']);
+    const up = result.floors.find((f) => f.id === 'f-up');
+    expect(up?.rooms.map((r) => r.name)).toEqual(['Bedroom']);
+  });
+
+  it('collects floorless / unknown-floor areas as unassigned', () => {
+    const result = buildLayoutFromRegistries(floors, areas);
+    expect(result.unassigned.map((r) => r.name)).toEqual(['Garage', 'Attic']);
+  });
+
+  it('treats an area pointing at a missing floor as unassigned', () => {
+    const result = buildLayoutFromRegistries(floors, [
+      { area_id: 'a-x', name: 'Mystery', floor_id: 'f-nonexistent' },
+    ]);
+    expect(result.floors.flatMap((f) => f.rooms)).toEqual([]);
+    expect(result.unassigned.map((r) => r.name)).toEqual(['Mystery']);
+  });
+
+  it('returns empty floors + unassigned for empty registries', () => {
+    expect(buildLayoutFromRegistries([], [])).toEqual({ floors: [], unassigned: [] });
   });
 });

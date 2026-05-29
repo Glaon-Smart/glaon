@@ -127,6 +127,11 @@
       },
       "actions": {
         "next": "Next"
+      },
+      "loading": "Loading your current layout…",
+      "loadFailed": {
+        "title": "Couldn't load the current layout",
+        "description": "Starting with a blank layout — add floors and rooms below."
       }
     },
     "wifi": {

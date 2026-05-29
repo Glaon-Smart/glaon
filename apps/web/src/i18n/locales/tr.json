@@ -127,6 +127,11 @@
       },
       "actions": {
         "next": "İleri"
+      },
+      "loading": "Mevcut yerleşimin yükleniyor…",
+      "loadFailed": {
+        "title": "Mevcut yerleşim yüklenemedi",
+        "description": "Boş bir yerleşimle başlıyoruz — aşağıdan kat ve oda ekleyebilirsin."
       }
     },
     "wifi": {

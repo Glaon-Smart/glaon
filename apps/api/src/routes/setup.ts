@@ -23,6 +23,7 @@ import {
   applyHaSetup,
   createHaCoreClientFactory,
   HaCoreUnreachableError,
+  readHaLayout,
   type HaSetupClient,
 } from '../ha/ha-setup-service';
 import type { Logger } from '../observability/logger';
@@ -39,6 +40,44 @@ export function createSetupRouter(deps: SetupRouterDeps): Hono {
   const router = new Hono();
   const { haCoreUrl, haCoreToken } = deps.config;
 
+  // A test-injected factory bypasses the env requirement; otherwise we
+  // need the URL + token to build the real client. `undefined` → the
+  // caller returns 503 ha-core-not-configured.
+  const resolveFactory = (): (() => HaSetupClient) | undefined =>
+    deps.clientFactory ??
+    (haCoreUrl !== undefined && haCoreToken !== undefined
+      ? createHaCoreClientFactory(haCoreUrl, haCoreToken)
+      : undefined);
+
+  const notConfigured = {
+    error: 'ha-core-not-configured',
+    hint: 'Set HA_CORE_URL + HA_CORE_TOKEN (a long-lived access token). See docs/dev-supervisor.md.',
+  } as const;
+
+  // Read the device's existing HA floors + areas to seed the wizard's
+  // Layout step (#638). Same auth posture + config-gating as /apply-ha.
+  router.get('/ha-layout', async (c) => {
+    const factory = resolveFactory();
+    if (factory === undefined) return c.json(notConfigured, 503);
+    try {
+      const layout = await readHaLayout({
+        clientFactory: factory,
+        ...(deps.logger !== undefined ? { logger: deps.logger } : {}),
+      });
+      return c.json(layout, 200);
+    } catch (err) {
+      if (err instanceof HaCoreUnreachableError) {
+        deps.logger?.error({ event: 'setup.ha-layout.unreachable', message: err.message });
+        return c.json({ error: 'ha-unreachable' }, 502);
+      }
+      deps.logger?.error({
+        event: 'setup.ha-layout.failed',
+        message: err instanceof Error ? err.message : 'unknown',
+      });
+      return c.json({ error: 'internal' }, 500);
+    }
+  });
+
   router.post('/apply-ha', async (c) => {
     const raw: unknown = await c.req.json().catch(() => null);
     const parsed = ApplyHaRequestSchema.safeParse(raw);
@@ -46,22 +85,9 @@ export function createSetupRouter(deps: SetupRouterDeps): Hono {
       return c.json({ error: 'invalid-body' }, 400);
     }
 
-    // A test-injected factory bypasses the env requirement; otherwise we
-    // need the URL + token to build the real client.
-    const factory =
-      deps.clientFactory ??
-      (haCoreUrl !== undefined && haCoreToken !== undefined
-        ? createHaCoreClientFactory(haCoreUrl, haCoreToken)
-        : undefined);
-
+    const factory = resolveFactory();
     if (factory === undefined) {
-      return c.json(
-        {
-          error: 'ha-core-not-configured',
-          hint: 'Set HA_CORE_URL + HA_CORE_TOKEN (a long-lived access token). See docs/dev-supervisor.md.',
-        },
-        503,
-      );
+      return c.json(notConfigured, 503);
     }
 
     try {

@@ -2,11 +2,14 @@ import { describe, expect, it } from 'vitest';
 
 import {
   areNameserversValid,
-  isCidr,
   isHostnameLabel,
   isIpv4,
+  isIpv4Netmask,
   isIpv6,
+  isIpv6Prefix,
   isPlainIp,
+  netmaskToPrefix,
+  prefixToNetmask,
   splitNameservers,
 } from './validation';
 
@@ -72,20 +75,44 @@ describe('isPlainIp', () => {
   });
 });
 
-describe('isCidr', () => {
-  it('accepts addresses with and without a valid prefix', () => {
-    expect(isCidr('192.168.1.50/24', 'ipv4')).toBe(true);
-    expect(isCidr('192.168.1.50', 'ipv4')).toBe(true);
-    expect(isCidr('fd00::1/64', 'ipv6')).toBe(true);
-    expect(isCidr('fd00::1', 'ipv6')).toBe(true);
+describe('isIpv4Netmask', () => {
+  it('accepts contiguous masks', () => {
+    expect(isIpv4Netmask('255.255.255.0')).toBe(true);
+    expect(isIpv4Netmask('255.255.0.0')).toBe(true);
+    expect(isIpv4Netmask('255.255.255.255')).toBe(true);
+    expect(isIpv4Netmask('0.0.0.0')).toBe(true);
+    expect(isIpv4Netmask('255.255.255.240')).toBe(true);
   });
 
-  it('rejects out-of-range or malformed prefixes', () => {
-    expect(isCidr('192.168.1.50/33', 'ipv4')).toBe(false);
-    expect(isCidr('fd00::1/129', 'ipv6')).toBe(false);
-    expect(isCidr('192.168.1.50/', 'ipv4')).toBe(false);
-    expect(isCidr('192.168.1.50/aa', 'ipv4')).toBe(false);
-    expect(isCidr('not-an-ip/24', 'ipv4')).toBe(false);
+  it('rejects non-contiguous or non-IPv4 masks', () => {
+    expect(isIpv4Netmask('255.0.255.0')).toBe(false);
+    expect(isIpv4Netmask('255.255.255.1')).toBe(false);
+    expect(isIpv4Netmask('256.0.0.0')).toBe(false);
+    expect(isIpv4Netmask('24')).toBe(false);
+  });
+});
+
+describe('isIpv6Prefix', () => {
+  it('accepts 0–128, rejects out of range / non-numeric', () => {
+    expect(isIpv6Prefix('64')).toBe(true);
+    expect(isIpv6Prefix('0')).toBe(true);
+    expect(isIpv6Prefix('128')).toBe(true);
+    expect(isIpv6Prefix('129')).toBe(false);
+    expect(isIpv6Prefix('')).toBe(false);
+    expect(isIpv6Prefix('aa')).toBe(false);
+  });
+});
+
+describe('netmaskToPrefix / prefixToNetmask', () => {
+  it('round-trips IPv4 masks ↔ prefixes', () => {
+    expect(netmaskToPrefix('255.255.255.0')).toBe(24);
+    expect(netmaskToPrefix('255.255.0.0')).toBe(16);
+    expect(netmaskToPrefix('255.255.255.255')).toBe(32);
+    expect(netmaskToPrefix('0.0.0.0')).toBe(0);
+    expect(prefixToNetmask(24)).toBe('255.255.255.0');
+    expect(prefixToNetmask(16)).toBe('255.255.0.0');
+    expect(prefixToNetmask(32)).toBe('255.255.255.255');
+    expect(prefixToNetmask(0)).toBe('0.0.0.0');
   });
 });
 

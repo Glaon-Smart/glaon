@@ -47,20 +47,46 @@ export function isPlainIp(value: string, family: 'ipv4' | 'ipv6'): boolean {
   return family === 'ipv4' ? isIpv4(value) : isIpv6(value);
 }
 
+/** Parse a dotted IPv4 string into its unsigned 32-bit value. */
+function ipv4ToInt(value: string): number {
+  return (
+    value.split('.').reduce((acc, octet) => ((acc * 256 + Number(octet)) >>> 0) >>> 0, 0) >>> 0
+  );
+}
+
 /**
- * Address with an optional CIDR prefix (e.g. `192.168.1.50/24`,
- * `fd00::1/64`). The prefix is optional but, when present, must be in
- * range for the family (0–32 for IPv4, 0–128 for IPv6).
+ * Valid IPv4 subnet mask — a dotted quad whose bits are a contiguous run
+ * of high 1s (e.g. 255.255.255.0, 255.255.0.0). Rejects non-contiguous
+ * masks like 255.0.255.0.
  */
-export function isCidr(value: string, family: 'ipv4' | 'ipv6'): boolean {
-  const slash = value.indexOf('/');
-  if (slash === -1) return isPlainIp(value, family);
-  const addr = value.slice(0, slash);
-  const prefix = value.slice(slash + 1);
-  if (!isPlainIp(addr, family)) return false;
-  if (!/^\d{1,3}$/.test(prefix)) return false;
-  const max = family === 'ipv4' ? 32 : 128;
-  return Number(prefix) <= max;
+export function isIpv4Netmask(value: string): boolean {
+  if (!isIpv4(value)) return false;
+  const inv = ~ipv4ToInt(value) >>> 0;
+  // For a contiguous high-bit mask the inverse is all-1s in the low bits,
+  // so `inv & (inv + 1)` clears to zero.
+  return (inv & (inv + 1)) >>> 0 === 0;
+}
+
+/** Valid IPv6 prefix length — an integer 0–128. */
+export function isIpv6Prefix(value: string): boolean {
+  return /^\d{1,3}$/.test(value) && Number(value) <= 128;
+}
+
+/** Bit count of a (valid, contiguous) IPv4 dotted mask → prefix length. */
+export function netmaskToPrefix(mask: string): number {
+  let n = ipv4ToInt(mask);
+  let count = 0;
+  while (n !== 0) {
+    count += n & 1;
+    n >>>= 1;
+  }
+  return count;
+}
+
+/** IPv4 prefix length (0–32) → dotted subnet mask. */
+export function prefixToNetmask(prefix: number): string {
+  const m = prefix === 0 ? 0 : (0xffffffff << (32 - prefix)) >>> 0;
+  return [(m >>> 24) & 0xff, (m >>> 16) & 0xff, (m >>> 8) & 0xff, m & 0xff].join('.');
 }
 
 /** Split a free-text DNS field on commas / whitespace into trimmed entries. */

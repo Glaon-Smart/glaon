@@ -210,7 +210,14 @@
       "address": {
         "label": "IP address",
         "required": "An IP address is required for a static configuration.",
-        "invalid": "Enter a valid address, optionally with a /prefix (e.g. 192.168.1.50/24)."
+        "invalid": "Enter a valid IP address (e.g. 192.168.1.50)."
+      },
+      "netmask": {
+        "maskLabel": "Subnet mask",
+        "prefixLabel": "Prefix length",
+        "required": "Required for a static configuration.",
+        "maskInvalid": "Enter a valid subnet mask (e.g. 255.255.255.0).",
+        "prefixInvalid": "Enter a prefix length between 0 and 128."
       },
       "gateway": {
         "label": "Gateway",

@@ -23,7 +23,7 @@ import { useState, type ReactNode } from 'react';
 import { useTranslation } from 'react-i18next';
 
 import type { ApplyHaResponse } from '@glaon/core/api-client';
-import type { DeviceConfigInput, Layout } from '@glaon/core/config';
+import type { DeviceConfigInput, InterfaceConfig, IpConfig, Layout } from '@glaon/core/config';
 
 import { useDeviceConfig } from '../../../config/config-provider';
 import { clearWizardScratch } from '../../../setup/use-wizard-state';
@@ -252,20 +252,14 @@ export function ApplyStep({ collected }: ApplyStepProps): ReactNode {
         <p className="text-sm text-tertiary">{t('setup.apply.subtitle')}</p>
       </header>
 
-      <section aria-labelledby="apply-summary-heading" className="flex flex-col">
-        <h2
-          id="apply-summary-heading"
-          className="pb-2 text-sm font-semibold uppercase tracking-wide text-tertiary"
-        >
-          {t('setup.apply.summary.heading')}
-        </h2>
-        <dl className="flex flex-col">
-          <SummaryRow label={t('setup.homeOverview.homeName.label')} value={collected.homeName} />
-          <SummaryRow label={t('setup.homeOverview.location.label')} value={collected.location} />
-          <SummaryRow label={t('setup.homeOverview.country.label')} value={collected.country} />
-          <SummaryRow label={t('setup.homeOverview.timezone.label')} value={collected.timezone} />
-          <SummaryRow label={t('setup.homeOverview.language.label')} value={collected.locale} />
-          <SummaryRow
+      <div className="flex flex-col gap-4">
+        <ReviewCard icon={<HomeGlyph />} title={t('setup.homeOverview.title')}>
+          <ReviewRow label={t('setup.homeOverview.homeName.label')} value={collected.homeName} />
+          <ReviewRow label={t('setup.homeOverview.location.label')} value={collected.location} />
+          <ReviewRow label={t('setup.homeOverview.country.label')} value={collected.country} />
+          <ReviewRow label={t('setup.homeOverview.timezone.label')} value={collected.timezone} />
+          <ReviewRow label={t('setup.homeOverview.language.label')} value={collected.locale} />
+          <ReviewRow
             label={t('setup.homeOverview.unitSystem.label')}
             value={
               collected.unitSystem !== undefined
@@ -273,13 +267,23 @@ export function ApplyStep({ collected }: ApplyStepProps): ReactNode {
                 : undefined
             }
           />
-          <LayoutSummaryRow layout={collected.layout} />
-          <SummaryRow
+        </ReviewCard>
+
+        <ReviewCard icon={<LayoutGlyph />} title={t('setup.layoutSetup.label')}>
+          <LayoutCardBody layout={collected.layout} />
+        </ReviewCard>
+
+        <ReviewCard icon={<NetworkGlyph />} title={t('setup.network.title')}>
+          <ReviewRow
             label={t('setup.network.hostname.label')}
             value={collected.network?.hostname}
           />
-          <SummaryRow label={t('setup.apply.summary.wifi')} value={wifiSummaryValue} />
-          <SummaryRow
+          <InterfacesReview interfaces={collected.network?.interfaces} />
+          <ReviewRow label={t('setup.apply.summary.wifi')} value={wifiSummaryValue} />
+        </ReviewCard>
+
+        <ReviewCard icon={<SecurityGlyph />} title={t('setup.security.title')}>
+          <ReviewRow
             label={t('setup.apply.summary.adminPassword')}
             value={
               collected.securityPinHash !== undefined
@@ -287,8 +291,8 @@ export function ApplyStep({ collected }: ApplyStepProps): ReactNode {
                 : undefined
             }
           />
-        </dl>
-      </section>
+        </ReviewCard>
+      </div>
 
       <div className="mt-4 flex justify-end gap-3 border-t border-secondary py-6">
         <Button
@@ -322,36 +326,57 @@ export function ApplyStep({ collected }: ApplyStepProps): ReactNode {
 }
 
 // =============================================================
-// Summary rows
+// Review cards (#630) — grouped, scannable summary. Feature-local
+// (like the Network step's own sub-components); not a @glaon/ui
+// primitive until a second consumer arrives.
 // =============================================================
 
-interface SummaryRowProps {
+interface ReviewCardProps {
+  readonly icon: ReactNode;
+  readonly title: string;
+  readonly children: ReactNode;
+}
+
+function ReviewCard({ icon, title, children }: ReviewCardProps): ReactNode {
+  return (
+    <section className="rounded-xl border border-secondary bg-primary p-5">
+      <div className="flex items-center gap-3 pb-1">
+        <span
+          aria-hidden="true"
+          className="flex size-8 shrink-0 items-center justify-center rounded-md bg-primary text-secondary shadow-xs-skeuomorphic ring-1 ring-primary ring-inset"
+        >
+          {icon}
+        </span>
+        <h2 className="text-sm font-semibold text-primary">{title}</h2>
+      </div>
+      <dl className="flex flex-col">{children}</dl>
+    </section>
+  );
+}
+
+interface ReviewRowProps {
   readonly label: string;
   readonly value: string | undefined;
 }
 
-function SummaryRow({ label, value }: SummaryRowProps): ReactNode {
+function ReviewRow({ label, value }: ReviewRowProps): ReactNode {
   const { t } = useTranslation();
+  const isSet = value !== undefined && value !== '';
   return (
-    <div className="grid grid-cols-1 gap-2 border-t border-secondary py-3 sm:grid-cols-[240px_1fr] sm:items-baseline sm:gap-8">
-      <dt className="text-sm font-semibold text-secondary">{label}</dt>
-      <dd className="text-sm text-tertiary">
-        {value !== undefined && value !== '' ? value : t('setup.apply.summary.notSet')}
+    <div className="flex items-baseline justify-between gap-4 border-t border-secondary py-2.5">
+      <dt className="text-sm font-medium text-secondary">{label}</dt>
+      <dd className={`text-right text-sm ${isSet ? 'text-tertiary' : 'text-quaternary'}`}>
+        {isSet ? value : t('setup.apply.summary.notSet')}
       </dd>
     </div>
   );
 }
 
-interface LayoutSummaryRowProps {
-  readonly layout: Layout | undefined;
-}
-
-function LayoutSummaryRow({ layout }: LayoutSummaryRowProps): ReactNode {
+function LayoutCardBody({ layout }: { readonly layout: Layout | undefined }): ReactNode {
   const { t } = useTranslation();
-  const label = t('setup.layoutSetup.label');
 
   if (layout === undefined || layout.floors.length === 0) {
-    return <SummaryRow label={label} value={undefined} />;
+    return <ReviewRow label={t('setup.layoutSetup.label')} value={undefined} />;
   }
 
   const totalRooms = layout.floors.reduce((sum, floor) => sum + floor.rooms.length, 0);
@@ -361,32 +386,89 @@ function LayoutSummaryRow({ layout }: LayoutSummaryRowProps): ReactNode {
   });
 
   return (
-    <div className="grid grid-cols-1 gap-2 border-t border-secondary py-3 sm:grid-cols-[240px_1fr] sm:items-baseline sm:gap-8">
-      <dt className="text-sm font-semibold text-secondary">{label}</dt>
-      <dd className="flex flex-col gap-1 text-sm text-tertiary">
-        <span className="font-medium text-primary">{headline}</span>
-        <ul className="flex flex-col gap-1">
-          {layout.floors.map((floor) => {
-            const roomNames = floor.rooms.map((r) => r.name).join(', ');
-            return (
-              <li key={floor.id} className="truncate">
-                <span className="font-medium text-secondary">{floor.name}</span>
-                {floor.rooms.length > 0 ? (
-                  <>
-                    <span aria-hidden="true"> — </span>
-                    <span>{roomNames}</span>
-                  </>
-                ) : (
-                  <>
-                    <span aria-hidden="true"> — </span>
-                    <span className="italic">{t('setup.apply.summary.layoutEmptyFloor')}</span>
-                  </>
-                )}
-              </li>
-            );
-          })}
-        </ul>
-      </dd>
+    <div className="flex flex-col gap-1 border-t border-secondary py-2.5 text-sm text-tertiary">
+      <span className="font-medium text-primary">{headline}</span>
+      <ul className="flex flex-col gap-1">
+        {layout.floors.map((floor) => {
+          const roomNames = floor.rooms.map((r) => r.name).join(', ');
+          return (
+            <li key={floor.id} className="truncate">
+              <span className="font-medium text-secondary">{floor.name}</span>
+              <span aria-hidden="true"> — </span>
+              {floor.rooms.length > 0 ? (
+                <span>{roomNames}</span>
+              ) : (
+                <span className="italic">{t('setup.apply.summary.layoutEmptyFloor')}</span>
+              )}
+            </li>
+          );
+        })}
+      </ul>
     </div>
   );
 }
+
+function InterfacesReview({
+  interfaces,
+}: {
+  readonly interfaces: readonly InterfaceConfig[] | undefined;
+}): ReactNode {
+  const { t } = useTranslation();
+  if (interfaces === undefined || interfaces.length === 0) return null;
+
+  const ipSummary = (config: IpConfig | undefined): string => {
+    if (config === undefined) return t('setup.apply.summary.notSet');
+    const method = t(`setup.network.method.${config.method}`);
+    if (config.method === 'static' && config.address !== undefined && config.address.length > 0) {
+      return `${method} · ${config.address.join(', ')}`;
+    }
+    return method;
+  };
+
+  return (
+    <>
+      {interfaces.map((iface) => (
+        <div
+          key={iface.name}
+          className="flex flex-col gap-0.5 border-t border-secondary py-2.5 text-sm"
+        >
+          <span className="font-medium text-secondary">{iface.name}</span>
+          <span className="text-tertiary">
+            {t('setup.network.ipv4.heading')}: {ipSummary(iface.ipv4)}
+          </span>
+          <span className="text-tertiary">
+            {t('setup.network.ipv6.heading')}: {ipSummary(iface.ipv6)}
+          </span>
+        </div>
+      ))}
+    </>
+  );
+}
+
+// Inline step glyphs — same convention as the wizard rail (keeps the
+// @untitledui/icons dep out of apps/web).
+function Glyph({ d }: { readonly d: string }): ReactNode {
+  return (
+    <svg
+      className="size-4"
+      viewBox="0 0 24 24"
+      fill="none"
+      stroke="currentColor"
+      strokeWidth="1.75"
+      strokeLinecap="round"
+      strokeLinejoin="round"
+      aria-hidden="true"
+    >
+      <path d={d} />
+    </svg>
+  );
+}
+
+const HomeGlyph = (): ReactNode => (
+  <Glyph d="M9 22V12h6v10M3 9l9-7 9 7v11a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2V9z" />
+);
+const LayoutGlyph = (): ReactNode => <Glyph d="M3 4h18v16H3zM12 4v16" />;
+const NetworkGlyph = (): ReactNode => (
+  <Glyph d="M12 2a10 10 0 1 0 0 20 10 10 0 0 0 0-20M2 12h20M12 2a15 15 0 0 1 0 20M12 2a15 15 0 0 0 0 20" />
+);
+const SecurityGlyph = (): ReactNode => <Glyph d="M12 22s8-4 8-10V5l-8-3-8 3v7c0 6 8 10 8 10z" />;

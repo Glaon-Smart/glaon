@@ -37,8 +37,10 @@ threshold, so this primitive uses a token-based downshift instead.
   activeStepId="wifi"
   // optional — every step before activeStepId is completed by default
   completedStepIds={['home-overview', 'layout']}
-  // optional — interactive click-to-jump variant; v1 wizard omits it
+  // optional — interactive click-to-jump variant
   onSelect={(id) => router.jumpTo(id)}
+  // optional — restricts which rows are clickable (e.g. reached steps only)
+  navigableStepIds={['home-overview', 'layout', 'wifi']}
 />
 ```
 

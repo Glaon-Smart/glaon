@@ -82,4 +82,33 @@ describe('SetupRoute', () => {
     // apply"); the body title is the same i18n string in this case.
     expect(activeRail?.textContent).toContain('Save and apply');
   });
+
+  // --- back-navigation (#637) ---
+
+  it('jumps back to a prior step when its rail row is clicked', () => {
+    const { container, getByRole } = renderRoute('network');
+    expect(container.querySelector('h1')?.textContent).toBe('Network');
+    // Layout (index 1) is before Network (index 3) → navigable rail button.
+    fireEvent.click(getByRole('button', { name: /Layout Setup/i }));
+    expect(container.querySelector('h1')?.textContent).toBe('Layout Setup');
+  });
+
+  it('goes back one step via the Back button', () => {
+    const { container, getByTestId } = renderRoute('network');
+    fireEvent.click(getByTestId('wizard-back'));
+    expect(container.querySelector('h1')?.textContent).toBe('Device Security');
+  });
+
+  it('hides the Back button on the first step', () => {
+    const { container, queryByTestId } = renderRoute();
+    expect(container.querySelector('h1')?.textContent).toBe('Home Overview');
+    expect(queryByTestId('wizard-back')).toBeNull();
+  });
+
+  it('does not make future steps clickable in the rail', () => {
+    // At Security (index 2), Network + Apply are future → rendered as
+    // non-interactive rows, not jump buttons.
+    const { queryByRole } = renderRoute('security');
+    expect(queryByRole('button', { name: /Save and apply/i })).toBeNull();
+  });
 });

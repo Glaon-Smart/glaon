@@ -52,13 +52,19 @@ export interface SetupStepNavProps {
    */
   completedStepIds?: readonly string[];
   /**
-   * Optional click handler. When provided each row becomes a
-   * `<button>` so the nav is interactive (click-to-jump). When
-   * undefined, rows render as non-interactive `<li>` content — the v1
-   * first-run wizard locks the order, so SetupLayout passes no
-   * handler.
+   * Optional click handler. When provided a row becomes a `<button>` so
+   * the nav is interactive (click-to-jump). When undefined, rows render
+   * as non-interactive `<li>` content.
    */
   onSelect?: (id: string) => void;
+  /**
+   * Restricts which rows are clickable when `onSelect` is provided. A row
+   * is interactive only if its id is in this list (e.g. the wizard passes
+   * the steps the user has already reached, so they can jump back but not
+   * skip ahead). When omitted, every row is clickable — the default for
+   * an unconstrained click-to-jump nav.
+   */
+  navigableStepIds?: readonly string[];
   /** Optional class hook for the outer `<nav>`. */
   className?: string;
 }
@@ -92,24 +98,28 @@ export function SetupStepNav({
   activeStepId,
   completedStepIds,
   onSelect,
+  navigableStepIds,
   className,
 }: SetupStepNavProps) {
   const completedSet = new Set(completedStepIds ?? defaultCompletedIds(steps, activeStepId));
+  const navigableSet = navigableStepIds === undefined ? undefined : new Set(navigableStepIds);
   return (
     <nav aria-label="Wizard progress" className={className ?? 'w-[320px]'}>
       <ol className="flex flex-col">
         {steps.map((step, index) => {
           const state = resolveStepState(step.id, activeStepId, completedSet);
           const isLast = index === steps.length - 1;
-          return onSelect === undefined ? (
-            <SetupStepNavItem key={step.id} step={step} state={state} isLast={isLast} />
-          ) : (
+          // A row is interactive only when a handler is supplied AND the
+          // step is navigable (no restriction list → all navigable).
+          const interactive =
+            onSelect !== undefined && (navigableSet === undefined || navigableSet.has(step.id));
+          return (
             <SetupStepNavItem
               key={step.id}
               step={step}
               state={state}
               isLast={isLast}
-              onSelect={onSelect}
+              {...(interactive ? { onSelect } : {})}
             />
           );
         })}

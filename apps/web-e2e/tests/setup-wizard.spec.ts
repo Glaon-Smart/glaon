@@ -148,6 +148,23 @@ test.describe('setup wizard @smoke', () => {
     expect(persisted.completedAt).toBeDefined();
   });
 
+  test('supports back-navigation via Back button + rail jump, preserving data (#637)', async ({
+    page,
+  }) => {
+    await walkToNetworkStep(page);
+    await expect(page.getByRole('heading', { level: 1, name: 'Network' })).toBeVisible();
+
+    // Back button → previous step (Device Security).
+    await page.getByTestId('wizard-back').click();
+    await expect(page.getByRole('heading', { level: 1, name: 'Device Security' })).toBeVisible();
+
+    // Rail jump back to a visited step (Home Overview) — data entered
+    // earlier is retained (home name is collected-backed).
+    await page.getByRole('button', { name: /Home Overview/i }).click();
+    await expect(page.getByRole('heading', { level: 1, name: 'Home Overview' })).toBeVisible();
+    await expect(page.getByLabel('Home Name')).toHaveValue('Olivia');
+  });
+
   test('reload after completion never re-runs the wizard', async ({ page }) => {
     await walkToNetworkStep(page);
     await page.getByRole('button', { name: /PreviewGuest/i }).click();

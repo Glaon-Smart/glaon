@@ -28,6 +28,7 @@ import { useTranslation } from 'react-i18next';
 
 import type { DeviceConfigInput } from '@glaon/core/config';
 
+import { WizardBackButton } from '../wizard-back-button';
 import { FloorTabs } from './floor-tabs';
 import { RoomGrid } from './room-grid';
 import { useLayoutState } from './use-layout-state';
@@ -37,12 +38,14 @@ interface LayoutStepProps {
   readonly collected: DeviceConfigInput;
   /** Merge the form's output into `collected` and advance to the next step. */
   readonly onNext: (partial: DeviceConfigInput) => void;
+  /** Go back one step (#637). */
+  readonly onBack?: () => void;
 }
 
 const MAX_FLOORS = 10;
 const MAX_ROOMS_PER_FLOOR = 50;
 
-export function LayoutStep({ collected, onNext }: LayoutStepProps): ReactNode {
+export function LayoutStep({ collected, onNext, onBack }: LayoutStepProps): ReactNode {
   const { t } = useTranslation();
 
   const { state, actions, toLayout } = useLayoutState({
@@ -109,7 +112,8 @@ export function LayoutStep({ collected, onNext }: LayoutStepProps): ReactNode {
           />
         )}
 
-        <div className="flex justify-end gap-3 border-t border-secondary pt-6">
+        <div className="flex items-center justify-between gap-3 border-t border-secondary pt-6">
+          {onBack !== undefined ? <WizardBackButton onBack={onBack} /> : <span />}
           <button
             type="submit"
             className="inline-flex items-center gap-2 rounded-lg bg-brand-solid px-4 py-2 text-sm font-semibold text-white shadow-xs-skeuomorphic hover:bg-brand-solid_hover focus:outline-none focus-visible:ring-2 focus-visible:ring-brand"

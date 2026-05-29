@@ -30,6 +30,7 @@ import { useTranslation } from 'react-i18next';
 import type { DeviceConfigInput, InterfaceConfig, IpConfig, IpMethod } from '@glaon/core/config';
 
 import { wrapPassword } from '../wifi/wifi-crypto';
+import { WizardBackButton } from '../wizard-back-button';
 import { CollapsibleSection } from './collapsible-section';
 import {
   DEFAULT_WIRELESS_INTERFACE,
@@ -54,6 +55,7 @@ import {
 interface NetworkStepProps {
   readonly collected: DeviceConfigInput;
   readonly onNext: (partial: DeviceConfigInput) => void;
+  readonly onBack?: () => void;
 }
 
 // ---- per-family form state (text fields; converted to IpConfig on submit) ----
@@ -108,7 +110,7 @@ type WifiState =
   | { readonly kind: 'error' }
   | { readonly kind: 'unavailable' };
 
-export function NetworkStep({ collected, onNext }: NetworkStepProps): ReactNode {
+export function NetworkStep({ collected, onNext, onBack }: NetworkStepProps): ReactNode {
   const { t } = useTranslation();
   const toast = useToast();
   const hostnameLabelId = useId();
@@ -433,7 +435,8 @@ export function NetworkStep({ collected, onNext }: NetworkStepProps): ReactNode 
         </div>
       )}
 
-      <div className="mt-4 flex justify-end gap-3 border-t border-secondary py-6">
+      <div className="mt-4 flex items-center justify-between gap-3 border-t border-secondary py-6">
+        {onBack !== undefined ? <WizardBackButton onBack={onBack} /> : <span />}
         <button
           type="button"
           onClick={() => void handleNext()}

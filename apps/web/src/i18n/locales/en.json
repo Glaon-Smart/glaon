@@ -80,6 +80,10 @@
         "placeholder": "Select language",
         "tooltip": "Glaon UI language. Changes apply on the next reload."
       },
+      "saveFailed": {
+        "title": "Couldn't save to Home Assistant",
+        "description": "Your home settings weren't saved. Check the connection and try again."
+      },
       "actions": {
         "cancel": "Cancel",
         "next": "Next"

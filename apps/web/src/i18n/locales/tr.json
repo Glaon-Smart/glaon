@@ -80,6 +80,10 @@
         "placeholder": "Dil seç",
         "tooltip": "Glaon arayüz dili. Değişiklik bir sonraki sayfa yenilemesinde geçerli olur."
       },
+      "saveFailed": {
+        "title": "Home Assistant'a kaydedilemedi",
+        "description": "Ev ayarların kaydedilmedi. Bağlantını kontrol edip tekrar dene."
+      },
       "actions": {
         "cancel": "İptal",
         "next": "İleri"

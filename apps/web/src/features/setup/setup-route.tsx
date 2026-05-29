@@ -20,7 +20,7 @@
 // #545–#548 to flesh out. Real form, Figma fidelity, i18n keys, and
 // validation land per-step.
 
-import { useCallback, useMemo, type ComponentType, type ReactNode } from 'react';
+import { useCallback, useMemo, useState, type ComponentType, type ReactNode } from 'react';
 import { useTranslation } from 'react-i18next';
 
 import type { DeviceConfigInput } from '@glaon/core/config';
@@ -28,7 +28,6 @@ import { SUPPORTED_LOCALES, isSupportedLocale, type SupportedLocale } from '@gla
 import { Select, SelectItem, type SelectItemType } from '@glaon/ui';
 import { SetupLayout, type SetupLayoutStep } from '@glaon/ui';
 
-import { useWizardState } from '../../setup/use-wizard-state';
 import { ApplyStep } from './apply';
 import { HomeOverviewStep } from './home-overview';
 import { LayoutStep } from './layout';
@@ -189,17 +188,16 @@ interface SetupRouteProps {
 }
 
 export function SetupRoute({ initialStepId }: SetupRouteProps = {}): ReactNode {
-  // Persistence (#595): collected + activeStepId round-trip through
-  // `localStorage` under `glaon.wizard.scratch` so a browser refresh
-  // (or the Wi-Fi handoff's AP disconnect, #594/#596/#599) resumes
-  // the wizard where the user left off. The `bypassStorage` flag
-  // when an explicit `initialStepId` is passed keeps tests
-  // deterministic — they never accidentally pick up a stray
-  // scratch entry from a previous test in the same vitest worker.
-  const { collected, activeStepId, setCollected, setActiveStepId } = useWizardState<WizardStepId>({
-    initialStepId: initialStepId ?? FIRST_STEP_ID,
-    bypassStorage: initialStepId !== undefined,
-  });
+  // Per-step model (#646): each step reads its parameters from the device
+  // and writes them back on Next, so there is no localStorage scratch to
+  // persist — `collected` + `activeStepId` live in route-local memory
+  // only. `collected` carries the accumulated input forward (the Apply
+  // step's review + the terminal commit read it); the device, not the
+  // browser, is the source of truth for anything already saved. A refresh
+  // restarts at step 1 and re-seeds from the device, which is acceptable
+  // for a one-time flow.
+  const [collected, setCollected] = useState<DeviceConfigInput>({});
+  const [activeStepId, setActiveStepId] = useState<WizardStepId>(initialStepId ?? FIRST_STEP_ID);
 
   const activeIndex = SETUP_STEPS.findIndex((step) => step.id === activeStepId);
   // findIndex returns -1 on miss; coerce that to 0 so an unknown step id

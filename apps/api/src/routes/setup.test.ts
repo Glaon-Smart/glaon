@@ -31,6 +31,7 @@ function fakeClient(opts: {
   sink: RecordedFrame[];
   floors?: readonly unknown[];
   areas?: readonly unknown[];
+  config?: unknown;
 }): HaSetupClient {
   return {
     connect: () => (opts.connectError ? Promise.reject(opts.connectError) : Promise.resolve()),
@@ -51,6 +52,9 @@ function fakeClient(opts: {
       }
       if (f.type === 'config/area_registry/list') {
         return Promise.resolve((opts.areas ?? []) as TResult);
+      }
+      if (f.type === 'get_config') {
+        return Promise.resolve((opts.config ?? {}) as TResult);
       }
       return Promise.resolve({} as TResult);
     },
@@ -240,6 +244,69 @@ describe('setup — ha-layout (#638)', () => {
       clientFactory: () => fakeClient({ sink, connectError: new Error('ECONNREFUSED') }),
     });
     const res = await router.request('/ha-layout');
+    expect(res.status).toBe(502);
+    expect(await res.json()).toMatchObject({ error: 'ha-unreachable' });
+  });
+});
+
+describe('setup — ha-config (#646)', () => {
+  const config = {
+    latitude: 39.6588,
+    longitude: 27.9063,
+    unit_system: { temperature: '°C', length: 'km' },
+    time_zone: 'Europe/Istanbul',
+    country: 'tr',
+    currency: 'TRY',
+    language: 'tr',
+    location_name: 'Evim',
+  };
+
+  it('responds 503 when HA Core is not configured', async () => {
+    const router = createSetupRouter({ config: baseConfig() });
+    const res = await router.request('/ha-config');
+    expect(res.status).toBe(503);
+    expect(await res.json()).toMatchObject({ error: 'ha-core-not-configured' });
+  });
+
+  it('returns the device config normalized into the Home Overview seed', async () => {
+    const sink: RecordedFrame[] = [];
+    const router = createSetupRouter({
+      config: baseConfig(),
+      clientFactory: () => fakeClient({ sink, config }),
+    });
+    const res = await router.request('/ha-config');
+    expect(res.status).toBe(200);
+    expect(await res.json()).toEqual({
+      latitude: 39.6588,
+      longitude: 27.9063,
+      unitSystem: 'metric',
+      timezone: 'Europe/Istanbul',
+      country: 'TR',
+      currency: 'TRY',
+      language: 'tr',
+      locationName: 'Evim',
+    });
+    expect(sink.some((f) => f.type === 'get_config')).toBe(true);
+  });
+
+  it('degrades to an empty seed when get_config fails', async () => {
+    const sink: RecordedFrame[] = [];
+    const router = createSetupRouter({
+      config: baseConfig(),
+      clientFactory: () => fakeClient({ sink, failTypes: new Set(['get_config']) }),
+    });
+    const res = await router.request('/ha-config');
+    expect(res.status).toBe(200);
+    expect(await res.json()).toEqual({});
+  });
+
+  it('responds 502 when the HA Core connection cannot be established', async () => {
+    const sink: RecordedFrame[] = [];
+    const router = createSetupRouter({
+      config: baseConfig(),
+      clientFactory: () => fakeClient({ sink, connectError: new Error('ECONNREFUSED') }),
+    });
+    const res = await router.request('/ha-config');
     expect(res.status).toBe(502);
     expect(await res.json()).toMatchObject({ error: 'ha-unreachable' });
   });

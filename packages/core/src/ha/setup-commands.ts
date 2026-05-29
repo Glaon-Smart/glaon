@@ -108,6 +108,97 @@ export function buildHaSetupPlan(input: HaSetupInput): HaSetupPlan {
   return { coreUpdate, floors };
 }
 
+// ---- Reverse direction: HA get_config → Home Overview seed (#646) ----
+
+/**
+ * The Home Overview fields seeded from the device's current HA config.
+ * Mirrors the `HaSetupInput` core fields plus `currency` (CurrencyPicker,
+ * #649) and `locationName` (HA's home name). Every field is optional — a
+ * value is only present when HA reported a usable one.
+ */
+export interface HaConfigSeed {
+  readonly latitude?: number;
+  readonly longitude?: number;
+  readonly unitSystem?: 'metric' | 'imperial';
+  /** IANA TZ name (e.g. `Europe/Istanbul`). */
+  readonly timezone?: string;
+  /** ISO 3166-1 alpha-2, uppercase. */
+  readonly country?: string;
+  /** ISO 4217 currency code (e.g. `TRY`, `USD`). */
+  readonly currency?: string;
+  /** BCP-47 / short language code HA reported (e.g. `en`, `tr`). */
+  readonly language?: string;
+  /** HA's home name (`location_name`). */
+  readonly locationName?: string;
+}
+
+/**
+ * Narrow HA's `get_config` result into the wizard's Home Overview seed.
+ * Pure + defensive: the input is `unknown` (whatever the WS returned), so
+ * every field is type-guarded and only forwarded when usable. HA reports
+ * `unit_system` as an object (`{ temperature, length, ... }`); we derive
+ * Glaon's `metric` / `imperial` from the temperature unit (°C → metric).
+ */
+export function mapHaConfigResult(raw: unknown): HaConfigSeed {
+  if (raw === null || typeof raw !== 'object') return {};
+  const cfg = raw as {
+    latitude?: unknown;
+    longitude?: unknown;
+    unit_system?: unknown;
+    time_zone?: unknown;
+    country?: unknown;
+    currency?: unknown;
+    language?: unknown;
+    location_name?: unknown;
+  };
+
+  const seed: {
+    latitude?: number;
+    longitude?: number;
+    unitSystem?: 'metric' | 'imperial';
+    timezone?: string;
+    country?: string;
+    currency?: string;
+    language?: string;
+    locationName?: string;
+  } = {};
+
+  if (typeof cfg.latitude === 'number' && Number.isFinite(cfg.latitude)) {
+    seed.latitude = cfg.latitude;
+  }
+  if (typeof cfg.longitude === 'number' && Number.isFinite(cfg.longitude)) {
+    seed.longitude = cfg.longitude;
+  }
+  const unitSystem = deriveUnitSystem(cfg.unit_system);
+  if (unitSystem !== undefined) seed.unitSystem = unitSystem;
+  if (typeof cfg.time_zone === 'string' && cfg.time_zone !== '') seed.timezone = cfg.time_zone;
+  if (typeof cfg.country === 'string' && /^[A-Za-z]{2}$/.test(cfg.country)) {
+    seed.country = cfg.country.toUpperCase();
+  }
+  if (typeof cfg.currency === 'string' && cfg.currency !== '') seed.currency = cfg.currency;
+  if (typeof cfg.language === 'string' && cfg.language !== '') seed.language = cfg.language;
+  if (typeof cfg.location_name === 'string' && cfg.location_name !== '') {
+    seed.locationName = cfg.location_name;
+  }
+
+  return seed;
+}
+
+/**
+ * HA's `unit_system` is an object of per-dimension unit strings. Glaon
+ * only distinguishes `metric` vs `imperial`; the temperature unit is the
+ * least ambiguous signal (`°C` → metric, `°F` → imperial). Returns
+ * `undefined` when the shape is unrecognised so the field is omitted.
+ */
+function deriveUnitSystem(raw: unknown): 'metric' | 'imperial' | undefined {
+  if (raw === null || typeof raw !== 'object') return undefined;
+  const temperature = (raw as { temperature?: unknown }).temperature;
+  if (typeof temperature !== 'string') return undefined;
+  if (temperature.includes('C')) return 'metric';
+  if (temperature.includes('F')) return 'imperial';
+  return undefined;
+}
+
 // ---- Reverse direction: HA registries → wizard layout seed (#638) ----
 
 export interface HaLayoutRoom {

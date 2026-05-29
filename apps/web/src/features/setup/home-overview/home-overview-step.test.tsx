@@ -9,8 +9,8 @@
 // over the wizard step's form contract, not the map's pixels (those
 // are owned by `packages/ui`'s Storybook + Chromatic).
 
-import { fireEvent, render } from '@testing-library/react';
-import { describe, expect, it, vi } from 'vitest';
+import { fireEvent, render, waitFor } from '@testing-library/react';
+import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 
 // jsdom doesn't implement `HTMLCanvasElement.getContext`; MapLibre
 // tries to call it on mount. We don't need real map rendering in
@@ -45,12 +45,62 @@ HTMLCanvasElement.prototype.getContext = ((): CanvasRenderingContext2D =>
     arc: () => undefined,
   }) as unknown as CanvasRenderingContext2D) as unknown as typeof HTMLCanvasElement.prototype.getContext;
 
+import type { ReactNode } from 'react';
+
+import { ToastProvider } from '@glaon/ui';
+
 import { HomeOverviewStep } from './home-overview-step';
+
+// The step now reads the device's HA config on mount (#646) and saves
+// the slice on Next. Mock fetch URL-aware: GET /ha-config returns the
+// `haConfig` seed; POST /apply-ha returns the `apply` result.
+interface FetchOverrides {
+  readonly haConfig?: unknown;
+  readonly apply?: { ok?: boolean };
+  readonly applyStatus?: number;
+}
+
+function mockResponse(json: unknown, status = 200): Response {
+  return {
+    ok: status >= 200 && status < 300,
+    status,
+    json: () => Promise.resolve(json),
+  } as Response;
+}
+
+function installFetch(overrides: FetchOverrides = {}): void {
+  vi.stubGlobal(
+    'fetch',
+    vi.fn((url: unknown, init?: { method?: string }) => {
+      const u = String(url);
+      if (u.includes('/api/setup/ha-config')) {
+        return Promise.resolve(mockResponse(overrides.haConfig ?? {}));
+      }
+      if (u.includes('/api/setup/apply-ha') && init?.method === 'POST') {
+        return Promise.resolve(
+          mockResponse(overrides.apply ?? { ok: true }, overrides.applyStatus),
+        );
+      }
+      return Promise.reject(new TypeError(`unexpected fetch ${u}`));
+    }),
+  );
+}
+
+function wrap(node: ReactNode) {
+  return <ToastProvider>{node}</ToastProvider>;
+}
+
+beforeEach(() => {
+  installFetch();
+});
+afterEach(() => {
+  vi.unstubAllGlobals();
+});
 
 describe('HomeOverviewStep', () => {
   it('renders the title and the home name field', () => {
     const { container, getByTestId } = render(
-      <HomeOverviewStep collected={{}} onNext={() => undefined} />,
+      wrap(<HomeOverviewStep collected={{}} onNext={() => undefined} />),
     );
     expect(container.querySelector('h1')?.textContent).toBe('Home Overview');
     // `data-testid` survives Tailwind reshuffles and keeps the
@@ -61,7 +111,9 @@ describe('HomeOverviewStep', () => {
 
   it('blocks submission when home name is empty and shows an inline error', () => {
     const onNext = vi.fn();
-    const { getByRole, queryByRole } = render(<HomeOverviewStep collected={{}} onNext={onNext} />);
+    const { getByRole, queryByRole } = render(
+      wrap(<HomeOverviewStep collected={{}} onNext={onNext} />),
+    );
     fireEvent.click(getByRole('button', { name: 'Next' }));
     expect(onNext).not.toHaveBeenCalled();
     // The inline error renders via <p role="alert"> — Toast Rule
@@ -69,59 +121,105 @@ describe('HomeOverviewStep', () => {
     expect(queryByRole('alert')).not.toBeNull();
   });
 
-  it('submits trimmed home name + defaults when the form is filled', () => {
+  it('saves the slice to the device, then advances with the merged partial', async () => {
     const onNext = vi.fn();
-    const { getByRole, getByTestId } = render(<HomeOverviewStep collected={{}} onNext={onNext} />);
-    const homeNameInput = getByTestId('home-overview-home-name') as HTMLInputElement;
-    fireEvent.change(homeNameInput, { target: { value: '  Olivia  ' } });
+    const { getByRole, getByTestId } = render(
+      wrap(<HomeOverviewStep collected={{}} onNext={onNext} />),
+    );
+    fireEvent.change(getByTestId('home-overview-home-name'), { target: { value: '  Olivia  ' } });
     fireEvent.click(getByRole('button', { name: 'Next' }));
-    expect(onNext).toHaveBeenCalledTimes(1);
-    const partial = onNext.mock.calls[0]?.[0] as {
-      homeName?: string;
-      unitSystem?: string;
-      location?: string;
-      latitude?: number;
-      longitude?: number;
-    };
+    await waitFor(() => {
+      expect(onNext).toHaveBeenCalledTimes(1);
+    });
+
+    const partial = onNext.mock.calls[0]?.[0] as { homeName?: string; unitSystem?: string };
     expect(partial.homeName).toBe('Olivia');
     expect(partial.unitSystem).toBe('metric');
-    // No location interaction → these fields stay out of the partial.
-    expect(partial.location).toBeUndefined();
-    expect(partial.latitude).toBeUndefined();
-    expect(partial.longitude).toBeUndefined();
+
+    // The per-step save POSTed the slice to apply-ha.
+    const fetchMock = global.fetch as unknown as { mock: { calls: unknown[][] } };
+    const post = fetchMock.mock.calls.find(
+      ([url, init]) =>
+        String(url).includes('/api/setup/apply-ha') &&
+        (init as { method?: string } | undefined)?.method === 'POST',
+    );
+    expect(post).toBeDefined();
+    const body = JSON.parse((post?.[1] as { body: string }).body) as Record<string, unknown>;
+    expect(body.unitSystem).toBe('metric');
+  });
+
+  it('stays on the step and shows a Toast when the device save fails', async () => {
+    installFetch({ apply: { ok: false } });
+    const onNext = vi.fn();
+    const { getByRole, getByTestId, findByRole } = render(
+      wrap(<HomeOverviewStep collected={{}} onNext={onNext} />),
+    );
+    fireEvent.change(getByTestId('home-overview-home-name'), { target: { value: 'Olivia' } });
+    fireEvent.click(getByRole('button', { name: 'Next' }));
+    // The danger Toast renders with role=status (aria-live polite); onNext
+    // never fires because the save failed.
+    expect(await findByRole('status')).toBeInTheDocument();
+    expect(onNext).not.toHaveBeenCalled();
+  });
+
+  it('treats a 503 (no HA Core configured) as a skip and advances', async () => {
+    installFetch({ applyStatus: 503 });
+    const onNext = vi.fn();
+    const { getByRole, getByTestId } = render(
+      wrap(<HomeOverviewStep collected={{}} onNext={onNext} />),
+    );
+    fireEvent.change(getByTestId('home-overview-home-name'), { target: { value: 'Olivia' } });
+    fireEvent.click(getByRole('button', { name: 'Next' }));
+    await waitFor(() => {
+      expect(onNext).toHaveBeenCalledTimes(1);
+    });
   });
 
   it('hydrates form state from already-collected partial', () => {
     const { getByTestId } = render(
-      <HomeOverviewStep
-        collected={{ homeName: 'Glaon HQ', unitSystem: 'imperial' }}
-        onNext={() => undefined}
-      />,
+      wrap(
+        <HomeOverviewStep
+          collected={{ homeName: 'Glaon HQ', unitSystem: 'imperial' }}
+          onNext={() => undefined}
+        />,
+      ),
     );
     const homeNameInput = getByTestId('home-overview-home-name') as HTMLInputElement;
     expect(homeNameInput.value).toBe('Glaon HQ');
   });
 
-  it('preserves a previously saved location triple through submit', () => {
+  it('seeds the home name from the device on a fresh visit', async () => {
+    // apps/api returns the already-mapped (camelCase) seed.
+    installFetch({ haConfig: { locationName: 'Evim', country: 'TR' } });
+    const { getByTestId } = render(
+      wrap(<HomeOverviewStep collected={{}} onNext={() => undefined} />),
+    );
+    const homeNameInput = getByTestId('home-overview-home-name') as HTMLInputElement;
+    await waitFor(() => {
+      expect(homeNameInput.value).toBe('Evim');
+    });
+  });
+
+  it('preserves a previously saved location triple through submit', async () => {
     const onNext = vi.fn();
     const { getByRole, getByTestId } = render(
-      <HomeOverviewStep
-        collected={{
-          homeName: 'Glaon HQ',
-          location: 'Istanbul, Türkiye',
-          latitude: 41.0082,
-          longitude: 28.9784,
-        }}
-        onNext={onNext}
-      />,
+      wrap(
+        <HomeOverviewStep
+          collected={{
+            homeName: 'Glaon HQ',
+            location: 'Istanbul, Türkiye',
+            latitude: 41.0082,
+            longitude: 28.9784,
+          }}
+          onNext={onNext}
+        />,
+      ),
     );
-    // No interaction with the picker — just submit and confirm the
-    // hydrated triple flows back through.
-    fireEvent.change(getByTestId('home-overview-home-name'), {
-      target: { value: 'Glaon HQ' },
-    });
+    fireEvent.change(getByTestId('home-overview-home-name'), { target: { value: 'Glaon HQ' } });
     fireEvent.click(getByRole('button', { name: 'Next' }));
-    expect(onNext).toHaveBeenCalledTimes(1);
+    await waitFor(() => {
+      expect(onNext).toHaveBeenCalledTimes(1);
+    });
     const partial = onNext.mock.calls[0]?.[0] as {
       location?: string;
       latitude?: number;

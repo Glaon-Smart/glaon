@@ -15,7 +15,7 @@
 // admin password as required for protected setup. Skip can be added in
 // a follow-up once we know whether kiosk deployments want it.
 
-import { Button, PasswordInput, useToast } from '@glaon/ui';
+import { Button, InputBase, PasswordInput, TextField, useToast } from '@glaon/ui';
 import { useId, useMemo, useState, type ReactNode, type SubmitEvent } from 'react';
 import { useTranslation } from 'react-i18next';
 
@@ -33,6 +33,9 @@ interface SecurityStepProps {
 }
 
 const MIN_PASSWORD_LENGTH = 8;
+// Admin username (#640): 3–32 chars of letters, digits, dot, underscore,
+// hyphen. Mirrors @glaon/core's DeviceConfig `adminUsername` regex.
+const USERNAME_RE = /^[A-Za-z0-9._-]{3,32}$/;
 
 async function sha256Hex(input: string): Promise<string> {
   const data = new TextEncoder().encode(input);
@@ -55,32 +58,40 @@ function validatePasswords(password: string, confirm: string): PasswordValidatio
   return { kind: 'ok' };
 }
 
-export function SecurityStep({
-  collected: _collected,
-  onNext,
-  onBack,
-}: SecurityStepProps): ReactNode {
+export function SecurityStep({ collected, onNext, onBack }: SecurityStepProps): ReactNode {
   const { t } = useTranslation();
   const toast = useToast();
+  const usernameId = useId();
   const passwordId = useId();
   const confirmId = useId();
 
+  // Username is collected-backed, so it pre-fills on a back-navigation
+  // (#637) — unlike the password, which is never stored in plaintext.
+  const [username, setUsername] = useState<string>(collected.adminUsername ?? '');
   const [password, setPassword] = useState<string>('');
   const [confirm, setConfirm] = useState<string>('');
   const [submitted, setSubmitted] = useState<boolean>(false);
   const [isHashing, setIsHashing] = useState<boolean>(false);
 
+  const usernameTrimmed = username.trim();
+  const usernameValid = USERNAME_RE.test(usernameTrimmed);
   const validation = useMemo(() => validatePasswords(password, confirm), [password, confirm]);
   const showErrors = submitted && validation.kind !== 'ok';
+  const usernameInvalid = submitted && !usernameValid;
+  const usernameErrorMessage = usernameInvalid
+    ? usernameTrimmed === ''
+      ? t('setup.security.username.required')
+      : t('setup.security.username.invalid')
+    : undefined;
 
   const onSubmit = async (event: SubmitEvent<HTMLFormElement>): Promise<void> => {
     event.preventDefault();
     setSubmitted(true);
-    if (validation.kind !== 'ok') return;
+    if (!usernameValid || validation.kind !== 'ok') return;
     setIsHashing(true);
     try {
       const hash = await sha256Hex(password);
-      onNext({ securityPinHash: hash });
+      onNext({ adminUsername: usernameTrimmed, securityPinHash: hash });
     } catch {
       // Web Crypto failure is extremely rare (older browsers without
       // `crypto.subtle`). Surface via Toast per the API Error Toast
@@ -122,6 +133,29 @@ export function SecurityStep({
         noValidate
         className="flex flex-col"
       >
+        <FormRow label={t('setup.security.username.label')} htmlFor={usernameId} required>
+          <TextField
+            value={username}
+            onChange={setUsername}
+            isRequired
+            isInvalid={usernameInvalid}
+            aria-label={t('setup.security.username.label')}
+          >
+            <InputBase
+              id={usernameId}
+              type="text"
+              placeholder={t('setup.security.username.placeholder')}
+              autoComplete="username"
+              data-testid="security-username"
+            />
+          </TextField>
+          {usernameErrorMessage !== undefined && (
+            <p role="alert" className="pt-1.5 text-sm text-error-primary">
+              {usernameErrorMessage}
+            </p>
+          )}
+        </FormRow>
+
         <FormRow label={t('setup.security.password.label')} htmlFor={passwordId} required>
           <PasswordInput
             id={passwordId}

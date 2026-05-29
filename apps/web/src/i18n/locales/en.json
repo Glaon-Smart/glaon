@@ -154,6 +154,12 @@
     "security": {
       "title": "Device Security",
       "subtitle": "Set the admin password for this device. Anyone who needs to change the setup will need it.",
+      "username": {
+        "label": "Admin username",
+        "placeholder": "e.g. admin",
+        "required": "Username is required.",
+        "invalid": "Use 3–32 characters: letters, digits, dot, underscore, hyphen."
+      },
       "password": {
         "label": "Password",
         "placeholder": "At least 8 characters",

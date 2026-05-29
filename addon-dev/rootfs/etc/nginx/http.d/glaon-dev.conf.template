@@ -48,6 +48,22 @@ server {
         proxy_read_timeout 30s;
     }
 
+    # Host API (#635). The wizard's Network step (#629) reads the device
+    # hostname from `/api/hassio/host/info` and sets it via
+    # `/api/hassio/host/options`. Same prefix-strip + bearer injection as
+    # the network block: `/api/hassio/host/info` → `http://supervisor/host/info`.
+    # Without this block these paths fall through to `location /` (SPA),
+    # so hostname read/seed + apply silently degrade in live add-on dev.
+    location /api/hassio/host/ {
+        proxy_pass http://supervisor/host/;
+        proxy_http_version 1.1;
+        proxy_set_header Host supervisor;
+        proxy_set_header Authorization "Bearer ${SUPERVISOR_TOKEN}";
+        proxy_set_header X-Forwarded-For $remote_addr;
+        proxy_buffering off;
+        proxy_read_timeout 30s;
+    }
+
     location / {
         try_files $uri $uri/ /index.html;
     }

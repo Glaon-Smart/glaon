@@ -174,19 +174,48 @@
         "next": "İleri"
       }
     },
-    "apply": {
-      "title": "Kaydet ve uygula",
-      "subtitle": "Ayarları gözden geçir, ev Wi-Fi'nı seç — sonra Glaon cihazı kendi ağına geçirir.",
-      "summary": {
-        "heading": "Uygulanacak ayarlar",
-        "wifi": "Wi-Fi",
-        "wifiSecured": "{ssid} (şifreli)",
-        "wifiUnsecured": "{ssid} (açık)",
-        "adminPassword": "Yönetici şifresi",
-        "passwordSet": "Ayarlandı",
-        "notSet": "—",
-        "layoutHeadline": "{floorCount} kat · {roomCount} oda",
-        "layoutEmptyFloor": "henüz oda yok"
+    "network": {
+      "title": "Ağ",
+      "subtitle": "Bu cihazın ana bilgisayar adını ve her arayüzün adresini nasıl alacağını ayarla, sonra bağlanacağı Wi-Fi ağını seç.",
+      "loading": "Ağ yapılandırması yükleniyor…",
+      "loadFailed": "Mevcut ağ yapılandırması yüklenemedi. Home Assistant add-on’u yeniden başlatılıyor olabilir.",
+      "unavailable": "Bu ortamda ağ yapılandırması yapılamıyor, bu yüzden atlanacak. Diğer ayarların yine de kaydedilir.",
+      "hostname": {
+        "label": "Ana bilgisayar adı",
+        "placeholder": "örn. glaon",
+        "hint": "Bu cihazın ağında kullanacağı ad.",
+        "invalid": "1–63 harf, rakam veya tire kullan (başında veya sonunda tire olmadan)."
+      },
+      "interfaces": {
+        "heading": "Ağ arayüzleri"
+      },
+      "ipv4": {
+        "heading": "IPv4"
+      },
+      "ipv6": {
+        "heading": "IPv6"
+      },
+      "method": {
+        "label": "Yöntem",
+        "auto": "Otomatik (DHCP)",
+        "static": "Statik",
+        "disabled": "Kapalı"
+      },
+      "address": {
+        "label": "IP adresi",
+        "required": "Statik yapılandırma için bir IP adresi gerekli.",
+        "invalid": "Geçerli bir adres gir, isteğe bağlı /önek ile (örn. 192.168.1.50/24)."
+      },
+      "gateway": {
+        "label": "Ağ geçidi",
+        "invalid": "Geçerli bir ağ geçidi adresi gir."
+      },
+      "dns": {
+        "label": "DNS sunucuları",
+        "invalid": "Geçerli DNS adresleri gir, virgülle ayır."
+      },
+      "actions": {
+        "next": "İleri"
       },
       "wifi": {
         "heading": "Wi-Fi ağı",
@@ -211,6 +240,21 @@
         "actions": {
           "retry": "Tekrar dene"
         }
+      }
+    },
+    "apply": {
+      "title": "Kaydet ve uygula",
+      "subtitle": "Ayarları gözden geçir, ev Wi-Fi'nı seç — sonra Glaon cihazı kendi ağına geçirir.",
+      "summary": {
+        "heading": "Uygulanacak ayarlar",
+        "wifi": "Wi-Fi",
+        "wifiSecured": "{ssid} (şifreli)",
+        "wifiUnsecured": "{ssid} (açık)",
+        "adminPassword": "Yönetici şifresi",
+        "passwordSet": "Ayarlandı",
+        "notSet": "—",
+        "layoutHeadline": "{floorCount} kat · {roomCount} oda",
+        "layoutEmptyFloor": "henüz oda yok"
       },
       "commitFailed": {
         "title": "Kurulum tamamlanamadı",

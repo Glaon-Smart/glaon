@@ -174,19 +174,48 @@
         "next": "Next"
       }
     },
-    "apply": {
-      "title": "Save and apply",
-      "subtitle": "Double-check your settings, pick your home Wi-Fi, and we'll switch the device over.",
-      "summary": {
-        "heading": "Settings to apply",
-        "wifi": "Wi-Fi",
-        "wifiSecured": "{ssid} (secured)",
-        "wifiUnsecured": "{ssid} (open)",
-        "adminPassword": "Admin password",
-        "passwordSet": "Set",
-        "notSet": "—",
-        "layoutHeadline": "{floorCount} floors · {roomCount} rooms",
-        "layoutEmptyFloor": "no rooms yet"
+    "network": {
+      "title": "Network",
+      "subtitle": "Set this device's hostname and how each interface gets its address, then pick the Wi-Fi network it should join.",
+      "loading": "Loading network configuration…",
+      "loadFailed": "We couldn't load the current network configuration. The Home Assistant add-on may be restarting.",
+      "unavailable": "Network configuration isn't available in this environment, so we'll skip it. Your other settings will still be saved.",
+      "hostname": {
+        "label": "Hostname",
+        "placeholder": "e.g. glaon",
+        "hint": "The name this device uses on your network.",
+        "invalid": "Use 1–63 letters, digits, or hyphens (no leading or trailing hyphen)."
+      },
+      "interfaces": {
+        "heading": "Network interfaces"
+      },
+      "ipv4": {
+        "heading": "IPv4"
+      },
+      "ipv6": {
+        "heading": "IPv6"
+      },
+      "method": {
+        "label": "Method",
+        "auto": "Automatic (DHCP)",
+        "static": "Static",
+        "disabled": "Disabled"
+      },
+      "address": {
+        "label": "IP address",
+        "required": "An IP address is required for a static configuration.",
+        "invalid": "Enter a valid address, optionally with a /prefix (e.g. 192.168.1.50/24)."
+      },
+      "gateway": {
+        "label": "Gateway",
+        "invalid": "Enter a valid gateway address."
+      },
+      "dns": {
+        "label": "DNS servers",
+        "invalid": "Enter valid DNS addresses, separated by commas."
+      },
+      "actions": {
+        "next": "Next"
       },
       "wifi": {
         "heading": "Wi-Fi network",
@@ -211,6 +240,21 @@
         "actions": {
           "retry": "Try again"
         }
+      }
+    },
+    "apply": {
+      "title": "Save and apply",
+      "subtitle": "Double-check your settings, pick your home Wi-Fi, and we'll switch the device over.",
+      "summary": {
+        "heading": "Settings to apply",
+        "wifi": "Wi-Fi",
+        "wifiSecured": "{ssid} (secured)",
+        "wifiUnsecured": "{ssid} (open)",
+        "adminPassword": "Admin password",
+        "passwordSet": "Set",
+        "notSet": "—",
+        "layoutHeadline": "{floorCount} floors · {roomCount} rooms",
+        "layoutEmptyFloor": "no rooms yet"
       },
       "commitFailed": {
         "title": "Couldn't complete setup",

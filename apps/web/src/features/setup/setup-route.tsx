@@ -32,12 +32,15 @@ import { useWizardState } from '../../setup/use-wizard-state';
 import { ApplyStep } from './apply';
 import { HomeOverviewStep } from './home-overview';
 import { LayoutStep } from './layout';
+import { NetworkStep } from './network';
 import { SecurityStep } from './security';
 
 // #597 collapsed the old wifi + review steps into a single terminal
-// "apply" step that hosts the summary + Wi-Fi picker + handoff
-// ceremony.
-export type WizardStepId = 'home-overview' | 'layout' | 'security' | 'apply';
+// "apply" step. #629 adds a dedicated Network step (hostname + per-
+// interface IPv4/IPv6 + Wi-Fi selection) between Security and Apply; the
+// Wi-Fi picker moved out of Apply into Network, the destructive handoff
+// stays terminal.
+export type WizardStepId = 'home-overview' | 'layout' | 'security' | 'network' | 'apply';
 
 // `WizardStepProps`, `SETUP_STEPS`, and `SetupRouteProps` stay unexported
 // here: each subsequent step issue (#540, #545–#548) introduces its own
@@ -69,8 +72,12 @@ const STEP_ICON_PATHS: Record<WizardStepId, string> = {
   'home-overview': 'M9 22V12h6v10M3 9l9-7 9 7v11a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2V9z',
   layout: 'M3 4h18v16H3zM12 4v16',
   security: 'M12 4v16M4 12h16M5.6 5.6l12.8 12.8M18.4 5.6L5.6 18.4',
-  // Wi-Fi bars — same glyph the old wifi step used, kept because
-  // the apply step's destructive action is the network switch.
+  // Globe with meridians — the Network step configures hostname + per-
+  // interface IPv4/IPv6 + Wi-Fi.
+  network:
+    'M12 2a10 10 0 1 0 0 20 10 10 0 0 0 0-20M2 12h20M12 2a15 15 0 0 1 0 20M12 2a15 15 0 0 0 0 20',
+  // Wi-Fi bars — kept for the apply step because its destructive action
+  // is the network switch.
   apply:
     'M5 12.55a11 11 0 0 1 14 0M1.42 9a16 16 0 0 1 21.16 0M8.53 16.11a6 6 0 0 1 6.95 0M12 20h.01',
 };
@@ -104,6 +111,9 @@ const LayoutStepAdapter = (props: WizardStepProps): ReactNode => (
 const SecurityStepAdapter = (props: WizardStepProps): ReactNode => (
   <SecurityStep collected={props.collected} onNext={props.onNext} />
 );
+const NetworkStepAdapter = (props: WizardStepProps): ReactNode => (
+  <NetworkStep collected={props.collected} onNext={props.onNext} />
+);
 const ApplyStepAdapter = (props: WizardStepProps): ReactNode => (
   <ApplyStep collected={props.collected} onNext={props.onNext} />
 );
@@ -129,6 +139,13 @@ const SETUP_STEPS: readonly WizardStepRegistration[] = [
     description: 'Create a password to protect your smart devices.',
     icon: <StepIcon id="security" />,
     Component: SecurityStepAdapter,
+  },
+  {
+    id: 'network',
+    title: 'Network',
+    description: 'Set the hostname and configure interfaces and Wi-Fi.',
+    icon: <StepIcon id="network" />,
+    Component: NetworkStepAdapter,
   },
   {
     id: 'apply',

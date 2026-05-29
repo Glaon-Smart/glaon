@@ -9,12 +9,12 @@ import type { IpConfig, IpMethod } from '@glaon/core/config';
 
 export const NETWORK_INFO_URL = '/api/hassio/network/info';
 export const HOST_INFO_URL = '/api/hassio/host/info';
-export const HOST_OPTIONS_URL = '/api/hassio/host/options';
+const HOST_OPTIONS_URL = '/api/hassio/host/options';
 export const DEFAULT_WIRELESS_INTERFACE = 'wlan0';
 
 export const accesspointsUrl = (iface: string): string =>
   `/api/hassio/network/interface/${encodeURIComponent(iface)}/accesspoints`;
-export const interfaceUpdateUrl = (iface: string): string =>
+const interfaceUpdateUrl = (iface: string): string =>
   `/api/hassio/network/interface/${encodeURIComponent(iface)}/update`;
 
 // Scan results carry no security/auth field (#622) — only signal. We
@@ -145,7 +145,7 @@ export async function pushHostname(hostname: string): Promise<void> {
 }
 
 /** A Supervisor `ipv4`/`ipv6` update block (only meaningful keys included). */
-export interface SupervisorIpBlock {
+interface SupervisorIpBlock {
   readonly method: IpMethod;
   readonly address?: string[];
   readonly gateway?: string;

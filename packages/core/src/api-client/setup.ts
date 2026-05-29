@@ -62,3 +62,25 @@ export const ApplyHaResponseSchema = z.object({
   steps: z.array(ApplyHaStepResultSchema),
 });
 export type ApplyHaResponse = z.infer<typeof ApplyHaResponseSchema>;
+
+/**
+ * Response from `GET /setup/ha-layout` (#638): the device's existing HA
+ * floors + areas, normalized so the wizard's Layout step can pre-fill its
+ * editor. `unassigned` holds areas with no floor — the step buckets them
+ * under a default-named floor. Structurally matches `HaLayoutResult`
+ * (ha/setup-commands.ts), the pure mapper apps/api builds it from.
+ */
+const HaLayoutRoomSchema = z.object({
+  id: z.string(),
+  name: z.string(),
+});
+const HaLayoutFloorSchema = z.object({
+  id: z.string(),
+  name: z.string(),
+  rooms: z.array(HaLayoutRoomSchema),
+});
+export const HaLayoutResponseSchema = z.object({
+  floors: z.array(HaLayoutFloorSchema),
+  unassigned: z.array(HaLayoutRoomSchema),
+});
+export type HaLayoutResponse = z.infer<typeof HaLayoutResponseSchema>;

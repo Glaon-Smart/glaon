@@ -1,32 +1,28 @@
 // Layout Setup wizard step — second step in the device setup wizard
 // (epic #533, ADR 0028). Multi-floor + rooms editor (#592).
 //
-// Replaces the v1 free-text placeholder from #545. The previous
-// single-string `layout?: string` field is gone — the schema now
-// carries a structured `layout?: { floors: Floor[] }` blob. Phase 2
-// has no production blobs that wrote the old shape so the swap is
-// direct (see types.ts comment for the rationale).
+// On entry the step seeds its editor from the device's existing HA
+// floors + areas (#638): `GET /api/setup/ha-layout` returns the current
+// registries normalized into floors-with-rooms (+ floorless areas under
+// `unassigned`), which we map into the editor's initial state. The user
+// then adds / edits on top. When the wizard already collected a layout
+// (re-entry / back-navigation), that takes precedence and the device
+// read is skipped. A 503 (HA Core not configured — HA-less dev) is
+// expected and degrades silently to a blank default floor; a real fetch
+// failure surfaces a Toast (API Error Toast Rule) and also degrades.
 //
 // UX:
-//   - Tab strip of floors at the top; the active tab's rooms render
-//     below.
-//   - Rooms render as a responsive card grid (1 column on phones,
-//     2 on tablets, 3 on desktop).
-//   - Each room card carries an emoji glyph driven by `RoomType`,
-//     editable name, type selector, and a ×-on-hover remove.
-//   - Empty floor: centred CTA with a 🏠 glyph and "Add your first
-//     room" copy.
-//   - Default state seeded by `useLayoutState`: one floor named per
-//     i18n (`Ground Floor` / `Zemin Kat`), empty rooms list.
-//
-// Per the API Error Toast Rule (CLAUDE.md), per-field validation
-// is inline / inline-only; nothing here goes through Toast because
-// nothing leaves the device.
+//   - Tab strip of floors at the top; the active tab's rooms render below.
+//   - Rooms render as a responsive card grid.
+//   - Per-field validation is inline; only the device-read failure uses
+//     Toast (it's a cross-section, network-level signal).
 
-import type { ReactNode, SubmitEvent } from 'react';
+import { useToast } from '@glaon/ui';
+import { useCallback, useEffect, useState, type ReactNode, type SubmitEvent } from 'react';
 import { useTranslation } from 'react-i18next';
 
-import type { DeviceConfigInput } from '@glaon/core/config';
+import { HaLayoutResponseSchema, type HaLayoutResponse } from '@glaon/core/api-client';
+import type { DeviceConfigInput, Layout } from '@glaon/core/config';
 
 import { WizardBackButton } from '../wizard-back-button';
 import { FloorTabs } from './floor-tabs';
@@ -44,13 +40,124 @@ interface LayoutStepProps {
 
 const MAX_FLOORS = 10;
 const MAX_ROOMS_PER_FLOOR = 50;
+const HA_LAYOUT_URL = '/api/setup/ha-layout';
+
+/**
+ * Map the device's HA floors/areas into the editor's seed `Layout`.
+ * Floorless areas go under a default-named floor (naming is the UI's
+ * job). Caps to the editor's floor/room maxima so the seed stays
+ * schema-valid. Returns `undefined` when there's nothing to seed, letting
+ * `useLayoutState` create its single blank floor.
+ */
+function mapHaLayoutToSeed(resp: HaLayoutResponse, defaultFloorName: string): Layout | undefined {
+  const floors: Layout['floors'][number][] = resp.floors.slice(0, MAX_FLOORS).map((floor) => ({
+    id: floor.id,
+    name: floor.name,
+    rooms: floor.rooms
+      .slice(0, MAX_ROOMS_PER_FLOOR)
+      .map((room) => ({ id: room.id, name: room.name })),
+  }));
+  if (resp.unassigned.length > 0 && floors.length < MAX_FLOORS) {
+    floors.push({
+      id: crypto.randomUUID(),
+      name: defaultFloorName,
+      rooms: resp.unassigned.slice(0, MAX_ROOMS_PER_FLOOR).map((room) => ({
+        id: room.id,
+        name: room.name,
+      })),
+    });
+  }
+  return floors.length > 0 ? { floors } : undefined;
+}
 
 export function LayoutStep({ collected, onNext, onBack }: LayoutStepProps): ReactNode {
+  const { t } = useTranslation();
+  const toast = useToast();
+  const defaultFloorName = t('setup.layoutSetup.defaultFloorName');
+
+  // `collected.layout` present → reuse it (re-entry / back-nav) and skip
+  // the device read; absent → fetch the device's HA layout to pre-fill.
+  const [phase, setPhase] = useState<'loading' | 'ready'>(
+    collected.layout !== undefined ? 'ready' : 'loading',
+  );
+  const [seed, setSeed] = useState<Layout | undefined>(collected.layout);
+
+  const showLoadError = useCallback(() => {
+    toast.show({
+      intent: 'danger',
+      title: t('setup.layoutSetup.loadFailed.title'),
+      description: t('setup.layoutSetup.loadFailed.description'),
+    });
+  }, [t, toast]);
+
+  useEffect(() => {
+    if (collected.layout !== undefined) return;
+    // No unmount guard needed: this effect runs once (collected.layout is
+    // stable while on the step), and a setState after unmount is a no-op
+    // in React 19.
+    void (async () => {
+      try {
+        const res = await fetch(HA_LAYOUT_URL, { credentials: 'include' });
+        if (res.ok) {
+          const parsed = HaLayoutResponseSchema.safeParse(await res.json().catch(() => null));
+          if (parsed.success) {
+            setSeed(mapHaLayoutToSeed(parsed.data, defaultFloorName));
+          }
+        } else if (res.status !== 503) {
+          // 503 = HA Core not configured (HA-less dev): expected, silent.
+          // Any other non-ok is a real failure worth surfacing.
+          showLoadError();
+        }
+      } catch {
+        showLoadError();
+      } finally {
+        setPhase('ready');
+      }
+    })();
+  }, [collected.layout, defaultFloorName, showLoadError]);
+
+  if (phase === 'loading') {
+    return (
+      <div className="flex flex-col p-8 lg:p-12">
+        <LayoutHeader />
+        <p role="status" className="pt-2 text-sm text-tertiary">
+          {t('setup.layoutSetup.loading')}
+        </p>
+      </div>
+    );
+  }
+
+  return (
+    <LayoutEditor
+      initialLayout={seed}
+      onNext={onNext}
+      {...(onBack !== undefined ? { onBack } : {})}
+    />
+  );
+}
+
+function LayoutHeader(): ReactNode {
+  const { t } = useTranslation();
+  return (
+    <header className="flex flex-col gap-1 pb-6">
+      <h1 className="text-display-xs font-semibold text-primary">{t('setup.layoutSetup.title')}</h1>
+      <p className="text-sm text-tertiary">{t('setup.layoutSetup.subtitle')}</p>
+    </header>
+  );
+}
+
+interface LayoutEditorProps {
+  readonly initialLayout: Layout | undefined;
+  readonly onNext: (partial: DeviceConfigInput) => void;
+  readonly onBack?: () => void;
+}
+
+function LayoutEditor({ initialLayout, onNext, onBack }: LayoutEditorProps): ReactNode {
   const { t } = useTranslation();
 
   const { state, actions, toLayout } = useLayoutState({
     defaultFloorName: t('setup.layoutSetup.defaultFloorName'),
-    ...(collected.layout !== undefined ? { initial: collected.layout } : {}),
+    ...(initialLayout !== undefined ? { initial: initialLayout } : {}),
   });
 
   const activeFloor =
@@ -77,12 +184,7 @@ export function LayoutStep({ collected, onNext, onBack }: LayoutStepProps): Reac
 
   return (
     <div className="flex flex-col p-8 lg:p-12">
-      <header className="flex flex-col gap-1 pb-6">
-        <h1 className="text-display-xs font-semibold text-primary">
-          {t('setup.layoutSetup.title')}
-        </h1>
-        <p className="text-sm text-tertiary">{t('setup.layoutSetup.subtitle')}</p>
-      </header>
+      <LayoutHeader />
 
       <form onSubmit={onSubmit} noValidate className="flex flex-col gap-6">
         <FloorTabs

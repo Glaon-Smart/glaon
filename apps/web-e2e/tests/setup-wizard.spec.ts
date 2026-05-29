@@ -85,6 +85,16 @@ async function mockSupervisorNetwork(page: Page): Promise<void> {
   await page.route('**/api/hassio/network/interface/*/update', async (route) => {
     await route.fulfill({ status: 200, contentType: 'application/json', body: '{"result":"ok"}' });
   });
+  // #638 — the Layout step reads the device's HA floors/areas to pre-fill.
+  // Mock 503 (HA Core not configured) so the step degrades to a blank
+  // default floor — deterministic and independent of seed content.
+  await page.route('**/api/setup/ha-layout', async (route) => {
+    await route.fulfill({
+      status: 503,
+      contentType: 'application/json',
+      body: JSON.stringify({ error: 'ha-core-not-configured' }),
+    });
+  });
   // #617 — the apply step pushes home settings to HA Core before the
   // network commit. Mock a clean success so the ceremony proceeds.
   await page.route('**/api/setup/apply-ha', async (route) => {

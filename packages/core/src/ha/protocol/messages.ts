@@ -154,6 +154,26 @@ export interface HaFloorRegistryEntry {
 }
 
 /**
+ * `config/floor_registry/list` — reads the existing floors so the wizard
+ * can pre-fill its layout editor from the device (#638). Result is a
+ * `HaFloorRegistryEntry[]`.
+ */
+export interface HaFloorRegistryListFrame {
+  readonly id: number;
+  readonly type: 'config/floor_registry/list';
+}
+
+/**
+ * `config/area_registry/list` — reads the existing areas. Result is a
+ * `HaAreaRegistryEntry[]`; each entry's `floor_id` links it to a floor
+ * (null/absent → the area has no floor).
+ */
+export interface HaAreaRegistryListFrame {
+  readonly id: number;
+  readonly type: 'config/area_registry/list';
+}
+
+/**
  * `config/area_registry/create` — creates an area (room). `floor_id`
  * links it to a floor created earlier in the same run; omit it for the
  * graceful-degrade path on HA builds without a floor registry.
@@ -219,4 +239,6 @@ export type HaOutboundFrame =
   | HaGetTranslationsFrame
   | HaConfigCoreUpdateFrame
   | HaFloorRegistryCreateFrame
-  | HaAreaRegistryCreateFrame;
+  | HaFloorRegistryListFrame
+  | HaAreaRegistryCreateFrame
+  | HaAreaRegistryListFrame;

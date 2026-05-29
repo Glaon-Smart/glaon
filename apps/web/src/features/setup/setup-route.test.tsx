@@ -45,13 +45,14 @@ describe('SetupRoute', () => {
     expect(heading?.textContent).toBe('Home Overview');
   });
 
-  it('advances to the next step when the placeholder Next button is clicked', () => {
-    // Start at the Layout step so we exercise the placeholder Next
-    // path; Home Overview's own form validation is covered in
-    // `home-overview-step.test.tsx`.
-    const { container, getByRole } = renderRoute('layout');
-    const next = getByRole('button', { name: 'Next' });
-    fireEvent.click(next);
+  it('advances to the next step when Next is clicked', async () => {
+    // Start at the Layout step so we exercise the Next path; Home
+    // Overview's own form validation is covered in
+    // `home-overview-step.test.tsx`. The Layout step now seeds from the
+    // device first (#638) — the stubbed fetch rejects, so it settles to
+    // the blank editor; await its Next button before clicking.
+    const { container, findByRole } = renderRoute('layout');
+    fireEvent.click(await findByRole('button', { name: 'Next' }));
     expect(container.querySelector('h1')?.textContent).toBe('Device Security');
   });
 

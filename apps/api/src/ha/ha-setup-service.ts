@@ -25,8 +25,10 @@
 import {
   HaClient,
   buildHaSetupPlan,
+  buildLayoutFromRegistries,
   type HaAreaRegistryEntry,
   type HaFloorRegistryEntry,
+  type HaLayoutResult,
   type HaSetupInput,
 } from '@glaon/core/ha';
 import type { ApplyHaResponse, ApplyHaStepResult } from '@glaon/core/api-client';
@@ -123,6 +125,48 @@ export async function applyHaSetup(
   }
 
   return { ok: steps.every((step) => step.ok), steps };
+}
+
+/**
+ * Read the device's existing HA floors + areas and normalize them into a
+ * layout seed for the wizard's Layout step (#638). Connection failure is
+ * fail-loud (`HaCoreUnreachableError` → 502); a per-command failure (e.g.
+ * an older HA with no floor registry) degrades to an empty list so areas
+ * still come through as unassigned rather than failing the whole read.
+ */
+export async function readHaLayout(deps: ReadHaLayoutDeps): Promise<HaLayoutResult> {
+  const client = deps.clientFactory();
+
+  try {
+    await client.connect();
+  } catch (err) {
+    throw new HaCoreUnreachableError(errMessage(err));
+  }
+
+  try {
+    const floors = await client
+      .request<readonly HaFloorRegistryEntry[]>({ type: 'config/floor_registry/list' })
+      .catch((err: unknown) => {
+        deps.logger?.warn({ event: 'ha-layout.floors.failed', error: errMessage(err) });
+        return [] as readonly HaFloorRegistryEntry[];
+      });
+    const areas = await client
+      .request<readonly HaAreaRegistryEntry[]>({ type: 'config/area_registry/list' })
+      .catch((err: unknown) => {
+        deps.logger?.warn({ event: 'ha-layout.areas.failed', error: errMessage(err) });
+        return [] as readonly HaAreaRegistryEntry[];
+      });
+    return buildLayoutFromRegistries(floors, areas);
+  } finally {
+    await client.close().catch(() => {
+      /* ignore */
+    });
+  }
+}
+
+interface ReadHaLayoutDeps {
+  readonly clientFactory: () => HaSetupClient;
+  readonly logger?: Logger;
 }
 
 /**

@@ -175,6 +175,19 @@ export const DeviceConfigSchema = z
      * the IP config to `/network/interface/{iface}/update`.
      */
     network: NetworkConfigSchema.optional(),
+    /**
+     * Local device admin username (#640), paired with `securityPinHash`
+     * for re-entering setup. A plain identifier, not a secret: 3–32 chars
+     * of letters, digits, dot, underscore, hyphen. Required in the
+     * wizard's Security step; optional here so partial blobs parse.
+     */
+    adminUsername: z
+      .string()
+      .regex(
+        /^[A-Za-z0-9._-]{3,32}$/,
+        'adminUsername must be 3–32 chars: letters, digits, dot, underscore, hyphen',
+      )
+      .optional(),
     /** SHA-256 hex (64 lowercase hex chars). Plaintext PIN never leaves the device. */
     securityPinHash: z
       .string()

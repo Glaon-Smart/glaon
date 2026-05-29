@@ -286,6 +286,7 @@ export function ApplyStep({ collected, onBack }: ApplyStepProps): ReactNode {
         </ReviewCard>
 
         <ReviewCard icon={<SecurityGlyph />} title={t('setup.security.title')}>
+          <ReviewRow label={t('setup.security.username.label')} value={collected.adminUsername} />
           <ReviewRow
             label={t('setup.apply.summary.adminPassword')}
             value={

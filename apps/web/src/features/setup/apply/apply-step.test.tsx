@@ -109,14 +109,16 @@ describe('ApplyStep — summary', () => {
     expect(getByText('Metric')).toBeInTheDocument();
   });
 
-  it('shows the hostname + Wi-Fi from collected network config', () => {
+  it('shows the hostname, Wi-Fi, and admin username from collected config', () => {
     const collected = {
       ...baseCollected,
+      adminUsername: 'admin-user',
       network: { hostname: 'glaon-wall' },
       wifi: { ssid: 'HomeWifi', passwordCipher: 'AES-GCM:abc' },
     };
     const { getByText } = render(wrap(<ApplyStep collected={collected} />));
     expect(getByText('glaon-wall')).toBeInTheDocument();
+    expect(getByText('admin-user')).toBeInTheDocument();
     // wifiSecured renders the "(secured)" summary variant (vs. the not-set
     // glyph) — robust to whether i18n interpolation runs in the test env.
     expect(getByText(/secured/)).toBeInTheDocument();

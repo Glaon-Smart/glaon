@@ -103,6 +103,23 @@ describe('DeviceConfigSchema', () => {
     ).toThrow();
   });
 
+  it('accepts a valid adminUsername and rejects malformed ones', () => {
+    expect(
+      DeviceConfigSchema.parse({
+        schemaVersion: DEVICE_CONFIG_SCHEMA_VERSION,
+        adminUsername: 'admin.user-1',
+      }).adminUsername,
+    ).toBe('admin.user-1');
+    for (const bad of ['ab', 'a'.repeat(33), 'bad user', 'nope!', '']) {
+      expect(() =>
+        DeviceConfigSchema.parse({
+          schemaVersion: DEVICE_CONFIG_SCHEMA_VERSION,
+          adminUsername: bad,
+        }),
+      ).toThrow(/adminUsername/);
+    }
+  });
+
   it('rejects a lowercase country code', () => {
     expect(() =>
       DeviceConfigSchema.parse({ schemaVersion: DEVICE_CONFIG_SCHEMA_VERSION, country: 'tr' }),

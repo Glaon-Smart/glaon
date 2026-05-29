@@ -106,8 +106,9 @@ async function walkToNetworkStep(page: Page): Promise<void> {
   await page.getByRole('button', { name: 'Next' }).click();
 
   await expect(page.getByRole('heading', { level: 1, name: 'Device Security' })).toBeVisible();
-  // The asterisk lives inside the <label>, so getByLabel misses; the
-  // placeholders are unique per field.
+  // Admin username is required (#640); the asterisk lives inside the
+  // <label>, so target the field by its testid / unique placeholders.
+  await page.getByTestId('security-username').fill('admin');
   await page.getByPlaceholder('At least 8 characters').fill('correct-horse');
   await page.getByPlaceholder('Type the password again').fill('correct-horse');
   await page.getByRole('button', { name: 'Next' }).click();

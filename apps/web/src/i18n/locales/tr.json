@@ -154,6 +154,12 @@
     "security": {
       "title": "Cihaz Güvenliği",
       "subtitle": "Bu cihaz için yönetici şifresi belirle. Kurulumu değiştirecek herkes bu şifreye ihtiyaç duyacak.",
+      "username": {
+        "label": "Yönetici kullanıcı adı",
+        "placeholder": "örn. admin",
+        "required": "Kullanıcı adı gerekli.",
+        "invalid": "3–32 karakter kullan: harf, rakam, nokta, alt çizgi, tire."
+      },
       "password": {
         "label": "Şifre",
         "placeholder": "En az 8 karakter",

@@ -55,7 +55,15 @@ describe('SetupRoute', () => {
     expect(container.querySelector('h1')?.textContent).toBe('Device Security');
   });
 
-  it('lands on the Apply step after Security in the 4-step order', () => {
+  it('renders the Network step (after Security in the 5-step order)', () => {
+    // #629 inserts Network between Security and Apply. The fetch stub
+    // rejects so the step lands in its error state, but the h1 (rendered
+    // regardless of load state) is the routing signal we assert here.
+    const { container } = renderRoute('network');
+    expect(container.querySelector('h1')?.textContent).toBe('Network');
+  });
+
+  it('lands on the Apply step (terminal, after Network in the 5-step order)', () => {
     const { container } = renderRoute('apply');
     expect(container.querySelector('h1')?.textContent).toBe('Save and apply');
   });

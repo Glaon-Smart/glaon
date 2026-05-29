@@ -94,7 +94,7 @@ describe('NetworkStep — ready', () => {
     expect(await findByText('Guest')).toBeInTheDocument();
   });
 
-  it('advances with the collected network config when valid', async () => {
+  it('advances with the collected network config, recombining IP + mask into CIDR', async () => {
     const { onNext, findByTestId, getByTestId } = renderStep();
     await findByTestId('network-hostname');
     fireEvent.click(getByTestId('network-next'));
@@ -102,10 +102,25 @@ describe('NetworkStep — ready', () => {
       expect(onNext).toHaveBeenCalledTimes(1);
     });
     const partial = onNext.mock.calls[0]?.[0] as {
-      network?: { hostname?: string; interfaces?: { name: string }[] };
+      network?: {
+        hostname?: string;
+        interfaces?: { name: string; ipv4?: { address?: string[] } }[];
+      };
     };
     expect(partial.network?.hostname).toBe('glaon');
     expect(partial.network?.interfaces?.map((i) => i.name)).toEqual(['wlan0', 'end0']);
+    // end0's seeded static IP (192.168.1.50) + mask (255.255.255.0, from
+    // the seeded /24) recombine into the CIDR the schema expects (#639).
+    const end0 = partial.network?.interfaces?.find((i) => i.name === 'end0');
+    expect(end0?.ipv4?.address).toEqual(['192.168.1.50/24']);
+  });
+
+  it('splits a seeded CIDR into an IP + dotted subnet mask on a static interface (#639)', async () => {
+    const { findByRole, getByLabelText } = renderStep();
+    // end0's IPv4 is static, so its panel auto-opens; the seeded
+    // 192.168.1.50/24 shows as a plain IP + a dotted mask.
+    fireEvent.click(await findByRole('tab', { name: 'end0' }));
+    expect((getByLabelText('Subnet mask') as HTMLInputElement).value).toBe('255.255.255.0');
   });
 
   it('blocks Next and shows an inline error for an invalid hostname', async () => {

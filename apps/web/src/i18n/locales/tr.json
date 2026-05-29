@@ -210,7 +210,14 @@
       "address": {
         "label": "IP adresi",
         "required": "Statik yapılandırma için bir IP adresi gerekli.",
-        "invalid": "Geçerli bir adres gir, isteğe bağlı /önek ile (örn. 192.168.1.50/24)."
+        "invalid": "Geçerli bir IP adresi gir (örn. 192.168.1.50)."
+      },
+      "netmask": {
+        "maskLabel": "Alt ağ maskesi",
+        "prefixLabel": "Önek uzunluğu",
+        "required": "Statik yapılandırma için gerekli.",
+        "maskInvalid": "Geçerli bir alt ağ maskesi gir (örn. 255.255.255.0).",
+        "prefixInvalid": "0 ile 128 arasında bir önek uzunluğu gir."
       },
       "gateway": {
         "label": "Ağ geçidi",

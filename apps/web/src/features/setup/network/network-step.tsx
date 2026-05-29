@@ -46,9 +46,12 @@ import {
 } from './network-api';
 import {
   areNameserversValid,
-  isCidr,
   isHostnameLabel,
+  isIpv4Netmask,
+  isIpv6Prefix,
   isPlainIp,
+  netmaskToPrefix,
+  prefixToNetmask,
   splitNameservers,
 } from './validation';
 
@@ -64,32 +67,64 @@ type Family = 'ipv4' | 'ipv6';
 
 interface IpFormState {
   readonly method: IpMethod;
+  /** Plain IP address, no prefix (e.g. 192.168.1.50 / fd00::50). */
   readonly address: string;
+  /** IPv4 dotted subnet mask (255.255.255.0), or IPv6 prefix length (64). */
+  readonly netmask: string;
   readonly gateway: string;
   readonly nameservers: string;
 }
 
 type InterfaceForms = Record<string, { ipv4: IpFormState; ipv6: IpFormState }>;
 
-const EMPTY_FORM: IpFormState = { method: 'auto', address: '', gateway: '', nameservers: '' };
+const EMPTY_FORM: IpFormState = {
+  method: 'auto',
+  address: '',
+  netmask: '',
+  gateway: '',
+  nameservers: '',
+};
 
-function seedIpForm(config: IpConfig): IpFormState {
+// `IpConfig.address` is a CIDR string ("ip/prefix"); the form splits it
+// into a plain address + a family-appropriate mask field for display
+// (#639). IPv4 shows a dotted subnet mask; IPv6 shows the prefix length.
+function seedIpForm(config: IpConfig, family: Family): IpFormState {
+  const cidr = config.address?.[0] ?? '';
+  const slash = cidr.indexOf('/');
+  const address = slash === -1 ? cidr : cidr.slice(0, slash);
+  const prefix = slash === -1 ? '' : cidr.slice(slash + 1);
+  const netmask = prefix === '' ? '' : family === 'ipv4' ? prefixToNetmask(Number(prefix)) : prefix;
   return {
     method: config.method,
-    address: config.address?.[0] ?? '',
+    address,
+    netmask,
     gateway: config.gateway ?? '',
     nameservers: config.nameservers?.join(', ') ?? '',
   };
 }
 
-function ipFormToConfig(form: IpFormState): IpConfig {
+// Recombine address + mask into the CIDR string the core schema +
+// Supervisor expect. IPv4's dotted mask converts to a prefix; IPv6's
+// mask is already a prefix length.
+function ipFormToConfig(form: IpFormState, family: Family): IpConfig {
   if (form.method !== 'static') return { method: form.method };
   const address = form.address.trim();
+  const netmask = form.netmask.trim();
   const gateway = form.gateway.trim();
   const nameservers = splitNameservers(form.nameservers);
+  let cidr = '';
+  if (address !== '') {
+    if (netmask === '') {
+      cidr = address;
+    } else if (family === 'ipv4') {
+      cidr = `${address}/${String(netmaskToPrefix(netmask))}`;
+    } else {
+      cidr = `${address}/${netmask}`;
+    }
+  }
   return {
     method: 'static',
-    ...(address !== '' ? { address: [address] } : {}),
+    ...(cidr !== '' ? { address: [cidr] } : {}),
     ...(gateway !== '' ? { gateway } : {}),
     ...(nameservers.length > 0 ? { nameservers } : {}),
   };
@@ -97,6 +132,7 @@ function ipFormToConfig(form: IpFormState): IpConfig {
 
 interface FamilyErrors {
   readonly address?: string;
+  readonly netmask?: string;
   readonly gateway?: string;
   readonly nameservers?: string;
 }
@@ -140,8 +176,8 @@ export function NetworkStep({ collected, onNext, onBack }: NetworkStepProps): Re
       for (const iface of live) {
         const prior = collectedByName.get(iface.name);
         forms[iface.name] = {
-          ipv4: seedIpForm(prior?.ipv4 ?? iface.ipv4),
-          ipv6: seedIpForm(prior?.ipv6 ?? iface.ipv6),
+          ipv4: seedIpForm(prior?.ipv4 ?? iface.ipv4, 'ipv4'),
+          ipv6: seedIpForm(prior?.ipv6 ?? iface.ipv6, 'ipv6'),
         };
       }
       return forms;
@@ -251,12 +287,24 @@ export function NetworkStep({ collected, onNext, onBack }: NetworkStepProps): Re
     (form: IpFormState | undefined, family: Family): FamilyErrors => {
       if (!submitted || form?.method !== 'static') return {};
       const address = form.address.trim();
+      const netmask = form.netmask.trim();
       const gateway = form.gateway.trim();
       const addressError =
         address === ''
           ? t('setup.network.address.required')
-          : !isCidr(address, family)
+          : !isPlainIp(address, family)
             ? t('setup.network.address.invalid')
+            : undefined;
+      const netmaskValid = family === 'ipv4' ? isIpv4Netmask(netmask) : isIpv6Prefix(netmask);
+      const netmaskError =
+        netmask === ''
+          ? t('setup.network.netmask.required')
+          : !netmaskValid
+            ? t(
+                family === 'ipv4'
+                  ? 'setup.network.netmask.maskInvalid'
+                  : 'setup.network.netmask.prefixInvalid',
+              )
             : undefined;
       const gatewayError =
         gateway !== '' && !isPlainIp(gateway, family)
@@ -267,6 +315,7 @@ export function NetworkStep({ collected, onNext, onBack }: NetworkStepProps): Re
         : undefined;
       return {
         ...(addressError !== undefined ? { address: addressError } : {}),
+        ...(netmaskError !== undefined ? { netmask: netmaskError } : {}),
         ...(gatewayError !== undefined ? { gateway: gatewayError } : {}),
         ...(nameserversError !== undefined ? { nameservers: nameserversError } : {}),
       };
@@ -281,7 +330,10 @@ export function NetworkStep({ collected, onNext, onBack }: NetworkStepProps): Re
       for (const family of ['ipv4', 'ipv6'] as const) {
         const f = form?.[family];
         if (f?.method !== 'static') continue;
-        if (f.address.trim() === '' || !isCidr(f.address.trim(), family)) return true;
+        if (f.address.trim() === '' || !isPlainIp(f.address.trim(), family)) return true;
+        const netmask = f.netmask.trim();
+        const netmaskValid = family === 'ipv4' ? isIpv4Netmask(netmask) : isIpv6Prefix(netmask);
+        if (!netmaskValid) return true;
         if (f.gateway.trim() !== '' && !isPlainIp(f.gateway.trim(), family)) return true;
         if (!areNameserversValid(f.nameservers, family)) return true;
       }
@@ -310,8 +362,8 @@ export function NetworkStep({ collected, onNext, onBack }: NetworkStepProps): Re
       const form = interfaceForms[iface.name];
       return {
         name: iface.name,
-        ipv4: ipFormToConfig(form?.ipv4 ?? EMPTY_FORM),
-        ipv6: ipFormToConfig(form?.ipv6 ?? EMPTY_FORM),
+        ipv4: ipFormToConfig(form?.ipv4 ?? EMPTY_FORM, 'ipv4'),
+        ipv6: ipFormToConfig(form?.ipv6 ?? EMPTY_FORM, 'ipv6'),
       };
     });
     if (interfaceConfigs.length > 0) network.interfaces = interfaceConfigs;
@@ -466,6 +518,7 @@ interface IpFamilyFormProps {
 function IpFamilyForm({ family, form, errors, onChange }: IpFamilyFormProps): ReactNode {
   const { t } = useTranslation();
   const addressId = useId();
+  const netmaskId = useId();
   const gatewayId = useId();
   const dnsId = useId();
   const methodId = useId();
@@ -473,6 +526,7 @@ function IpFamilyForm({ family, form, errors, onChange }: IpFamilyFormProps): Re
   const current: IpFormState = form ?? {
     method: 'auto',
     address: '',
+    netmask: '',
     gateway: '',
     nameservers: '',
   };
@@ -518,11 +572,25 @@ function IpFamilyForm({ family, form, errors, onChange }: IpFamilyFormProps): Re
           <IpTextField
             id={addressId}
             label={t('setup.network.address.label')}
-            placeholder={family === 'ipv4' ? '192.168.1.50/24' : 'fd00::50/64'}
+            placeholder={family === 'ipv4' ? '192.168.1.50' : 'fd00::50'}
             value={current.address}
             error={errors.address}
             onChange={(value) => {
               onChange({ ...current, address: value });
+            }}
+          />
+          <IpTextField
+            id={netmaskId}
+            label={
+              family === 'ipv4'
+                ? t('setup.network.netmask.maskLabel')
+                : t('setup.network.netmask.prefixLabel')
+            }
+            placeholder={family === 'ipv4' ? '255.255.255.0' : '64'}
+            value={current.netmask}
+            error={errors.netmask}
+            onChange={(value) => {
+              onChange({ ...current, netmask: value });
             }}
           />
           <IpTextField

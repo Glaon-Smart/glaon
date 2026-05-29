@@ -95,8 +95,20 @@ async function mockSupervisorNetwork(page: Page): Promise<void> {
       body: JSON.stringify({ error: 'ha-core-not-configured' }),
     });
   });
-  // #617 — the apply step pushes home settings to HA Core before the
-  // network commit. Mock a clean success so the ceremony proceeds.
+  // #646 — Home Overview reads the device's current HA config to seed its
+  // fields. Mock 503 (HA Core not configured) so the step degrades to
+  // blank/auto-detect defaults — deterministic, and the home name is typed
+  // manually below.
+  await page.route('**/api/setup/ha-config', async (route) => {
+    await route.fulfill({
+      status: 503,
+      contentType: 'application/json',
+      body: JSON.stringify({ error: 'ha-core-not-configured' }),
+    });
+  });
+  // #617/#646 — the per-step save (Home Overview) and the terminal apply
+  // both push home settings to HA Core via apply-ha. Mock a clean success
+  // so both the Home Overview "Next" and the commit ceremony proceed.
   await page.route('**/api/setup/apply-ha', async (route) => {
     await route.fulfill({
       status: 200,

@@ -84,3 +84,22 @@ export const HaLayoutResponseSchema = z.object({
   unassigned: z.array(HaLayoutRoomSchema),
 });
 export type HaLayoutResponse = z.infer<typeof HaLayoutResponseSchema>;
+
+/**
+ * Response from `GET /setup/ha-config` (#646): the device's current HA
+ * Core config, narrowed to the Home Overview seed. Every field is
+ * optional — present only when HA reported a usable value. Structurally
+ * matches `HaConfigSeed` (ha/setup-commands.ts), the pure mapper apps/api
+ * builds it from.
+ */
+export const HaConfigResponseSchema = z.object({
+  latitude: z.number().optional(),
+  longitude: z.number().optional(),
+  unitSystem: z.union([z.literal('metric'), z.literal('imperial')]).optional(),
+  timezone: z.string().optional(),
+  country: z.string().optional(),
+  currency: z.string().optional(),
+  language: z.string().optional(),
+  locationName: z.string().optional(),
+});
+export type HaConfigResponse = z.infer<typeof HaConfigResponseSchema>;

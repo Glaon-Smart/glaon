@@ -3,6 +3,7 @@ import { type ReactNode } from 'react';
 import { afterEach, describe, expect, it, vi } from 'vitest';
 
 import { DEVICE_CONFIG_SCHEMA_VERSION, InMemoryConfigStore } from '@glaon/core/config';
+import { ToastProvider } from '@glaon/ui';
 
 import { ConfigProvider } from '../config/config-provider';
 import { SetupGate } from './setup-gate';
@@ -13,11 +14,16 @@ interface WrapOptions {
 }
 
 function wrap({ configStore, initialConfig }: WrapOptions, children: ReactNode) {
+  // The wizard (SetupRoute → HomeOverviewStep) consumes useToast, which in
+  // the app comes from the root-mounted ToastProvider (#646). Mirror that
+  // here so rendering the gate's wizard branch doesn't throw.
   return initialConfig === undefined ? (
-    <ConfigProvider configStore={configStore}>{children}</ConfigProvider>
+    <ConfigProvider configStore={configStore}>
+      <ToastProvider>{children}</ToastProvider>
+    </ConfigProvider>
   ) : (
     <ConfigProvider configStore={configStore} initialConfig={initialConfig}>
-      {children}
+      <ToastProvider>{children}</ToastProvider>
     </ConfigProvider>
   );
 }

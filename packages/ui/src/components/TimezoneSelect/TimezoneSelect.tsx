@@ -72,6 +72,12 @@ interface TimezoneSelectProps {
   locale?: string;
   /** Field label rendered above the trigger. */
   label?: string;
+  /** Accessible name when no visible `label` is rendered. Forwarded to
+   *  the underlying ComboBox. */
+  'aria-label'?: string;
+  /** Id of an external visible label; forwarded as `aria-labelledby` to
+   *  associate a host-rendered label instead of the built-in `label`. */
+  'aria-labelledby'?: string;
   /** Placeholder text shown when no option is selected. */
   placeholder?: string;
   /** Helper text shown under the trigger; doubles as the error
@@ -112,6 +118,8 @@ export function TimezoneSelect({
   autoDetect = true,
   locale,
   label,
+  'aria-label': ariaLabel,
+  'aria-labelledby': ariaLabelledby,
   placeholder,
   hint,
   isDisabled,
@@ -195,6 +203,8 @@ export function TimezoneSelect({
   };
 
   if (label !== undefined) comboProps.label = label;
+  if (ariaLabel !== undefined) comboProps['aria-label'] = ariaLabel;
+  if (ariaLabelledby !== undefined) comboProps['aria-labelledby'] = ariaLabelledby;
   if (placeholder !== undefined) comboProps.placeholder = placeholder;
   if (hint !== undefined) comboProps.hint = hint;
   if (isDisabled === true) comboProps.isDisabled = true;

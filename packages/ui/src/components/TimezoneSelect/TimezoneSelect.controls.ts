@@ -112,7 +112,10 @@ export const timezoneSelectControls = {
   } satisfies ControlSpec<string>,
 } as const;
 
-// No additional excludes — every public prop on `TimezoneSelect` is
-// represented above. The helper export is still required by the F6
-// prop-coverage gate's named-export contract.
-export const timezoneSelectExcludeFromArgs = defineExcludeFromArgs([] as const);
+// `aria-label` / `aria-labelledby` are a11y passthroughs for the
+// label-less usage (host renders its own label); not interactive story
+// args, so they're excluded from the controls matrix here.
+export const timezoneSelectExcludeFromArgs = defineExcludeFromArgs([
+  'aria-label',
+  'aria-labelledby',
+] as const);

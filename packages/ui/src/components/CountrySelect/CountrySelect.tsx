@@ -81,6 +81,18 @@ interface CountrySelectProps {
   locale?: string;
   /** Field label rendered above the trigger. */
   label?: string;
+  /**
+   * Accessible name when no visible `label` is rendered (e.g. the host
+   * supplies its own external label). Forwarded to the underlying
+   * ComboBox so the control still has an accessible name for AT.
+   */
+  'aria-label'?: string;
+  /**
+   * Id of an external visible label element. Forwarded to the ComboBox
+   * as `aria-labelledby` — use this to associate a host-rendered label
+   * (e.g. a form row) instead of the built-in `label`.
+   */
+  'aria-labelledby'?: string;
   /** Placeholder text shown when no option is selected. */
   placeholder?: string;
   /** Helper text shown under the trigger; doubles as the error
@@ -121,6 +133,8 @@ export function CountrySelect({
   autoDetect = true,
   locale,
   label,
+  'aria-label': ariaLabel,
+  'aria-labelledby': ariaLabelledby,
   placeholder,
   hint,
   isDisabled,
@@ -207,6 +221,8 @@ export function CountrySelect({
   };
 
   if (label !== undefined) comboProps.label = label;
+  if (ariaLabel !== undefined) comboProps['aria-label'] = ariaLabel;
+  if (ariaLabelledby !== undefined) comboProps['aria-labelledby'] = ariaLabelledby;
   if (placeholder !== undefined) comboProps.placeholder = placeholder;
   if (hint !== undefined) comboProps.hint = hint;
   if (isDisabled === true) comboProps.isDisabled = true;

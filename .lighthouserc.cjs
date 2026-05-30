@@ -6,6 +6,12 @@ module.exports = {
     collect: {
       startServerCommand: 'pnpm --filter @glaon/web preview -- --port 4173 --strictPort',
       startServerReadyPattern: 'Local:',
+      // LHCI's default ready-timeout is 10s; on a loaded runner `vite
+      // preview` can take longer to print `Local:`, so LHCI gave up
+      // waiting and the first of 3 runs measured a cold server — the
+      // intermittent "Timed out waiting for the server to start
+      // listening" flake (#658). 60s gives the server room to warm up.
+      startServerReadyTimeout: 60000,
       url: ['http://localhost:4173/'],
       numberOfRuns: 3,
       settings: {

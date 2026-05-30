@@ -53,7 +53,11 @@
       },
       "location": {
         "label": "Location",
-        "placeholder": "Search for an address"
+        "placeholder": "Search for an address",
+        "latitude": "Latitude",
+        "longitude": "Longitude",
+        "radius": "Radius",
+        "radiusUnit": "m"
       },
       "unitSystem": {
         "label": "Unit System",

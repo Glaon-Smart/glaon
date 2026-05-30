@@ -90,17 +90,31 @@ export const excludeFromArgs = locationPickerExcludeFromArgs;
 export const Default: Story = {};
 
 /**
- * Pre-selected — `defaultValue` set to Istanbul. The map opens
- * centred on the marker at zoom 14. Drag the marker to fine-tune
- * coordinates; `onChange` fires on settle.
+ * Pre-selected — `defaultValue` set to Istanbul with a 200 m radius.
+ * The map opens centred on the marker at zoom 14, with the orange
+ * radius circle + its draggable edge handle. Drag the marker to move
+ * the centre, or the handle to resize; `onChange` fires on settle.
  */
 export const WithDefaultValue: Story = {
   args: {
     defaultValue: {
       lat: 41.0082,
       lng: 28.9784,
+      radius: 200,
       address: 'Istanbul, Türkiye',
     },
+  },
+};
+
+/**
+ * No search — `geocode` omitted, so the search box is hidden and the
+ * user works the map + numeric fields directly (the HA zone-editor
+ * shape). Edit Latitude / Longitude / Radius or drag the marker.
+ */
+export const NoSearch: Story = {
+  args: {
+    geocode: undefined,
+    defaultValue: { lat: 39.6588, lng: 27.9063, radius: 200 },
   },
 };
 

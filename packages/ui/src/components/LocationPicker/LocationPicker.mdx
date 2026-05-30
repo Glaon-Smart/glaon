@@ -6,10 +6,13 @@ import * as LocationPickerStories from './LocationPicker.stories';
 
 # LocationPicker
 
-App-primitive location picker. Search-as-you-type address input paired
-with an interactive MapLibre map and a draggable marker. Returns
-`{ lat, lng, address? }` so consumers can persist exact coordinates
-plus the human-readable address the user picked.
+App-primitive home-zone picker. An interactive MapLibre map with a
+draggable home marker and an orange radius circle (with a draggable edge
+handle), plus numeric **Latitude / Longitude / Radius** fields. Optional
+search-as-you-type geocoding sits above the map when a `geocode` callback
+is injected. Returns `{ lat, lng, radius, address? }` so consumers can
+persist exact coordinates, a zone radius, and (after a search pick) the
+human-readable address. Matches the Home Assistant zone editor.
 
 Third primitive in the Phase 2 picker trio, alongside
 [CountrySelect](?path=/docs/app-primitives-countryselect--docs) and
@@ -51,34 +54,51 @@ provider-agnostic by design.
 ```tsx
 import { LocationPicker, nominatimGeocode } from '@glaon/ui';
 
-<LocationPicker label="Location" geocode={nominatimGeocode} onChange={(loc) => setLocation(loc)} />;
+<LocationPicker geocode={nominatimGeocode} onChange={(loc) => setLocation(loc)} />;
 ```
 
-The trigger renders a search input with a magnifier glyph. As the
-user types, the picker debounces the query (300ms), aborts any
-in-flight request, and posts the latest input to the `geocode`
-callback. Suggestions stream into the popover; picking one flies
-the map to the location and drops a draggable marker.
+No visible "Location" label is rendered — the picker is a self-describing
+map + labelled fields, matching the HA zone editor. When a `geocode`
+callback is passed, a search input (magnifier glyph) appears above the
+map: the picker debounces the query (300ms), aborts in-flight requests,
+and posts the latest input to the callback. Picking a suggestion flies the
+map to the location and drops the marker. Omit `geocode` to hide the
+search box entirely and work the map + fields directly.
 
-## Marker drag
+## Radius
 
-The marker is draggable by default (disabled when `isDisabled` is
-true). `onChange` fires on every drag-end with the new
-`{ lat, lng }` — note that the `address` field is **only** populated
-for autocomplete picks; marker drags emit lat/lng only. If you need
-reverse-geocoding after a drag, call your geocoder from the host
-layer (the same `nominatimGeocode` helper can be adapted).
+A picked location renders an orange circle of `radius` metres (default
+`defaultRadius`, 100 m). Drag the **edge handle** to resize, type into the
+**Radius** field, or move the centre by dragging the marker. The circle is
+a GeoJSON polygon so it scales correctly with zoom. `onChange` emits the
+current `radius` on every settle.
+
+## Marker + field edits
+
+The marker and radius handle are draggable by default (disabled when
+`isDisabled`). The numeric fields are the source of truth — editing
+Latitude / Longitude / Radius updates the map, and dragging updates the
+fields. `address` is **only** populated by a search pick; a marker drag
+clears it (the coordinates no longer match the geocoded label).
+
+## Offline
+
+Map tiles need the network; the numeric fields don't. When the browser is
+offline the map canvas is replaced with a neutral placeholder
+(`offlineLabel`) while the fields stay fully editable — coordinates can be
+entered by hand and tiles return when connectivity does.
 
 ## State machine
 
 Three modes, same as the sister primitives:
 
-- **Controlled.** Host passes `value`; the picker reflects it.
+- **Controlled.** Host passes `value` (`{ lat, lng, radius?, address? }`);
+  the picker reflects it.
 - **Uncontrolled, explicit default.** Host passes `defaultValue`;
   the picker seeds from it.
 - **Uncontrolled, empty.** Map opens at `defaultCenter`
-  (Istanbul by default) with no marker until the user picks
-  something.
+  (Istanbul by default) with no marker until the user enters
+  coordinates or picks a search result.
 
 ## Error UX
 
@@ -105,11 +125,12 @@ resolved with.
 
 ## Accessibility
 
-- Always pass a `label` — the kit ComboBox binds it to the search
-  input via the standard RAC label slot.
-- The popover is keyboard-navigable (Arrow up/down, Enter to
-  select, Esc to dismiss) and the search input is a real `<input>`
-  with `aria-autocomplete="list"`.
+- The numeric fields each carry a visible label (`latitudeLabel`,
+  `longitudeLabel`, `radiusLabel`) wired to the kit `TextField`.
+- The search input has no visible label by design; it takes an
+  accessible name from `searchLabel` (`aria-label`). The popover is
+  keyboard-navigable (Arrow up/down, Enter to select, Esc to dismiss)
+  and the input is a real `<input>` with `aria-autocomplete="list"`.
 - The map canvas is announced via `aria-controls` pointing from
   the input — assistive tech reads the input as controlling the
   map region.

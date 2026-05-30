@@ -152,8 +152,11 @@ export function HomeOverviewStep({ collected, onNext }: HomeOverviewStepProps): 
 
         <FormRow label={t('setup.homeOverview.location.label')}>
           <LocationPicker
-            label={t('setup.homeOverview.location.label')}
-            hideRequiredIndicator
+            searchLabel={t('setup.homeOverview.location.label')}
+            latitudeLabel={t('setup.homeOverview.location.latitude')}
+            longitudeLabel={t('setup.homeOverview.location.longitude')}
+            radiusLabel={t('setup.homeOverview.location.radius')}
+            radiusUnit={t('setup.homeOverview.location.radiusUnit')}
             placeholder={t('setup.homeOverview.location.placeholder')}
             geocode={nominatimGeocode}
             {...(locationDefault !== undefined ? { defaultValue: locationDefault } : {})}

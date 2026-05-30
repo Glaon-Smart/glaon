@@ -10,24 +10,54 @@ const sizeOptions = ['sm', 'md', 'lg'] as const;
 const localeOptions = ['', 'tr-TR', 'en-US', 'de-DE', 'fr-FR', 'ar-SA'] as const;
 
 export const locationPickerControls = {
-  label: {
+  searchLabel: {
     type: 'text',
-    default: 'Location',
+    default: 'Search for an address',
     description:
-      'Visible label rendered above the search input. Always provide one — labels satisfy axe `label` and pair the picker with assistive tech automatically.',
+      'Accessible name for the optional search input (no visible label is rendered, per the HA zone-editor design). Only shown when a `geocode` callback is injected.',
     category: 'A11y',
   } satisfies ControlSpec<string>,
   placeholder: {
     type: 'text',
     default: 'Search for an address',
-    description:
-      'Hint text shown inside the search input. Never use placeholder as a substitute for the label.',
+    description: 'Hint text inside the search input.',
+    category: 'Content',
+  } satisfies ControlSpec<string>,
+  latitudeLabel: {
+    type: 'text',
+    default: 'Latitude',
+    description: 'Visible label for the latitude field (host supplies localized copy).',
+    category: 'Content',
+  } satisfies ControlSpec<string>,
+  longitudeLabel: {
+    type: 'text',
+    default: 'Longitude',
+    description: 'Visible label for the longitude field.',
+    category: 'Content',
+  } satisfies ControlSpec<string>,
+  radiusLabel: {
+    type: 'text',
+    default: 'Radius',
+    description: 'Visible label for the radius field.',
+    category: 'Content',
+  } satisfies ControlSpec<string>,
+  radiusUnit: {
+    type: 'text',
+    default: 'm',
+    description: 'Unit suffix shown inside the radius field (e.g. `m`, `metre`).',
     category: 'Content',
   } satisfies ControlSpec<string>,
   hint: {
     type: 'text',
     description:
-      'Helper text rendered below the search input. Doubles as the error message when `isInvalid` is true.',
+      'Helper text rendered below the fields. Doubles as the error message when `isInvalid` is true.',
+    category: 'Content',
+  } satisfies ControlSpec<string>,
+  offlineLabel: {
+    type: 'text',
+    default: 'Map unavailable offline — enter coordinates manually.',
+    description:
+      'Copy shown over the map area when the browser is offline. The numeric fields stay editable.',
     category: 'Content',
   } satisfies ControlSpec<string>,
   locale: {
@@ -42,8 +72,7 @@ export const locationPickerControls = {
     type: 'inline-radio',
     options: sizeOptions,
     default: 'md',
-    description:
-      'Visual scale of the search input. `sm` for compact toolbars, `md` (default) for forms, `lg` for hero affordances.',
+    description: 'Visual scale of the controls.',
     category: 'Style',
   } satisfies ControlSpec<(typeof sizeOptions)[number]>,
   mapHeight: {
@@ -62,45 +91,39 @@ export const locationPickerControls = {
     max: 18,
     step: 1,
     description:
-      'Initial map zoom when no `value` / `defaultValue` is set. The picker auto-zooms to 14 whenever the user picks a suggestion.',
+      'Initial map zoom when no `value` / `defaultValue` is set. The picker auto-zooms to 14 once a location is picked.',
+    category: 'Behavior',
+  } satisfies ControlSpec<number>,
+  defaultRadius: {
+    type: 'number',
+    default: 100,
+    min: 1,
+    max: 5000,
+    step: 10,
+    description: 'Radius (metres) applied when a location is set without an explicit radius.',
     category: 'Behavior',
   } satisfies ControlSpec<number>,
   isDisabled: {
     type: 'boolean',
     default: false,
     description:
-      "Block all interaction — input is dim, suggestions don't open, marker drag is disabled, map is non-interactive.",
+      "Block all interaction — fields are dim, suggestions don't open, marker + radius handle drag are disabled, map is non-interactive.",
     category: 'Behavior',
   } satisfies ControlSpec<boolean>,
   isInvalid: {
     type: 'boolean',
     default: false,
-    description:
-      'Surface validation error styling on the search input. Auto-clears once the user makes a selection; toggling `false → true` re-arms the error.',
-    category: 'A11y',
-  } satisfies ControlSpec<boolean>,
-  isRequired: {
-    type: 'boolean',
-    default: false,
-    description:
-      'Mark the field as required (renders an indicator next to the label and forwards `aria-required`).',
-    category: 'A11y',
-  } satisfies ControlSpec<boolean>,
-  hideRequiredIndicator: {
-    type: 'boolean',
-    default: false,
-    description:
-      'Hide the visual `*` next to the label even when `isRequired` is true. Keep `isRequired` set so the a11y contract still reports the field as required.',
+    description: 'Surface validation error styling on the fields + hint.',
     category: 'A11y',
   } satisfies ControlSpec<boolean>,
   value: {
     type: false,
-    description: 'Controlled selection — `{ lat, lng, address? }`. Pair with `onChange`.',
+    description: 'Controlled selection — `{ lat, lng, radius?, address? }`. Pair with `onChange`.',
     category: 'Behavior',
   } satisfies ControlSpec<unknown>,
   defaultValue: {
     type: false,
-    description: 'Uncontrolled initial selection — `{ lat, lng, address? }`.',
+    description: 'Uncontrolled initial selection — `{ lat, lng, radius?, address? }`.',
     category: 'Behavior',
   } satisfies ControlSpec<unknown>,
   defaultCenter: {
@@ -112,14 +135,14 @@ export const locationPickerControls = {
   geocode: {
     type: false,
     description:
-      'Async geocoder `(query, signal?, locale?) => Promise<Suggestion[]>`. Pass `nominatimGeocode` for the free OSM default.',
+      'Async geocoder `(query, signal?, locale?) => Promise<Suggestion[]>`. When omitted the search box is hidden. Pass `nominatimGeocode` for the free OSM default.',
     category: 'Behavior',
   } satisfies ControlSpec<unknown>,
   onChange: {
     type: false,
     action: 'changed',
     description:
-      'Fires on every settled selection — autocomplete pick or marker drag. Receives `{ lat, lng, address? }`.',
+      'Fires on every settled change — geocode pick, marker drag, radius handle drag, or field edit. Receives `{ lat, lng, radius, address? }`.',
     category: 'Behavior',
   } satisfies ControlSpec<unknown>,
   className: {

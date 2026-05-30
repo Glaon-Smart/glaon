@@ -26,7 +26,6 @@ import type { ApplyHaResponse } from '@glaon/core/api-client';
 import type { DeviceConfigInput, InterfaceConfig, IpConfig, Layout } from '@glaon/core/config';
 
 import { useDeviceConfig } from '../../../config/config-provider';
-import { clearWizardScratch } from '../../../setup/use-wizard-state';
 import {
   DEFAULT_WIRELESS_INTERFACE,
   NETWORK_INFO_URL,
@@ -223,9 +222,9 @@ export function ApplyStep({ collected, onBack }: ApplyStepProps): ReactNode {
 
       await setPartial(collected);
       await markComplete();
-      // Wizard complete — drop the scratch entry + wrap key so a future
-      // visit never resurrects this run's state.
-      clearWizardScratch();
+      // Wizard complete — drop the Wi-Fi wrap key so a future visit never
+      // resurrects this run's credential. (Wizard state is in-memory only
+      // since #646, so there is no localStorage scratch to clear.)
       clearDeviceKey();
 
       // Secured commits route through the handoff overlay — the AP→home

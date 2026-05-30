@@ -35,13 +35,24 @@ import {
   TextField,
   TimezoneSelect,
   nominatimGeocode,
+  useToast,
   type SelectItemType,
 } from '@glaon/ui';
-import { useId, useMemo, useState, type ReactNode, type SubmitEvent } from 'react';
+import {
+  useEffect,
+  useId,
+  useMemo,
+  useRef,
+  useState,
+  type ReactNode,
+  type SubmitEvent,
+} from 'react';
 import { useTranslation } from 'react-i18next';
 
 import { SUPPORTED_LOCALES, type SupportedLocale } from '@glaon/core/i18n';
 import type { DeviceConfigInput } from '@glaon/core/config';
+
+import { fetchHaConfig, saveHomeSettings } from './home-overview-api';
 
 interface HomeOverviewStepProps {
   /** Partial DeviceConfig collected from earlier steps in this run. */
@@ -60,6 +71,7 @@ interface LocationState {
 
 export function HomeOverviewStep({ collected, onNext }: HomeOverviewStepProps): ReactNode {
   const { t } = useTranslation();
+  const toast = useToast();
   const homeNameLabelId = useId();
   const languageLabelId = useId();
 
@@ -76,6 +88,58 @@ export function HomeOverviewStep({ collected, onNext }: HomeOverviewStepProps): 
     (collected.locale as SupportedLocale | undefined) ?? 'en',
   );
   const [showHomeNameError, setShowHomeNameError] = useState<boolean>(false);
+  const [isSaving, setIsSaving] = useState<boolean>(false);
+
+  // Seed from the device (#646): on the first visit the wizard reads the
+  // current HA Core config and pre-fills the fields the user hasn't
+  // already set. Guarded by `collected.*` so a back-navigation keeps the
+  // user's entered values instead of re-seeding over them, and by a ref so
+  // it runs once. A missing/unreachable HA Core just leaves the defaults.
+  const seededRef = useRef(false);
+  useEffect(() => {
+    if (seededRef.current) return;
+    seededRef.current = true;
+    let cancelled = false;
+    void fetchHaConfig().then((seed) => {
+      if (cancelled || seed === null) return;
+      if (collected.homeName === undefined && seed.locationName !== undefined) {
+        setHomeName((prev) => (prev === '' ? (seed.locationName ?? prev) : prev));
+      }
+      if (
+        collected.latitude === undefined &&
+        collected.longitude === undefined &&
+        seed.latitude !== undefined &&
+        seed.longitude !== undefined
+      ) {
+        setLocation((prev) =>
+          prev.latitude === undefined && prev.longitude === undefined
+            ? { ...prev, latitude: seed.latitude, longitude: seed.longitude }
+            : prev,
+        );
+      }
+      if (collected.unitSystem === undefined && seed.unitSystem !== undefined) {
+        setUnitSystem(seed.unitSystem);
+      }
+      if (collected.country === undefined && seed.country !== undefined) {
+        setCountry((prev) => (prev === '' ? (seed.country ?? prev) : prev));
+      }
+      if (collected.timezone === undefined && seed.timezone !== undefined) {
+        setTimezone((prev) => (prev === '' ? (seed.timezone ?? prev) : prev));
+      }
+      if (
+        collected.locale === undefined &&
+        seed.language !== undefined &&
+        (SUPPORTED_LOCALES as readonly string[]).includes(seed.language)
+      ) {
+        setLocale(seed.language as SupportedLocale);
+      }
+    });
+    return () => {
+      cancelled = true;
+    };
+    // Seed once on mount; `collected` is read for the initial guard only.
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, []);
 
   const localeItems = useMemo<SelectItemType[]>(
     () =>
@@ -100,8 +164,9 @@ export function HomeOverviewStep({ collected, onNext }: HomeOverviewStepProps): 
       ? { address: collected.location, lat: collected.latitude, lng: collected.longitude }
       : undefined;
 
-  const onSubmit = (event: SubmitEvent<HTMLFormElement>): void => {
+  const onSubmit = async (event: SubmitEvent<HTMLFormElement>): Promise<void> => {
     event.preventDefault();
+    if (isSaving) return;
     if (homeNameTrimmed === '') {
       setShowHomeNameError(true);
       return;
@@ -116,6 +181,28 @@ export function HomeOverviewStep({ collected, onNext }: HomeOverviewStepProps): 
     if (location.longitude !== undefined) partial.longitude = location.longitude;
     if (country !== '') partial.country = country;
     if (timezone !== '') partial.timezone = timezone;
+
+    // Per-step save (#646): persist the slice to the device before
+    // advancing. An `error` outcome keeps the user on this step and
+    // surfaces a Toast (API Error Toast Rule); `ok`/`skipped` advance.
+    setIsSaving(true);
+    const outcome = await saveHomeSettings({
+      latitude: location.latitude,
+      longitude: location.longitude,
+      unitSystem,
+      timezone: timezone !== '' ? timezone : undefined,
+      country: country !== '' ? country : undefined,
+      locale,
+    });
+    if (outcome === 'error') {
+      setIsSaving(false);
+      toast.show({
+        intent: 'danger',
+        title: t('setup.homeOverview.saveFailed.title'),
+        description: t('setup.homeOverview.saveFailed.description'),
+      });
+      return;
+    }
     onNext(partial);
   };
 
@@ -128,7 +215,13 @@ export function HomeOverviewStep({ collected, onNext }: HomeOverviewStepProps): 
         <p className="text-sm text-tertiary">{t('setup.homeOverview.subtitle')}</p>
       </header>
 
-      <form onSubmit={onSubmit} noValidate className="flex flex-col">
+      <form
+        onSubmit={(event) => {
+          void onSubmit(event);
+        }}
+        noValidate
+        className="flex flex-col"
+      >
         <FormRow label={t('setup.homeOverview.homeName.label')} labelId={homeNameLabelId} required>
           <TextField
             value={homeName}
@@ -240,10 +333,12 @@ export function HomeOverviewStep({ collected, onNext }: HomeOverviewStepProps): 
         <div className="flex justify-end gap-3 border-t border-secondary py-6">
           <button
             type="submit"
-            className="inline-flex items-center gap-2 rounded-lg bg-brand-solid px-4 py-2 text-sm font-semibold text-white shadow-xs-skeuomorphic hover:bg-brand-solid_hover"
+            disabled={isSaving}
+            aria-busy={isSaving}
+            className="inline-flex items-center gap-2 rounded-lg bg-brand-solid px-4 py-2 text-sm font-semibold text-white shadow-xs-skeuomorphic hover:bg-brand-solid_hover disabled:cursor-not-allowed disabled:opacity-70"
           >
             <span>{t('setup.homeOverview.actions.next')}</span>
-            <NextArrowIcon />
+            {isSaving ? <SavingSpinner /> : <NextArrowIcon />}
           </button>
         </div>
       </form>
@@ -295,6 +390,27 @@ function InlineError({ children }: { children: ReactNode }): ReactNode {
 // location field) and the `./countries.ts` + `./timezones.ts`
 // helpers all retired in #590 — the Phase 2 picker trio ships its
 // own glyphs and datasets.
+
+// Inline loading spinner shown on the Next button while the step's
+// settings are being saved to the device (#646).
+function SavingSpinner(): ReactNode {
+  return (
+    <svg
+      className="size-4 animate-spin"
+      viewBox="0 0 24 24"
+      fill="none"
+      aria-hidden="true"
+      data-testid="home-overview-saving"
+    >
+      <circle className="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" strokeWidth="4" />
+      <path
+        className="opacity-75"
+        fill="currentColor"
+        d="M4 12a8 8 0 0 1 8-8V0C5.373 0 0 5.373 0 12h4z"
+      />
+    </svg>
+  );
+}
 
 function NextArrowIcon(): ReactNode {
   return (

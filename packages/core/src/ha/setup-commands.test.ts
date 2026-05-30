@@ -1,7 +1,12 @@
 import { describe, expect, it } from 'vitest';
 
 import type { HaAreaRegistryEntry, HaFloorRegistryEntry } from './protocol/messages';
-import { buildHaSetupPlan, buildLayoutFromRegistries, type HaSetupInput } from './setup-commands';
+import {
+  buildHaSetupPlan,
+  buildLayoutFromRegistries,
+  mapHaConfigResult,
+  type HaSetupInput,
+} from './setup-commands';
 
 describe('buildHaSetupPlan — core config', () => {
   it('maps every collected core field into config/core/update', () => {
@@ -115,5 +120,54 @@ describe('buildLayoutFromRegistries — device layout seed (#638)', () => {
 
   it('returns empty floors + unassigned for empty registries', () => {
     expect(buildLayoutFromRegistries([], [])).toEqual({ floors: [], unassigned: [] });
+  });
+});
+
+describe('mapHaConfigResult — get_config → Home Overview seed (#646)', () => {
+  it('narrows a full HA config into the wizard seed', () => {
+    const seed = mapHaConfigResult({
+      latitude: 39.6588,
+      longitude: 27.9063,
+      unit_system: { temperature: '°C', length: 'km' },
+      time_zone: 'Europe/Istanbul',
+      country: 'tr',
+      currency: 'TRY',
+      language: 'tr',
+      location_name: 'Evim',
+      // Extra fields HA returns are ignored.
+      version: '2026.5.0',
+    });
+    expect(seed).toEqual({
+      latitude: 39.6588,
+      longitude: 27.9063,
+      unitSystem: 'metric',
+      timezone: 'Europe/Istanbul',
+      country: 'TR',
+      currency: 'TRY',
+      language: 'tr',
+      locationName: 'Evim',
+    });
+  });
+
+  it('derives imperial from a Fahrenheit unit system', () => {
+    expect(mapHaConfigResult({ unit_system: { temperature: '°F' } }).unitSystem).toBe('imperial');
+  });
+
+  it('omits fields HA did not report or reported unusable', () => {
+    expect(
+      mapHaConfigResult({
+        latitude: 'nope',
+        longitude: Number.NaN,
+        country: 'turkey',
+        currency: '',
+        unit_system: { temperature: 'kelvin' },
+      }),
+    ).toEqual({});
+  });
+
+  it('returns an empty seed for a non-object result', () => {
+    expect(mapHaConfigResult(null)).toEqual({});
+    expect(mapHaConfigResult(undefined)).toEqual({});
+    expect(mapHaConfigResult('x')).toEqual({});
   });
 });

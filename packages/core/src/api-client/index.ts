@@ -53,8 +53,10 @@ export {
   ApplyHaResponseSchema,
   ApplyHaStepResultSchema,
   HaLayoutResponseSchema,
+  HaConfigResponseSchema,
   type ApplyHaRequest,
   type ApplyHaResponse,
   type ApplyHaStepResult,
   type HaLayoutResponse,
+  type HaConfigResponse,
 } from './setup';

@@ -192,6 +192,19 @@ export interface HaAreaRegistryEntry {
   readonly floor_id?: string | null;
 }
 
+/**
+ * `get_config` — reads HA Core's current configuration (location, unit
+ * system, time zone, currency, country, language). Used to seed the
+ * setup wizard's Home Overview from the device (#646). The result is HA's
+ * full config object; the pure `mapHaConfigResult` mapper narrows it to
+ * the wizard seed, so the result is left as `unknown` at the protocol
+ * boundary rather than over-specified here.
+ */
+export interface HaGetConfigFrame {
+  readonly id: number;
+  readonly type: 'get_config';
+}
+
 /* ---------- frontend/get_translations (i18n-D / #426) ---------- */
 
 /**
@@ -236,6 +249,7 @@ export type HaOutboundFrame =
   | HaUnsubscribeEventsFrame
   | HaCallServiceFrame
   | HaGetStatesFrame
+  | HaGetConfigFrame
   | HaGetTranslationsFrame
   | HaConfigCoreUpdateFrame
   | HaFloorRegistryCreateFrame

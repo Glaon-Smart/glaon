@@ -26,7 +26,9 @@ import {
   HaClient,
   buildHaSetupPlan,
   buildLayoutFromRegistries,
+  mapHaConfigResult,
   type HaAreaRegistryEntry,
+  type HaConfigSeed,
   type HaFloorRegistryEntry,
   type HaLayoutResult,
   type HaSetupInput,
@@ -165,6 +167,40 @@ export async function readHaLayout(deps: ReadHaLayoutDeps): Promise<HaLayoutResu
 }
 
 interface ReadHaLayoutDeps {
+  readonly clientFactory: () => HaSetupClient;
+  readonly logger?: Logger;
+}
+
+/**
+ * Read the device's current HA Core config (location, unit system, time
+ * zone, currency, country, language) and normalize it into the wizard's
+ * Home Overview seed (#646). Connection failure is fail-loud
+ * (`HaCoreUnreachableError` → 502); a malformed/empty result degrades to
+ * an empty seed (`{}`) so the wizard just starts blank rather than failing.
+ */
+export async function readHaConfig(deps: ReadHaConfigDeps): Promise<HaConfigSeed> {
+  const client = deps.clientFactory();
+
+  try {
+    await client.connect();
+  } catch (err) {
+    throw new HaCoreUnreachableError(errMessage(err));
+  }
+
+  try {
+    const config = await client.request({ type: 'get_config' }).catch((err: unknown) => {
+      deps.logger?.warn({ event: 'ha-config.read.failed', error: errMessage(err) });
+      return null;
+    });
+    return mapHaConfigResult(config);
+  } finally {
+    await client.close().catch(() => {
+      /* ignore */
+    });
+  }
+}
+
+interface ReadHaConfigDeps {
   readonly clientFactory: () => HaSetupClient;
   readonly logger?: Logger;
 }

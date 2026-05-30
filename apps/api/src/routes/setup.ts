@@ -23,6 +23,7 @@ import {
   applyHaSetup,
   createHaCoreClientFactory,
   HaCoreUnreachableError,
+  readHaConfig,
   readHaLayout,
   type HaSetupClient,
 } from '../ha/ha-setup-service';
@@ -72,6 +73,30 @@ export function createSetupRouter(deps: SetupRouterDeps): Hono {
       }
       deps.logger?.error({
         event: 'setup.ha-layout.failed',
+        message: err instanceof Error ? err.message : 'unknown',
+      });
+      return c.json({ error: 'internal' }, 500);
+    }
+  });
+
+  // Read the device's current HA Core config to seed the wizard's Home
+  // Overview step (#646). Same auth posture + config-gating as /apply-ha.
+  router.get('/ha-config', async (c) => {
+    const factory = resolveFactory();
+    if (factory === undefined) return c.json(notConfigured, 503);
+    try {
+      const seed = await readHaConfig({
+        clientFactory: factory,
+        ...(deps.logger !== undefined ? { logger: deps.logger } : {}),
+      });
+      return c.json(seed, 200);
+    } catch (err) {
+      if (err instanceof HaCoreUnreachableError) {
+        deps.logger?.error({ event: 'setup.ha-config.unreachable', message: err.message });
+        return c.json({ error: 'ha-unreachable' }, 502);
+      }
+      deps.logger?.error({
+        event: 'setup.ha-config.failed',
         message: err instanceof Error ? err.message : 'unknown',
       });
       return c.json({ error: 'internal' }, 500);

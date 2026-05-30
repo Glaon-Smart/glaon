@@ -109,6 +109,18 @@ describe('HomeOverviewStep', () => {
     expect(getByTestId('home-overview-home-name')).toBeInTheDocument();
   });
 
+  it('renders Country above Location (#648 reorder)', () => {
+    const { getByText } = render(
+      wrap(<HomeOverviewStep collected={{}} onNext={() => undefined} />),
+    );
+    const country = getByText('Country');
+    const location = getByText('Location');
+    // Country's row precedes Location's row in document order.
+    expect(
+      country.compareDocumentPosition(location) & Node.DOCUMENT_POSITION_FOLLOWING,
+    ).toBeTruthy();
+  });
+
   it('blocks submission when home name is empty and shows an inline error', () => {
     const onNext = vi.fn();
     const { getByRole, queryByRole } = render(

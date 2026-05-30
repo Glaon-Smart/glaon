@@ -112,7 +112,10 @@ export const countrySelectControls = {
   } satisfies ControlSpec<string>,
 } as const;
 
-// No additional excludes — every public prop on `CountrySelect` is
-// represented above. The helper export is still required by the F6
-// prop-coverage gate's named-export contract.
-export const countrySelectExcludeFromArgs = defineExcludeFromArgs([] as const);
+// `aria-label` / `aria-labelledby` are a11y passthroughs for the
+// label-less usage (host renders its own label); they aren't interactive
+// story args, so they're excluded from the controls matrix here.
+export const countrySelectExcludeFromArgs = defineExcludeFromArgs([
+  'aria-label',
+  'aria-labelledby',
+] as const);

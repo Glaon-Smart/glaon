@@ -91,3 +91,61 @@ export async function saveHomeSettings(slice: HomeSettingsSlice): Promise<SaveHo
   if (json === null) return 'error';
   return json.ok === true ? 'ok' : 'error';
 }
+
+/** Minimal shape of the injected geocoder (matches `nominatimGeocode`). */
+type GeocodeFn = (
+  query: string,
+  signal?: AbortSignal,
+  locale?: string,
+) => Promise<readonly { readonly lat: number; readonly lng: number }[]>;
+
+/**
+ * Country → map-centre sync (#648). Resolves an ISO 3166-1 alpha-2 code to
+ * a rough centre by geocoding the country's localized display name via the
+ * injected geocoder. Returns `null` on any failure (no display name,
+ * geocoder error/empty, offline) so the caller simply skips the recenter —
+ * the user can still place the marker by hand. Network-based by design:
+ * recentering a map is only meaningful when tiles are reachable anyway.
+ */
+export async function lookupCountryCenter(
+  iso: string,
+  locale: string,
+  geocode: GeocodeFn,
+): Promise<{ lat: number; lng: number } | null> {
+  let name: string | undefined;
+  try {
+    name = new Intl.DisplayNames([locale], { type: 'region' }).of(iso.toUpperCase());
+  } catch {
+    name = undefined;
+  }
+  const query = name ?? iso;
+  if (query === '') return null;
+  try {
+    const results = await geocode(query, undefined, locale);
+    const first = results[0];
+    return first ? { lat: first.lat, lng: first.lng } : null;
+  } catch {
+    return null;
+  }
+}
+
+/**
+ * Country → timezone sync (#648). Returns the IANA time zones for an
+ * ISO 3166-1 alpha-2 region via `Intl.Locale.getTimeZones()` (Intl Locale
+ * Info). Empty array when the runtime lacks the API or the code is
+ * unknown, so the caller skips the timezone sync rather than guessing.
+ * The caller picks the first zone (single-zone countries are exact;
+ * multi-zone countries get a reasonable default the user can change).
+ */
+export function countryTimeZones(iso: string): string[] {
+  try {
+    const loc = new Intl.Locale('und', { region: iso.toUpperCase() }) as unknown as {
+      getTimeZones?: () => string[];
+      timeZones?: string[];
+    };
+    const zones = typeof loc.getTimeZones === 'function' ? loc.getTimeZones() : loc.timeZones;
+    return Array.isArray(zones) ? zones : [];
+  } catch {
+    return [];
+  }
+}

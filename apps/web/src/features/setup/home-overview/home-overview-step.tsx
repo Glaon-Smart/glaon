@@ -52,7 +52,12 @@ import { useTranslation } from 'react-i18next';
 import { SUPPORTED_LOCALES, type SupportedLocale } from '@glaon/core/i18n';
 import type { DeviceConfigInput } from '@glaon/core/config';
 
-import { fetchHaConfig, saveHomeSettings } from './home-overview-api';
+import {
+  countryTimeZones,
+  fetchHaConfig,
+  lookupCountryCenter,
+  saveHomeSettings,
+} from './home-overview-api';
 
 interface HomeOverviewStepProps {
   /** Partial DeviceConfig collected from earlier steps in this run. */
@@ -67,12 +72,17 @@ interface LocationState {
   readonly address: string;
   readonly latitude: number | undefined;
   readonly longitude: number | undefined;
+  readonly radius: number | undefined;
 }
+
+const DEFAULT_RADIUS_M = 100;
 
 export function HomeOverviewStep({ collected, onNext }: HomeOverviewStepProps): ReactNode {
   const { t } = useTranslation();
   const toast = useToast();
   const homeNameLabelId = useId();
+  const countryLabelId = useId();
+  const timezoneLabelId = useId();
   const languageLabelId = useId();
 
   const [homeName, setHomeName] = useState<string>(collected.homeName ?? '');
@@ -80,6 +90,7 @@ export function HomeOverviewStep({ collected, onNext }: HomeOverviewStepProps): 
     address: collected.location ?? '',
     latitude: collected.latitude,
     longitude: collected.longitude,
+    radius: undefined,
   }));
   const [unitSystem, setUnitSystem] = useState<UnitSystem>(collected.unitSystem ?? 'metric');
   const [country, setCountry] = useState<string>(collected.country ?? '');
@@ -154,15 +165,44 @@ export function HomeOverviewStep({ collected, onNext }: HomeOverviewStepProps): 
   const homeNameInvalid = showHomeNameError && homeNameTrimmed === '';
   const homeNameErrorText = homeNameInvalid ? t('setup.homeOverview.homeName.required') : undefined;
 
-  // The LocationPicker hydrates from `defaultValue` only when the
-  // wizard re-opens with a previously saved location; on a fresh
-  // visit we leave the picker empty (no auto-geolocation prompt).
-  const locationDefault =
-    collected.location !== undefined &&
-    collected.latitude !== undefined &&
-    collected.longitude !== undefined
-      ? { address: collected.location, lat: collected.latitude, lng: collected.longitude }
+  // LocationPicker is controlled (#648) so a country change can recenter
+  // the map. `undefined` until lat/lng are known (device seed, geocode
+  // pick, manual entry, or country sync) — then the picker reflects it.
+  const locationValue =
+    location.latitude !== undefined && location.longitude !== undefined
+      ? {
+          lat: location.latitude,
+          lng: location.longitude,
+          radius: location.radius ?? DEFAULT_RADIUS_M,
+          ...(location.address !== '' ? { address: location.address } : {}),
+        }
       : undefined;
+
+  // Country → map + timezone sync (#648). Every country selection drives
+  // both: the timezone snaps to the country's primary IANA zone, and the
+  // map recenters to the country's centre (geocoded best-effort, online
+  // only). Country is the authoritative high-level choice, so each change
+  // re-syncs (the first pick and every subsequent one). Radius is kept;
+  // the address is cleared (a country centre isn't a precise address).
+  const onCountrySelect = (iso: string | null): void => {
+    setCountry(iso ?? '');
+    if (iso === null || iso === '') return;
+
+    const zones = countryTimeZones(iso);
+    if (zones[0] !== undefined) setTimezone(zones[0]);
+
+    const online = typeof navigator === 'undefined' || navigator.onLine;
+    if (!online) return;
+    void lookupCountryCenter(iso, locale, nominatimGeocode).then((center) => {
+      if (center === null) return;
+      setLocation((prev) => ({
+        ...prev,
+        address: '',
+        latitude: center.lat,
+        longitude: center.lng,
+      }));
+    });
+  };
 
   const onSubmit = async (event: SubmitEvent<HTMLFormElement>): Promise<void> => {
     event.preventDefault();
@@ -243,6 +283,19 @@ export function HomeOverviewStep({ collected, onNext }: HomeOverviewStepProps): 
           {homeNameErrorText !== undefined && <InlineError>{homeNameErrorText}</InlineError>}
         </FormRow>
 
+        {/* Country sits above Location (#648) so its selection can recenter
+            the map. The picker has no built-in label — the FormRow's label
+            is associated via aria-labelledby. */}
+        <FormRow label={t('setup.homeOverview.country.label')} labelId={countryLabelId}>
+          <CountrySelect
+            aria-labelledby={countryLabelId}
+            placeholder={t('setup.homeOverview.country.placeholder')}
+            {...(collected.country !== undefined ? { defaultValue: collected.country } : {})}
+            autoDetect={collected.country === undefined}
+            onSelectionChange={onCountrySelect}
+          />
+        </FormRow>
+
         <FormRow label={t('setup.homeOverview.location.label')}>
           <LocationPicker
             searchLabel={t('setup.homeOverview.location.label')}
@@ -252,12 +305,13 @@ export function HomeOverviewStep({ collected, onNext }: HomeOverviewStepProps): 
             radiusUnit={t('setup.homeOverview.location.radiusUnit')}
             placeholder={t('setup.homeOverview.location.placeholder')}
             geocode={nominatimGeocode}
-            {...(locationDefault !== undefined ? { defaultValue: locationDefault } : {})}
+            {...(locationValue !== undefined ? { value: locationValue } : {})}
             onChange={(value) => {
               setLocation({
                 address: value.address ?? location.address,
                 latitude: value.lat,
                 longitude: value.lng,
+                radius: value.radius,
               });
             }}
           />
@@ -285,26 +339,12 @@ export function HomeOverviewStep({ collected, onNext }: HomeOverviewStepProps): 
           </RadioGroup>
         </FormRow>
 
-        <FormRow label={t('setup.homeOverview.country.label')}>
-          <CountrySelect
-            label={t('setup.homeOverview.country.label')}
-            hideRequiredIndicator
-            placeholder={t('setup.homeOverview.country.placeholder')}
-            {...(collected.country !== undefined ? { defaultValue: collected.country } : {})}
-            autoDetect={collected.country === undefined}
-            onSelectionChange={(iso) => {
-              setCountry(iso ?? '');
-            }}
-          />
-        </FormRow>
-
-        <FormRow label={t('setup.homeOverview.timezone.label')}>
+        <FormRow label={t('setup.homeOverview.timezone.label')} labelId={timezoneLabelId}>
           <TimezoneSelect
-            label={t('setup.homeOverview.timezone.label')}
-            hideRequiredIndicator
+            aria-labelledby={timezoneLabelId}
             placeholder={t('setup.homeOverview.timezone.placeholder')}
-            {...(collected.timezone !== undefined ? { defaultValue: collected.timezone } : {})}
-            autoDetect={collected.timezone === undefined}
+            {...(timezone !== '' ? { value: timezone } : {})}
+            autoDetect={collected.timezone === undefined && timezone === ''}
             onSelectionChange={(tz) => {
               setTimezone(tz ?? '');
             }}

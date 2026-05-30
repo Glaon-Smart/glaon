@@ -102,9 +102,10 @@ browser supports — no shipped translation tables, no extra dependency.
 
 ## Accessibility
 
-- Always pass a `label` — the kit ComboBox binds it to the trigger
-  via the standard RAC label slot. Visually-hidden labels are not
-  supported in this primitive.
+- Pass a visible `label`, **or** — when the host renders its own label
+  (e.g. a form row) — associate it via `aria-labelledby` (id of the
+  external label) or supply an `aria-label`. One of the three must be
+  present so the ComboBox always has an accessible name.
 - The popover is keyboard-navigable (Arrow up/down, Enter to select,
   Esc to dismiss) and the search input is a real `<input>` element
   with `aria-autocomplete="list"`.

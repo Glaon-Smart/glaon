@@ -26,6 +26,7 @@
 
 import {
   CountrySelect,
+  CurrencySelect,
   InputBase,
   LocationPicker,
   Radio,
@@ -83,6 +84,7 @@ export function HomeOverviewStep({ collected, onNext }: HomeOverviewStepProps): 
   const homeNameLabelId = useId();
   const countryLabelId = useId();
   const timezoneLabelId = useId();
+  const currencyLabelId = useId();
   const languageLabelId = useId();
 
   const [homeName, setHomeName] = useState<string>(collected.homeName ?? '');
@@ -95,6 +97,7 @@ export function HomeOverviewStep({ collected, onNext }: HomeOverviewStepProps): 
   const [unitSystem, setUnitSystem] = useState<UnitSystem>(collected.unitSystem ?? 'metric');
   const [country, setCountry] = useState<string>(collected.country ?? '');
   const [timezone, setTimezone] = useState<string>(collected.timezone ?? '');
+  const [currency, setCurrency] = useState<string>(collected.currency ?? '');
   const [locale, setLocale] = useState<SupportedLocale>(
     (collected.locale as SupportedLocale | undefined) ?? 'en',
   );
@@ -136,6 +139,9 @@ export function HomeOverviewStep({ collected, onNext }: HomeOverviewStepProps): 
       }
       if (collected.timezone === undefined && seed.timezone !== undefined) {
         setTimezone((prev) => (prev === '' ? (seed.timezone ?? prev) : prev));
+      }
+      if (collected.currency === undefined && seed.currency !== undefined) {
+        setCurrency((prev) => (prev === '' ? (seed.currency ?? prev) : prev));
       }
       if (
         collected.locale === undefined &&
@@ -221,6 +227,7 @@ export function HomeOverviewStep({ collected, onNext }: HomeOverviewStepProps): 
     if (location.longitude !== undefined) partial.longitude = location.longitude;
     if (country !== '') partial.country = country;
     if (timezone !== '') partial.timezone = timezone;
+    if (currency !== '') partial.currency = currency;
 
     // Per-step save (#646): persist the slice to the device before
     // advancing. An `error` outcome keeps the user on this step and
@@ -232,6 +239,7 @@ export function HomeOverviewStep({ collected, onNext }: HomeOverviewStepProps): 
       unitSystem,
       timezone: timezone !== '' ? timezone : undefined,
       country: country !== '' ? country : undefined,
+      currency: currency !== '' ? currency : undefined,
       locale,
     });
     if (outcome === 'error') {
@@ -347,6 +355,20 @@ export function HomeOverviewStep({ collected, onNext }: HomeOverviewStepProps): 
             autoDetect={collected.timezone === undefined && timezone === ''}
             onSelectionChange={(tz) => {
               setTimezone(tz ?? '');
+            }}
+          />
+        </FormRow>
+
+        {/* Currency sits under Timezone (#649). Label-less picker — the
+            form-row label is associated via aria-labelledby. */}
+        <FormRow label={t('setup.homeOverview.currency.label')} labelId={currencyLabelId}>
+          <CurrencySelect
+            aria-labelledby={currencyLabelId}
+            placeholder={t('setup.homeOverview.currency.placeholder')}
+            {...(collected.currency !== undefined ? { defaultValue: collected.currency } : {})}
+            autoDetect={collected.currency === undefined}
+            onSelectionChange={(code) => {
+              setCurrency(code ?? '');
             }}
           />
         </FormRow>

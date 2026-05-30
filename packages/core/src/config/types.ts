@@ -138,6 +138,12 @@ export const DeviceConfigSchema = z
       .string()
       .regex(/^[A-Z]{2}$/, 'country must be ISO 3166-1 alpha-2 uppercase')
       .optional(),
+    /** ISO 4217 currency code (e.g. "TRY", "USD"). Uppercase. Collected in
+     *  the wizard's Home Overview step (#649); maps to HA Core `currency`. */
+    currency: z
+      .string()
+      .regex(/^[A-Z]{3}$/, 'currency must be ISO 4217 alpha-3 uppercase')
+      .optional(),
     /**
      * Latitude (WGS84 decimal degrees, −90…+90). Optional companion
      * to `location` — present when the user picked the address via

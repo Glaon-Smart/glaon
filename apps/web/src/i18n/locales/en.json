@@ -79,6 +79,10 @@
         "placeholder": "Select timezone",
         "tooltip": "Used by HA-time displays and automations."
       },
+      "currency": {
+        "label": "Currency",
+        "placeholder": "Select currency"
+      },
       "language": {
         "label": "Language",
         "placeholder": "Select language",

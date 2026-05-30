@@ -68,6 +68,7 @@ const FULL_BODY = {
   unitSystem: 'metric' as const,
   timezone: 'Europe/Istanbul',
   country: 'TR',
+  currency: 'TRY',
   locale: 'tr',
   layout: {
     floors: [{ name: 'Ground', rooms: [{ name: 'Living' }, { name: 'Kitchen' }] }],
@@ -140,6 +141,7 @@ describe('setup — happy path', () => {
       unit_system: 'metric',
       time_zone: 'Europe/Istanbul',
       country: 'TR',
+      currency: 'TRY',
       language: 'tr',
     });
     // Areas carry the floor_id returned by the floor create.

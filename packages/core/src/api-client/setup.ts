@@ -32,6 +32,11 @@ export const ApplyHaRequestSchema = z.object({
     .string()
     .regex(/^[A-Z]{2}$/, 'country must be ISO 3166-1 alpha-2 uppercase')
     .optional(),
+  /** ISO 4217 currency code, uppercase (e.g. `TRY`, `USD`). */
+  currency: z
+    .string()
+    .regex(/^[A-Z]{3}$/, 'currency must be an ISO 4217 alpha-3 uppercase code')
+    .optional(),
   /** BCP-47 locale tag (e.g. `tr`, `en-US`). */
   locale: z.string().min(1).optional(),
   layout: z

@@ -25,10 +25,11 @@ import {
   HaCoreUnreachableError,
   readHaConfig,
   readHaLayout,
+  reconcileHaLayout,
   type HaSetupClient,
 } from '../ha/ha-setup-service';
 import type { Logger } from '../observability/logger';
-import { ApplyHaRequestSchema } from '../schemas';
+import { ApplyHaRequestSchema, ReconcileLayoutRequestSchema } from '../schemas';
 
 interface SetupRouterDeps {
   readonly config: Config;
@@ -97,6 +98,35 @@ export function createSetupRouter(deps: SetupRouterDeps): Hono {
       }
       deps.logger?.error({
         event: 'setup.ha-config.failed',
+        message: err instanceof Error ? err.message : 'unknown',
+      });
+      return c.json({ error: 'internal' }, 500);
+    }
+  });
+
+  // Per-step Layout save (#652): reconcile the device's floor + area
+  // registries to the wizard's desired layout. Idempotent — safe to
+  // re-POST on back-navigation. Same auth posture + config-gating.
+  router.post('/ha-layout', async (c) => {
+    const raw: unknown = await c.req.json().catch(() => null);
+    const parsed = ReconcileLayoutRequestSchema.safeParse(raw);
+    if (!parsed.success) return c.json({ error: 'invalid-body' }, 400);
+
+    const factory = resolveFactory();
+    if (factory === undefined) return c.json(notConfigured, 503);
+    try {
+      const result = await reconcileHaLayout(parsed.data, {
+        clientFactory: factory,
+        ...(deps.logger !== undefined ? { logger: deps.logger } : {}),
+      });
+      return c.json(result, 200);
+    } catch (err) {
+      if (err instanceof HaCoreUnreachableError) {
+        deps.logger?.error({ event: 'setup.ha-layout-save.unreachable', message: err.message });
+        return c.json({ error: 'ha-unreachable' }, 502);
+      }
+      deps.logger?.error({
+        event: 'setup.ha-layout-save.failed',
         message: err instanceof Error ? err.message : 'unknown',
       });
       return c.json({ error: 'internal' }, 500);

@@ -97,6 +97,25 @@ export type HaLayoutResponse = z.infer<typeof HaLayoutResponseSchema>;
  * matches `HaConfigSeed` (ha/setup-commands.ts), the pure mapper apps/api
  * builds it from.
  */
+/**
+ * Request body for `POST /setup/ha-layout` (#652): the wizard's desired
+ * layout. Floor/room ids are either HA registry ids (seeded entities) or
+ * client UUIDs (newly added) — the server's reconcile matches by id.
+ * Structurally matches `ReconcileLayoutInput` (ha/setup-commands.ts). Room
+ * `type` is intentionally not accepted: it's app-local and never reaches
+ * the HA area registry.
+ */
+const ReconcileRoomSchema = z.object({ id: z.string().min(1), name: z.string().min(1).max(64) });
+const ReconcileFloorSchema = z.object({
+  id: z.string().min(1),
+  name: z.string().min(1).max(64),
+  rooms: z.array(ReconcileRoomSchema).max(50),
+});
+export const ReconcileLayoutRequestSchema = z.object({
+  floors: z.array(ReconcileFloorSchema).min(1).max(10),
+});
+export type ReconcileLayoutRequest = z.infer<typeof ReconcileLayoutRequestSchema>;
+
 export const HaConfigResponseSchema = z.object({
   latitude: z.number().optional(),
   longitude: z.number().optional(),

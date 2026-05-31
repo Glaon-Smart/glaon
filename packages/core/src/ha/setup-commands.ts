@@ -265,6 +265,145 @@ export function buildLayoutFromRegistries(
   return { floors: mappedFloors, unassigned };
 }
 
+// ---- Layout reconcile: desired Layout vs existing HA registries (#652) ----
+
+/** Desired layout shape the reconcile reads (subset of config `Layout`). */
+export interface ReconcileLayoutInput {
+  readonly floors: readonly {
+    readonly id: string;
+    readonly name: string;
+    readonly rooms: readonly { readonly id: string; readonly name: string }[];
+  }[];
+}
+
+/** A floor reference an area's create/update points at. `new` floors are
+ *  created first; the service resolves `key` to the returned floor_id. */
+export type FloorRef =
+  | { readonly kind: 'existing'; readonly floorId: string }
+  | { readonly kind: 'new'; readonly key: string };
+
+export interface ReconcileFloorCreate {
+  /** The desired floor's client id — the thread key areas reference. */
+  readonly key: string;
+  readonly name: string;
+  readonly level: number;
+}
+export interface ReconcileFloorUpdate {
+  readonly floorId: string;
+  readonly name: string;
+}
+export interface ReconcileAreaCreate {
+  readonly name: string;
+  readonly floor: FloorRef;
+}
+export interface ReconcileAreaUpdate {
+  readonly areaId: string;
+  /** Present only when the name changed. */
+  readonly name?: string;
+  /** Present only when the floor changed (rename-only updates omit it). */
+  readonly floor?: FloorRef;
+}
+
+/**
+ * Idempotent reconcile plan: what to create / update / delete so HA's
+ * floor + area registries match the wizard's desired layout (#652). Pure —
+ * the service (`reconcileHaLayout`) executes it, threading created floor
+ * ids into the areas that point at them. Ordering for the executor:
+ * create floors → create/update areas → delete areas → delete floors
+ * (floors last so areas are moved off them before removal).
+ */
+export interface LayoutReconcilePlan {
+  readonly floorsToCreate: readonly ReconcileFloorCreate[];
+  readonly floorsToUpdate: readonly ReconcileFloorUpdate[];
+  readonly floorIdsToDelete: readonly string[];
+  readonly areasToCreate: readonly ReconcileAreaCreate[];
+  readonly areasToUpdate: readonly ReconcileAreaUpdate[];
+  readonly areaIdsToDelete: readonly string[];
+}
+
+/**
+ * Diff the device's current registries (`existing`, from
+ * `buildLayoutFromRegistries`) against the wizard's `desired` layout and
+ * produce a reconcile plan. Matching is by id: a desired floor/room whose
+ * id equals an existing registry id is the same entity (rename/reparent);
+ * an unmatched desired entity is new (create); an existing id absent from
+ * the desired layout is removed (delete). Pure + deterministic.
+ */
+export function buildLayoutReconcilePlan(
+  existing: HaLayoutResult,
+  desired: ReconcileLayoutInput,
+): LayoutReconcilePlan {
+  const existingFloorIds = new Set(existing.floors.map((f) => f.id));
+  const existingFloorNameById = new Map(existing.floors.map((f) => [f.id, f.name]));
+
+  // area_id → { name, floorId|null } across assigned + unassigned areas.
+  const existingAreas = new Map<string, { name: string; floorId: string | null }>();
+  for (const floor of existing.floors) {
+    for (const room of floor.rooms)
+      existingAreas.set(room.id, { name: room.name, floorId: floor.id });
+  }
+  for (const room of existing.unassigned) {
+    existingAreas.set(room.id, { name: room.name, floorId: null });
+  }
+
+  const floorsToCreate: ReconcileFloorCreate[] = [];
+  const floorsToUpdate: ReconcileFloorUpdate[] = [];
+  const areasToCreate: ReconcileAreaCreate[] = [];
+  const areasToUpdate: ReconcileAreaUpdate[] = [];
+
+  const desiredFloorIds = new Set<string>();
+  const desiredAreaIds = new Set<string>();
+
+  desired.floors.forEach((floor, index) => {
+    desiredFloorIds.add(floor.id);
+    const floorIsExisting = existingFloorIds.has(floor.id);
+    if (floorIsExisting) {
+      if (existingFloorNameById.get(floor.id) !== floor.name) {
+        floorsToUpdate.push({ floorId: floor.id, name: floor.name });
+      }
+    } else {
+      floorsToCreate.push({ key: floor.id, name: floor.name, level: index });
+    }
+    const floorRef: FloorRef = floorIsExisting
+      ? { kind: 'existing', floorId: floor.id }
+      : { kind: 'new', key: floor.id };
+
+    for (const room of floor.rooms) {
+      desiredAreaIds.add(room.id);
+      const prior = existingAreas.get(room.id);
+      if (prior === undefined) {
+        areasToCreate.push({ name: room.name, floor: floorRef });
+        continue;
+      }
+      const nameChanged = prior.name !== room.name;
+      // Floor changed when the target is a brand-new floor, or an existing
+      // floor id that differs from where the area currently sits.
+      const floorChanged = floorRef.kind === 'new' ? true : prior.floorId !== floorRef.floorId;
+      if (nameChanged || floorChanged) {
+        areasToUpdate.push({
+          areaId: room.id,
+          ...(nameChanged ? { name: room.name } : {}),
+          ...(floorChanged ? { floor: floorRef } : {}),
+        });
+      }
+    }
+  });
+
+  const floorIdsToDelete = existing.floors
+    .map((f) => f.id)
+    .filter((id) => !desiredFloorIds.has(id));
+  const areaIdsToDelete = [...existingAreas.keys()].filter((id) => !desiredAreaIds.has(id));
+
+  return {
+    floorsToCreate,
+    floorsToUpdate,
+    floorIdsToDelete,
+    areasToCreate,
+    areasToUpdate,
+    areaIdsToDelete,
+  };
+}
+
 /**
  * Glaon's `imperial` is HA's `us_customary`; `metric` is shared. Kept
  * as a function (not a record) so an unexpected value fails the type

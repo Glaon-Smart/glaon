@@ -192,6 +192,48 @@ export interface HaAreaRegistryEntry {
   readonly floor_id?: string | null;
 }
 
+/* ---------- Registry mutations for layout reconcile (#652) ---------- */
+
+/**
+ * `config/floor_registry/update` — rename an existing floor. Used by the
+ * wizard's per-step Layout reconcile to apply a renamed floor without
+ * recreating it (which would orphan its areas).
+ */
+export interface HaFloorRegistryUpdateFrame {
+  readonly id: number;
+  readonly type: 'config/floor_registry/update';
+  readonly floor_id: string;
+  readonly name?: string;
+  readonly level?: number;
+}
+
+/** `config/floor_registry/delete` — remove a floor the user dropped. */
+export interface HaFloorRegistryDeleteFrame {
+  readonly id: number;
+  readonly type: 'config/floor_registry/delete';
+  readonly floor_id: string;
+}
+
+/**
+ * `config/area_registry/update` — rename and/or reparent an area. The
+ * reconcile uses it to apply renames and to move a (previously floorless)
+ * area under its floor. `floor_id: null` clears the floor link.
+ */
+export interface HaAreaRegistryUpdateFrame {
+  readonly id: number;
+  readonly type: 'config/area_registry/update';
+  readonly area_id: string;
+  readonly name?: string;
+  readonly floor_id?: string | null;
+}
+
+/** `config/area_registry/delete` — remove an area the user dropped. */
+export interface HaAreaRegistryDeleteFrame {
+  readonly id: number;
+  readonly type: 'config/area_registry/delete';
+  readonly area_id: string;
+}
+
 /**
  * `get_config` — reads HA Core's current configuration (location, unit
  * system, time zone, currency, country, language). Used to seed the
@@ -254,5 +296,9 @@ export type HaOutboundFrame =
   | HaConfigCoreUpdateFrame
   | HaFloorRegistryCreateFrame
   | HaFloorRegistryListFrame
+  | HaFloorRegistryUpdateFrame
+  | HaFloorRegistryDeleteFrame
   | HaAreaRegistryCreateFrame
-  | HaAreaRegistryListFrame;
+  | HaAreaRegistryListFrame
+  | HaAreaRegistryUpdateFrame
+  | HaAreaRegistryDeleteFrame;

@@ -144,6 +144,10 @@
       "loadFailed": {
         "title": "Mevcut yerleşim yüklenemedi",
         "description": "Boş bir yerleşimle başlıyoruz — aşağıdan kat ve oda ekleyebilirsin."
+      },
+      "saveFailed": {
+        "title": "Yerleşim kaydedilemedi",
+        "description": "Katların ve odaların kaydedilmedi. Bağlantını kontrol edip tekrar dene."
       }
     },
     "wifi": {

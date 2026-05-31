@@ -25,13 +25,27 @@ function mockResponse(init: { ok?: boolean; status?: number; json?: unknown }): 
   } as unknown as Response;
 }
 
-beforeEach(() => {
-  // Default: HA Core not configured (503) → the step degrades silently to
-  // a blank default floor. Tests that exercise seeding override this.
+// URL/method-aware fetch: the GET seed (`ha-layout`) returns `seed` (or a
+// 503 when omitted → blank default floor); the per-step save (#652) POST
+// to `ha-layout` returns a successful reconcile so Next advances.
+function installFetch(seed?: unknown): void {
   vi.stubGlobal(
     'fetch',
-    vi.fn(() => Promise.resolve(mockResponse({ ok: false, status: 503, json: {} }))),
+    vi.fn((url: unknown, init?: { method?: string }) => {
+      const u = String(url);
+      if (u.includes('/api/setup/ha-layout') && init?.method === 'POST') {
+        return Promise.resolve(mockResponse({ json: { ok: true, steps: [] } }));
+      }
+      if (seed === undefined) {
+        return Promise.resolve(mockResponse({ ok: false, status: 503, json: {} }));
+      }
+      return Promise.resolve(mockResponse({ json: seed }));
+    }),
   );
+}
+
+beforeEach(() => {
+  installFetch();
 });
 
 afterEach(() => {
@@ -49,19 +63,10 @@ describe('LayoutStep', () => {
   });
 
   it('seeds floors + rooms from the device HA layout (#638)', async () => {
-    vi.stubGlobal(
-      'fetch',
-      vi.fn(() =>
-        Promise.resolve(
-          mockResponse({
-            json: {
-              floors: [{ id: 'f1', name: 'Garage Floor', rooms: [{ id: 'r1', name: 'Workshop' }] }],
-              unassigned: [{ id: 'r2', name: 'Patio' }],
-            },
-          }),
-        ),
-      ),
-    );
+    installFetch({
+      floors: [{ id: 'f1', name: 'Garage Floor', rooms: [{ id: 'r1', name: 'Workshop' }] }],
+      unassigned: [{ id: 'r2', name: 'Patio' }],
+    });
     const onNext = vi.fn();
     const { findByText, getByRole, getByDisplayValue } = render(
       wrap(<LayoutStep collected={{}} onNext={onNext} />),
@@ -69,9 +74,12 @@ describe('LayoutStep', () => {
     // The device floor pill + its room (in an input) render after the seed.
     expect(await findByText('Garage Floor')).toBeInTheDocument();
     expect(getByDisplayValue('Workshop')).toBeInTheDocument();
-    // Submitting carries both the device floor and the unassigned area
-    // (under the default-named floor).
+    // Submitting (per-step save → advance) carries both the device floor
+    // and the unassigned area (under the default-named floor).
     fireEvent.click(getByRole('button', { name: 'Next' }));
+    await waitFor(() => {
+      expect(onNext).toHaveBeenCalledTimes(1);
+    });
     const partial = onNext.mock.calls[0]?.[0] as { layout?: Layout };
     expect(partial.layout?.floors.map((f) => f.name)).toEqual(['Garage Floor', 'Ground Floor']);
     expect(partial.layout?.floors[1]?.rooms.map((r) => r.name)).toEqual(['Patio']);
@@ -81,7 +89,9 @@ describe('LayoutStep', () => {
     const onNext = vi.fn();
     const { findByRole } = render(wrap(<LayoutStep collected={{}} onNext={onNext} />));
     fireEvent.click(await findByRole('button', { name: 'Next' }));
-    expect(onNext).toHaveBeenCalledTimes(1);
+    await waitFor(() => {
+      expect(onNext).toHaveBeenCalledTimes(1);
+    });
     const partial = onNext.mock.calls[0]?.[0] as { layout?: Layout };
     expect(partial.layout?.floors).toHaveLength(1);
     expect(partial.layout?.floors[0]?.name).toBe('Ground Floor');
@@ -93,6 +103,9 @@ describe('LayoutStep', () => {
     const { findByRole, getByRole } = render(wrap(<LayoutStep collected={{}} onNext={onNext} />));
     fireEvent.click(await findByRole('button', { name: /Add floor/i }));
     fireEvent.click(getByRole('button', { name: 'Next' }));
+    await waitFor(() => {
+      expect(onNext).toHaveBeenCalledTimes(1);
+    });
     const partial = onNext.mock.calls[0]?.[0] as { layout?: Layout };
     expect(partial.layout?.floors).toHaveLength(2);
     expect(partial.layout?.floors[1]?.rooms).toEqual([]);
@@ -103,6 +116,9 @@ describe('LayoutStep', () => {
     const { findByRole, getByRole } = render(wrap(<LayoutStep collected={{}} onNext={onNext} />));
     fireEvent.click(await findByRole('button', { name: /Add your first room/i }));
     fireEvent.click(getByRole('button', { name: 'Next' }));
+    await waitFor(() => {
+      expect(onNext).toHaveBeenCalledTimes(1);
+    });
     const partial = onNext.mock.calls[0]?.[0] as { layout?: Layout };
     expect(partial.layout?.floors[0]?.rooms).toHaveLength(1);
     expect((partial.layout?.floors[0]?.rooms[0]?.name ?? '').length).toBeGreaterThan(0);

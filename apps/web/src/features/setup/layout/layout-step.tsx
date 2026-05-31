@@ -26,6 +26,7 @@ import type { DeviceConfigInput, Layout } from '@glaon/core/config';
 
 import { WizardBackButton } from '../wizard-back-button';
 import { FloorTabs } from './floor-tabs';
+import { saveLayout } from './layout-api';
 import { RoomGrid } from './room-grid';
 import { useLayoutState } from './use-layout-state';
 
@@ -154,6 +155,8 @@ interface LayoutEditorProps {
 
 function LayoutEditor({ initialLayout, onNext, onBack }: LayoutEditorProps): ReactNode {
   const { t } = useTranslation();
+  const toast = useToast();
+  const [isSaving, setIsSaving] = useState<boolean>(false);
 
   const { state, actions, toLayout } = useLayoutState({
     defaultFloorName: t('setup.layoutSetup.defaultFloorName'),
@@ -163,9 +166,25 @@ function LayoutEditor({ initialLayout, onNext, onBack }: LayoutEditorProps): Rea
   const activeFloor =
     state.floors.find((floor) => floor.id === state.activeFloorId) ?? state.floors[0];
 
-  const onSubmit = (event: SubmitEvent<HTMLFormElement>): void => {
+  // Per-step save (#652): reconcile the layout to the device before
+  // advancing. Idempotent, so a back-nav re-save doesn't duplicate. An
+  // `error` keeps the user here + surfaces a Toast; `ok`/`skipped` advance.
+  const onSubmit = async (event: SubmitEvent<HTMLFormElement>): Promise<void> => {
     event.preventDefault();
-    onNext({ layout: toLayout() });
+    if (isSaving) return;
+    const layout = toLayout();
+    setIsSaving(true);
+    const outcome = await saveLayout(layout);
+    if (outcome === 'error') {
+      setIsSaving(false);
+      toast.show({
+        intent: 'danger',
+        title: t('setup.layoutSetup.saveFailed.title'),
+        description: t('setup.layoutSetup.saveFailed.description'),
+      });
+      return;
+    }
+    onNext({ layout });
   };
 
   const onAddFloor = (): void => {
@@ -186,7 +205,13 @@ function LayoutEditor({ initialLayout, onNext, onBack }: LayoutEditorProps): Rea
     <div className="flex flex-col p-8 lg:p-12">
       <LayoutHeader />
 
-      <form onSubmit={onSubmit} noValidate className="flex flex-col gap-6">
+      <form
+        onSubmit={(event) => {
+          void onSubmit(event);
+        }}
+        noValidate
+        className="flex flex-col gap-6"
+      >
         <FloorTabs
           floors={state.floors}
           activeFloorId={state.activeFloorId}
@@ -218,10 +243,12 @@ function LayoutEditor({ initialLayout, onNext, onBack }: LayoutEditorProps): Rea
           {onBack !== undefined ? <WizardBackButton onBack={onBack} /> : <span />}
           <button
             type="submit"
-            className="inline-flex items-center gap-2 rounded-lg bg-brand-solid px-4 py-2 text-sm font-semibold text-white shadow-xs-skeuomorphic hover:bg-brand-solid_hover focus:outline-none focus-visible:ring-2 focus-visible:ring-brand"
+            disabled={isSaving}
+            aria-busy={isSaving}
+            className="inline-flex items-center gap-2 rounded-lg bg-brand-solid px-4 py-2 text-sm font-semibold text-white shadow-xs-skeuomorphic hover:bg-brand-solid_hover focus:outline-none focus-visible:ring-2 focus-visible:ring-brand disabled:cursor-not-allowed disabled:opacity-70"
           >
             <span>{t('setup.layoutSetup.actions.next')}</span>
-            <NextArrowIcon />
+            {isSaving ? <SavingSpinner /> : <NextArrowIcon />}
           </button>
         </div>
       </form>
@@ -243,6 +270,20 @@ function NextArrowIcon(): ReactNode {
       aria-hidden="true"
     >
       <path d="M4.167 10h11.666m0 0L10 4.167M15.833 10 10 15.833" />
+    </svg>
+  );
+}
+
+// Inline loading spinner shown on Next while the layout is saved (#652).
+function SavingSpinner(): ReactNode {
+  return (
+    <svg className="size-4 animate-spin" viewBox="0 0 24 24" fill="none" aria-hidden="true">
+      <circle className="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" strokeWidth="4" />
+      <path
+        className="opacity-75"
+        fill="currentColor"
+        d="M4 12a8 8 0 0 1 8-8V0C5.373 0 0 5.373 0 12h4z"
+      />
     </svg>
   );
 }

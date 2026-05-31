@@ -4,6 +4,7 @@ import type { HaAreaRegistryEntry, HaFloorRegistryEntry } from './protocol/messa
 import {
   buildHaSetupPlan,
   buildLayoutFromRegistries,
+  buildLayoutReconcilePlan,
   mapHaConfigResult,
   type HaSetupInput,
 } from './setup-commands';
@@ -171,5 +172,105 @@ describe('mapHaConfigResult — get_config → Home Overview seed (#646)', () =>
     expect(mapHaConfigResult(null)).toEqual({});
     expect(mapHaConfigResult(undefined)).toEqual({});
     expect(mapHaConfigResult('x')).toEqual({});
+  });
+});
+
+describe('buildLayoutReconcilePlan — desired vs existing registries (#652)', () => {
+  const existing = {
+    floors: [
+      { id: 'f-ground', name: 'Ground', rooms: [{ id: 'a-living', name: 'Living' }] },
+      { id: 'f-up', name: 'Upstairs', rooms: [{ id: 'a-bed', name: 'Bedroom' }] },
+    ],
+    unassigned: [{ id: 'a-garage', name: 'Garage' }],
+  };
+
+  it('is a no-op when desired matches existing (idempotent re-save)', () => {
+    const plan = buildLayoutReconcilePlan(existing, {
+      floors: [
+        { id: 'f-ground', name: 'Ground', rooms: [{ id: 'a-living', name: 'Living' }] },
+        { id: 'f-up', name: 'Upstairs', rooms: [{ id: 'a-bed', name: 'Bedroom' }] },
+      ],
+    });
+    // a-garage is unassigned + absent from desired → it gets deleted; the
+    // rest is unchanged.
+    expect(plan.floorsToCreate).toEqual([]);
+    expect(plan.floorsToUpdate).toEqual([]);
+    expect(plan.floorIdsToDelete).toEqual([]);
+    expect(plan.areasToCreate).toEqual([]);
+    expect(plan.areasToUpdate).toEqual([]);
+    expect(plan.areaIdsToDelete).toEqual(['a-garage']);
+  });
+
+  it('renames a floor and a room in place (no recreate)', () => {
+    const plan = buildLayoutReconcilePlan(
+      { floors: existing.floors, unassigned: [] },
+      {
+        floors: [
+          { id: 'f-ground', name: 'Main', rooms: [{ id: 'a-living', name: 'Lounge' }] },
+          { id: 'f-up', name: 'Upstairs', rooms: [{ id: 'a-bed', name: 'Bedroom' }] },
+        ],
+      },
+    );
+    expect(plan.floorsToUpdate).toEqual([{ floorId: 'f-ground', name: 'Main' }]);
+    expect(plan.areasToUpdate).toEqual([{ areaId: 'a-living', name: 'Lounge' }]);
+    expect(plan.floorsToCreate).toEqual([]);
+    expect(plan.areaIdsToDelete).toEqual([]);
+  });
+
+  it('creates new floors/rooms (client-UUID ids) and threads the floor key', () => {
+    const plan = buildLayoutReconcilePlan(
+      { floors: [], unassigned: [] },
+      { floors: [{ id: 'new-floor', name: 'Attic', rooms: [{ id: 'new-room', name: 'Studio' }] }] },
+    );
+    expect(plan.floorsToCreate).toEqual([{ key: 'new-floor', name: 'Attic', level: 0 }]);
+    expect(plan.areasToCreate).toEqual([
+      { name: 'Studio', floor: { kind: 'new', key: 'new-floor' } },
+    ]);
+  });
+
+  it('deletes floors and rooms the user removed', () => {
+    const plan = buildLayoutReconcilePlan(existing, {
+      floors: [{ id: 'f-ground', name: 'Ground', rooms: [{ id: 'a-living', name: 'Living' }] }],
+    });
+    expect(plan.floorIdsToDelete).toEqual(['f-up']);
+    expect([...plan.areaIdsToDelete].sort()).toEqual(['a-bed', 'a-garage']);
+  });
+
+  it('reparents a formerly-unassigned area under a newly-created floor', () => {
+    const plan = buildLayoutReconcilePlan(existing, {
+      floors: [
+        { id: 'f-ground', name: 'Ground', rooms: [{ id: 'a-living', name: 'Living' }] },
+        { id: 'f-up', name: 'Upstairs', rooms: [{ id: 'a-bed', name: 'Bedroom' }] },
+        // Synthetic floor the UI created for the unassigned Garage.
+        { id: 'f-new', name: 'Ground Floor', rooms: [{ id: 'a-garage', name: 'Garage' }] },
+      ],
+    });
+    expect(plan.floorsToCreate).toEqual([{ key: 'f-new', name: 'Ground Floor', level: 2 }]);
+    expect(plan.areasToUpdate).toEqual([
+      { areaId: 'a-garage', floor: { kind: 'new', key: 'f-new' } },
+    ]);
+    expect(plan.areaIdsToDelete).toEqual([]);
+  });
+
+  it('reparents an area moved between two existing floors', () => {
+    const plan = buildLayoutReconcilePlan(
+      { floors: existing.floors, unassigned: [] },
+      {
+        floors: [
+          { id: 'f-ground', name: 'Ground', rooms: [] },
+          {
+            id: 'f-up',
+            name: 'Upstairs',
+            rooms: [
+              { id: 'a-bed', name: 'Bedroom' },
+              { id: 'a-living', name: 'Living' },
+            ],
+          },
+        ],
+      },
+    );
+    expect(plan.areasToUpdate).toEqual([
+      { areaId: 'a-living', floor: { kind: 'existing', floorId: 'f-up' } },
+    ]);
   });
 });

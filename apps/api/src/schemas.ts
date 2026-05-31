@@ -9,6 +9,7 @@
 
 export {
   ApplyHaRequestSchema,
+  ReconcileLayoutRequestSchema,
   AuthExchangeRequestSchema,
   AuthRefreshRequestSchema,
   HaPasswordGrantRequestSchema,

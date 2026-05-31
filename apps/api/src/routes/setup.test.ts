@@ -313,3 +313,88 @@ describe('setup — ha-config (#646)', () => {
     expect(await res.json()).toMatchObject({ error: 'ha-unreachable' });
   });
 });
+
+describe('setup — ha-layout reconcile (#652)', () => {
+  async function postLayout(
+    router: ReturnType<typeof createSetupRouter>,
+    body: unknown,
+  ): Promise<Response> {
+    return router.request('/ha-layout', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify(body),
+    });
+  }
+
+  const existingFloors = [{ floor_id: 'f-ground', name: 'Ground', level: 0 }];
+  const existingAreas = [
+    { area_id: 'a-living', name: 'Living', floor_id: 'f-ground' },
+    { area_id: 'a-garage', name: 'Garage', floor_id: null },
+  ];
+
+  it('responds 503 when HA Core is not configured', async () => {
+    const router = createSetupRouter({ config: baseConfig() });
+    const res = await postLayout(router, { floors: [{ id: 'f', name: 'F', rooms: [] }] });
+    expect(res.status).toBe(503);
+  });
+
+  it('responds 400 on a malformed body', async () => {
+    const sink: RecordedFrame[] = [];
+    const router = createSetupRouter({
+      config: baseConfig(),
+      clientFactory: () => fakeClient({ sink }),
+    });
+    const res = await postLayout(router, { floors: [] }); // min(1) violated
+    expect(res.status).toBe(400);
+  });
+
+  it('creates a new floor + area and threads the created floor_id', async () => {
+    const sink: RecordedFrame[] = [];
+    const router = createSetupRouter({
+      config: baseConfig(),
+      clientFactory: () => fakeClient({ sink, floors: [], areas: [] }),
+    });
+    const res = await postLayout(router, {
+      floors: [{ id: 'new-floor', name: 'Attic', rooms: [{ id: 'new-room', name: 'Studio' }] }],
+    });
+    expect(res.status).toBe(200);
+    const body = (await res.json()) as { ok: boolean };
+    expect(body.ok).toBe(true);
+    const floorCreate = sink.find((f) => f.type === 'config/floor_registry/create');
+    expect(floorCreate).toMatchObject({ name: 'Attic' });
+    const areaCreate = sink.find((f) => f.type === 'config/area_registry/create');
+    // fakeClient returns floor_id `floor_<name>` from the create.
+    expect(areaCreate).toMatchObject({ name: 'Studio', floor_id: 'floor_Attic' });
+  });
+
+  it('renames a floor + deletes a removed area, no stray creates (idempotent shape)', async () => {
+    const sink: RecordedFrame[] = [];
+    const router = createSetupRouter({
+      config: baseConfig(),
+      clientFactory: () => fakeClient({ sink, floors: existingFloors, areas: existingAreas }),
+    });
+    const res = await postLayout(router, {
+      floors: [{ id: 'f-ground', name: 'Main', rooms: [{ id: 'a-living', name: 'Living' }] }],
+    });
+    expect(res.status).toBe(200);
+    expect(sink.find((f) => f.type === 'config/floor_registry/update')).toMatchObject({
+      floor_id: 'f-ground',
+      name: 'Main',
+    });
+    // a-garage (unassigned, dropped from desired) is deleted.
+    expect(sink.find((f) => f.type === 'config/area_registry/delete')).toMatchObject({
+      area_id: 'a-garage',
+    });
+    expect(sink.some((f) => f.type === 'config/floor_registry/create')).toBe(false);
+  });
+
+  it('responds 502 when the HA Core connection cannot be established', async () => {
+    const sink: RecordedFrame[] = [];
+    const router = createSetupRouter({
+      config: baseConfig(),
+      clientFactory: () => fakeClient({ sink, connectError: new Error('ECONNREFUSED') }),
+    });
+    const res = await postLayout(router, { floors: [{ id: 'f', name: 'F', rooms: [] }] });
+    expect(res.status).toBe(502);
+  });
+});

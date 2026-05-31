@@ -54,9 +54,11 @@ export {
   ApplyHaStepResultSchema,
   HaLayoutResponseSchema,
   HaConfigResponseSchema,
+  ReconcileLayoutRequestSchema,
   type ApplyHaRequest,
   type ApplyHaResponse,
   type ApplyHaStepResult,
   type HaLayoutResponse,
   type HaConfigResponse,
+  type ReconcileLayoutRequest,
 } from './setup';

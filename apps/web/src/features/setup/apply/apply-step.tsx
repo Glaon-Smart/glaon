@@ -82,7 +82,9 @@ async function pushSettingsToHa(collected: DeviceConfigInput): Promise<HaApplyOu
   if (collected.timezone !== undefined) body.timezone = collected.timezone;
   if (collected.country !== undefined) body.country = collected.country;
   if (collected.locale !== undefined) body.locale = collected.locale;
-  if (collected.layout !== undefined) body.layout = collected.layout;
+  // `layout` is no longer sent here — the Layout step reconciles it to the
+  // device per-step via `POST /api/setup/ha-layout` (#652). Re-creating it
+  // through apply-ha would duplicate floors/rooms.
 
   // Nothing collected that maps to HA → no-op success.
   if (Object.keys(body).length === 0) return { kind: 'ok' };

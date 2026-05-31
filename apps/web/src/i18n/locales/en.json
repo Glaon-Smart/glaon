@@ -144,6 +144,10 @@
       "loadFailed": {
         "title": "Couldn't load the current layout",
         "description": "Starting with a blank layout — add floors and rooms below."
+      },
+      "saveFailed": {
+        "title": "Couldn't save the layout",
+        "description": "Your floors and rooms weren't saved. Check the connection and try again."
       }
     },
     "wifi": {

@@ -26,12 +26,15 @@ import {
   HaClient,
   buildHaSetupPlan,
   buildLayoutFromRegistries,
+  buildLayoutReconcilePlan,
   mapHaConfigResult,
+  type FloorRef,
   type HaAreaRegistryEntry,
   type HaConfigSeed,
   type HaFloorRegistryEntry,
   type HaLayoutResult,
   type HaSetupInput,
+  type ReconcileLayoutInput,
 } from '@glaon/core/ha';
 import type { ApplyHaResponse, ApplyHaStepResult } from '@glaon/core/api-client';
 
@@ -169,6 +172,124 @@ export async function readHaLayout(deps: ReadHaLayoutDeps): Promise<HaLayoutResu
 interface ReadHaLayoutDeps {
   readonly clientFactory: () => HaSetupClient;
   readonly logger?: Logger;
+}
+
+/**
+ * Reconcile HA's floor + area registries to the wizard's desired layout
+ * (#652). Reads the current registries, diffs them via the pure
+ * `buildLayoutReconcilePlan`, then executes the plan idempotently:
+ * create floors → create/update (rename + reparent) areas → delete areas
+ * → delete floors. Created floor ids are threaded into the areas that
+ * point at them. Best-effort + per-step (like `applyHaSetup`); connection
+ * failure is fail-loud (`HaCoreUnreachableError` → 502).
+ */
+export async function reconcileHaLayout(
+  desired: ReconcileLayoutInput,
+  deps: ApplyHaSetupDeps,
+): Promise<ApplyHaResponse> {
+  const client = deps.clientFactory();
+  const steps: ApplyHaStepResult[] = [];
+
+  try {
+    await client.connect();
+  } catch (err) {
+    throw new HaCoreUnreachableError(errMessage(err));
+  }
+
+  try {
+    // Read current registries (graceful-degrade to empty on a per-list
+    // failure, same as readHaLayout).
+    const floors = await client
+      .request<readonly HaFloorRegistryEntry[]>({ type: 'config/floor_registry/list' })
+      .catch(() => [] as readonly HaFloorRegistryEntry[]);
+    const areas = await client
+      .request<readonly HaAreaRegistryEntry[]>({ type: 'config/area_registry/list' })
+      .catch(() => [] as readonly HaAreaRegistryEntry[]);
+    const existing = buildLayoutFromRegistries(floors, areas);
+    const plan = buildLayoutReconcilePlan(existing, desired);
+
+    // 1. Create floors first, capturing the returned floor_id per key.
+    const keyToFloorId = new Map<string, string>();
+    for (const floor of plan.floorsToCreate) {
+      steps.push(
+        await runStep(`floor:create:${floor.name}`, deps.logger, async () => {
+          const result = await client.request<HaFloorRegistryEntry>({
+            type: 'config/floor_registry/create',
+            name: floor.name,
+            level: floor.level,
+          });
+          keyToFloorId.set(floor.key, result.floor_id);
+        }),
+      );
+    }
+
+    const resolveFloor = (ref: FloorRef): string | null =>
+      ref.kind === 'existing' ? ref.floorId : (keyToFloorId.get(ref.key) ?? null);
+
+    // 2. Rename floors.
+    for (const floor of plan.floorsToUpdate) {
+      steps.push(
+        await runStep(`floor:update:${floor.name}`, deps.logger, () =>
+          client.request({
+            type: 'config/floor_registry/update',
+            floor_id: floor.floorId,
+            name: floor.name,
+          }),
+        ),
+      );
+    }
+
+    // 3. Create areas under their (possibly just-created) floor.
+    for (const area of plan.areasToCreate) {
+      const floorId = resolveFloor(area.floor);
+      steps.push(
+        await runStep(`area:create:${area.name}`, deps.logger, () =>
+          client.request({
+            type: 'config/area_registry/create',
+            name: area.name,
+            ...(floorId !== null ? { floor_id: floorId } : {}),
+          }),
+        ),
+      );
+    }
+
+    // 4. Rename / reparent areas.
+    for (const area of plan.areasToUpdate) {
+      steps.push(
+        await runStep(`area:update:${area.areaId}`, deps.logger, () =>
+          client.request({
+            type: 'config/area_registry/update',
+            area_id: area.areaId,
+            ...(area.name !== undefined ? { name: area.name } : {}),
+            ...(area.floor !== undefined ? { floor_id: resolveFloor(area.floor) } : {}),
+          }),
+        ),
+      );
+    }
+
+    // 5. Delete removed areas, then 6. removed floors (areas first so a
+    // deleted floor never orphans an area).
+    for (const areaId of plan.areaIdsToDelete) {
+      steps.push(
+        await runStep(`area:delete:${areaId}`, deps.logger, () =>
+          client.request({ type: 'config/area_registry/delete', area_id: areaId }),
+        ),
+      );
+    }
+    for (const floorId of plan.floorIdsToDelete) {
+      steps.push(
+        await runStep(`floor:delete:${floorId}`, deps.logger, () =>
+          client.request({ type: 'config/floor_registry/delete', floor_id: floorId }),
+        ),
+      );
+    }
+  } finally {
+    await client.close().catch(() => {
+      /* ignore */
+    });
+  }
+
+  return { ok: steps.every((step) => step.ok), steps };
 }
 
 /**

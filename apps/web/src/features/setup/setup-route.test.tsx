@@ -1,4 +1,4 @@
-import { fireEvent, render } from '@testing-library/react';
+import { fireEvent, render, waitFor } from '@testing-library/react';
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 
 import { InMemoryConfigStore } from '@glaon/core/config';
@@ -30,7 +30,19 @@ beforeEach(() => {
   vi.stubEnv('VITE_APP_MODE', 'standalone');
   vi.stubGlobal(
     'fetch',
-    vi.fn(() => Promise.reject(new TypeError('network'))),
+    vi.fn((url: unknown, init?: { method?: string }) => {
+      // The Layout step's per-step save (#652) POSTs to ha-layout; resolve
+      // it so the Next path can advance. Everything else rejects (the GET
+      // seeds degrade to blank, which is what these routing tests want).
+      if (String(url).includes('/api/setup/ha-layout') && init?.method === 'POST') {
+        return Promise.resolve({
+          ok: true,
+          status: 200,
+          json: () => Promise.resolve({ ok: true, steps: [] }),
+        } as Response);
+      }
+      return Promise.reject(new TypeError('network'));
+    }),
   );
 });
 afterEach(() => {
@@ -53,7 +65,10 @@ describe('SetupRoute', () => {
     // the blank editor; await its Next button before clicking.
     const { container, findByRole } = renderRoute('layout');
     fireEvent.click(await findByRole('button', { name: 'Next' }));
-    expect(container.querySelector('h1')?.textContent).toBe('Device Security');
+    // The layout save is async (#652) — wait for the advance.
+    await waitFor(() => {
+      expect(container.querySelector('h1')?.textContent).toBe('Device Security');
+    });
   });
 
   it('renders the Network step (after Security in the 5-step order)', () => {

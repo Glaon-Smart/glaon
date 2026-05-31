@@ -181,7 +181,8 @@
         "label": "Şifre",
         "placeholder": "En az 8 karakter",
         "required": "Şifre zorunludur.",
-        "tooShort": "En az {min} karakter kullan."
+        "tooShort": "En az {min} karakter kullan.",
+        "optionalHint": "Mevcut şifreni korumak için boş bırak."
       },
       "confirm": {
         "label": "Şifreyi tekrar gir",

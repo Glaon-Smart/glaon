@@ -54,6 +54,7 @@ interface HomeSettingsSlice {
   readonly unitSystem?: 'metric' | 'imperial' | undefined;
   readonly timezone?: string | undefined;
   readonly country?: string | undefined;
+  readonly currency?: string | undefined;
   readonly locale?: string | undefined;
 }
 
@@ -69,6 +70,7 @@ export async function saveHomeSettings(slice: HomeSettingsSlice): Promise<SaveHo
   if (slice.unitSystem !== undefined) body.unitSystem = slice.unitSystem;
   if (slice.timezone !== undefined && slice.timezone !== '') body.timezone = slice.timezone;
   if (slice.country !== undefined && slice.country !== '') body.country = slice.country;
+  if (slice.currency !== undefined && slice.currency !== '') body.currency = slice.currency;
   if (slice.locale !== undefined && slice.locale !== '') body.locale = slice.locale;
 
   // Nothing to persist → no-op success.

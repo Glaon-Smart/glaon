@@ -79,6 +79,10 @@
         "placeholder": "Saat dilimini seç",
         "tooltip": "HA saat görüntülemeleri ve otomasyonları için kullanılır."
       },
+      "currency": {
+        "label": "Para Birimi",
+        "placeholder": "Para birimi seç"
+      },
       "language": {
         "label": "Dil",
         "placeholder": "Dil seç",

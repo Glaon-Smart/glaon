@@ -36,6 +36,8 @@ export interface HaSetupInput {
   readonly timezone?: string | undefined;
   /** ISO 3166-1 alpha-2 (uppercase). */
   readonly country?: string | undefined;
+  /** ISO 4217 currency code (e.g. `TRY`, `USD`). */
+  readonly currency?: string | undefined;
   /** BCP-47 locale tag; forwarded to HA `language` best-effort. */
   readonly locale?: string | undefined;
   readonly layout?:
@@ -55,6 +57,7 @@ export interface HaCoreUpdatePayload {
   readonly unit_system?: 'metric' | 'us_customary';
   readonly time_zone?: string;
   readonly country?: string;
+  readonly currency?: string;
   readonly language?: string;
 }
 
@@ -86,6 +89,7 @@ export function buildHaSetupPlan(input: HaSetupInput): HaSetupPlan {
     unit_system?: 'metric' | 'us_customary';
     time_zone?: string;
     country?: string;
+    currency?: string;
     language?: string;
   } = {};
 
@@ -94,6 +98,7 @@ export function buildHaSetupPlan(input: HaSetupInput): HaSetupPlan {
   if (input.unitSystem !== undefined) core.unit_system = mapUnitSystem(input.unitSystem);
   if (input.timezone !== undefined && input.timezone !== '') core.time_zone = input.timezone;
   if (input.country !== undefined && input.country !== '') core.country = input.country;
+  if (input.currency !== undefined && input.currency !== '') core.currency = input.currency;
   const language = mapLanguage(input.locale);
   if (language !== undefined) core.language = language;
 

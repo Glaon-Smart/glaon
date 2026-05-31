@@ -1,0 +1,119 @@
+import { Meta, Canvas, Stories, Controls } from '@storybook/addon-docs/blocks';
+
+import * as CurrencySelectStories from './CurrencySelect.stories';
+
+<Meta of={CurrencySelectStories} />
+
+# CurrencySelect
+
+App-primitive ISO 4217 currency picker. Thin wrap over the kit
+[`<ComboBox>`](?path=/docs/web-primitives-select--docs#withsearch) that
+adds the built-in currency list, locale-aware sorting + names,
+diacritic-insensitive search, and optional one-shot autodetection.
+
+Sister primitive to
+[CountrySelect](?path=/docs/app-primitives-countryselect--docs) and
+[TimezoneSelect](?path=/docs/app-primitives-timezoneselect--docs) — same
+prop contract, same state machine, same polish (auto-clear-error,
+select-all-on-focus). The differences come from the dataset (ISO 4217
+codes) and the detection source (the browser locale's region currency).
+
+## When to use
+
+- Setup wizard's region step — pairs with Country / Timezone to localize
+  energy-cost and billing displays (maps to Home Assistant Core's
+  `currency`).
+- Any setting that drives a money format.
+
+## When NOT to use
+
+- A short curated list of supported currencies — use a plain
+  [Select](?path=/docs/web-primitives-select--docs).
+- Formatting an amount — that's `Intl.NumberFormat` at the call site, not
+  a picker.
+
+## Auto-detection
+
+When `autoDetect` is `true` (default), on mount the picker reads the
+browser locale's region (`new Intl.Locale(navigator.language).region`)
+and preselects that region's currency via the Intl Locale Info
+`getCurrencies()` API. **Pure browser API** — no network call, no geo-IP.
+
+Detection is **one-shot** at mount and **skipped** when `value`,
+`defaultValue`, or `autoDetect={false}` is set. On a runtime without the
+Intl Locale Info API the picker simply starts empty.
+
+```tsx
+// Preselect from the browser region.
+<CurrencySelect onSelectionChange={setCurrency} />
+
+// Always start empty; let the user pick.
+<CurrencySelect autoDetect={false} onSelectionChange={setCurrency} />
+
+// Controlled, hydrated from a device read.
+<CurrencySelect value={device.currency} onSelectionChange={setCurrency} />
+```
+
+## Anatomy
+
+<Canvas of={CurrencySelectStories.WithDefaultValue} />
+
+```tsx
+<CurrencySelect
+  label="Currency"
+  placeholder="Select a currency"
+  onSelectionChange={(code) => setCurrency(code)}
+/>
+```
+
+Each row renders the ISO 4217 code + the localized currency name, e.g.
+`TRY — Turkish Lira`. The emitted value is the bare code (`'TRY'`).
+
+## Dataset and localization
+
+The list comes from `Intl.supportedValuesOf('currency')` — the
+runtime-built-in ISO 4217 set, no shipped table. The `locale` prop drives
+both the localized currency **names** (`Intl.DisplayNames`) and the sort
+order (`Intl.Collator`), so the same list renders correctly in any locale
+the browser supports.
+
+## Search behaviour
+
+The filter is **diacritic-insensitive** and matches the displayed label
+(code + name). The input **selects-all on focus** so the next keystroke
+replaces the current label cleanly.
+
+## Error UX
+
+`isInvalid` styling **clears automatically** when the user makes a
+selection. Toggle `isInvalid` `false → true` after re-validation to force
+it back on.
+
+## Variants
+
+<Stories includePrimary={false} />
+
+## Props
+
+<Controls />
+
+## Accessibility
+
+- Pass a visible `label`, **or** associate a host-rendered label via
+  `aria-labelledby` (id of the external label), **or** supply an
+  `aria-label`. One of the three must be present so the ComboBox always
+  has an accessible name.
+- The popover is keyboard-navigable (Arrow up/down, Enter to select, Esc
+  to dismiss) and the search input is a real `<input>` with
+  `aria-autocomplete="list"`.
+- Pair `isInvalid` with a descriptive `hint` — the kit wires
+  `aria-invalid` + `aria-describedby` automatically.
+
+## Related components
+
+- [CountrySelect](?path=/docs/app-primitives-countryselect--docs) —
+  sister primitive for ISO 3166-1 countries.
+- [TimezoneSelect](?path=/docs/app-primitives-timezoneselect--docs) —
+  sister primitive for IANA timezones.
+- [FormField](?path=/docs/app-primitives-formfield--docs) — wrapper for
+  label + control + error in compound forms.

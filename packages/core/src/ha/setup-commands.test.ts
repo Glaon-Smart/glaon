@@ -16,6 +16,7 @@ describe('buildHaSetupPlan — core config', () => {
       unitSystem: 'metric',
       timezone: 'Europe/Istanbul',
       country: 'TR',
+      currency: 'TRY',
       locale: 'tr',
     };
     const plan = buildHaSetupPlan(input);
@@ -25,6 +26,7 @@ describe('buildHaSetupPlan — core config', () => {
       unit_system: 'metric',
       time_zone: 'Europe/Istanbul',
       country: 'TR',
+      currency: 'TRY',
       language: 'tr',
     });
   });

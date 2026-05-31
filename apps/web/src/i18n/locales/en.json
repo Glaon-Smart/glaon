@@ -181,7 +181,8 @@
         "label": "Password",
         "placeholder": "At least 8 characters",
         "required": "Password is required.",
-        "tooShort": "Use at least {min} characters."
+        "tooShort": "Use at least {min} characters.",
+        "optionalHint": "Leave blank to keep your current password."
       },
       "confirm": {
         "label": "Confirm password",

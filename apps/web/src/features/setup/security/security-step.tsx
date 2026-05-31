@@ -21,6 +21,7 @@ import { useTranslation } from 'react-i18next';
 
 import type { DeviceConfigInput } from '@glaon/core/config';
 
+import { useDeviceConfig } from '../../../config/config-provider';
 import { WizardBackButton } from '../wizard-back-button';
 
 interface SecurityStepProps {
@@ -51,7 +52,15 @@ type PasswordValidation =
   | { readonly kind: 'mismatch' }
   | { readonly kind: 'empty' };
 
-function validatePasswords(password: string, confirm: string): PasswordValidation {
+// When `allowEmpty` is true the device already has a password, so leaving
+// both fields blank is valid — it means "keep the current password" (#651).
+// Entering one field still requires both (partial entry is an error).
+function validatePasswords(
+  password: string,
+  confirm: string,
+  allowEmpty: boolean,
+): PasswordValidation {
+  if (password === '' && confirm === '') return allowEmpty ? { kind: 'ok' } : { kind: 'empty' };
   if (password === '' || confirm === '') return { kind: 'empty' };
   if (password.length < MIN_PASSWORD_LENGTH) return { kind: 'too-short' };
   if (password !== confirm) return { kind: 'mismatch' };
@@ -61,13 +70,22 @@ function validatePasswords(password: string, confirm: string): PasswordValidatio
 export function SecurityStep({ collected, onNext, onBack }: SecurityStepProps): ReactNode {
   const { t } = useTranslation();
   const toast = useToast();
+  const { config } = useDeviceConfig();
   const usernameId = useId();
   const passwordId = useId();
   const confirmId = useId();
 
-  // Username is collected-backed, so it pre-fills on a back-navigation
-  // (#637) — unlike the password, which is never stored in plaintext.
-  const [username, setUsername] = useState<string>(collected.adminUsername ?? '');
+  // The device already has a password when a `securityPinHash` is stored
+  // (re-running setup / editing). Then the password change is optional:
+  // blank fields keep the current password (#651).
+  const hasExistingPassword =
+    config?.securityPinHash !== undefined && config.securityPinHash !== '';
+
+  // Username seeds from the in-run value first (back-navigation, #637),
+  // then the device's stored config (#651). Fresh setup → blank.
+  const [username, setUsername] = useState<string>(
+    collected.adminUsername ?? config?.adminUsername ?? '',
+  );
   const [password, setPassword] = useState<string>('');
   const [confirm, setConfirm] = useState<string>('');
   const [submitted, setSubmitted] = useState<boolean>(false);
@@ -75,7 +93,10 @@ export function SecurityStep({ collected, onNext, onBack }: SecurityStepProps): 
 
   const usernameTrimmed = username.trim();
   const usernameValid = USERNAME_RE.test(usernameTrimmed);
-  const validation = useMemo(() => validatePasswords(password, confirm), [password, confirm]);
+  const validation = useMemo(
+    () => validatePasswords(password, confirm, hasExistingPassword),
+    [password, confirm, hasExistingPassword],
+  );
   const showErrors = submitted && validation.kind !== 'ok';
   const usernameInvalid = submitted && !usernameValid;
   const usernameErrorMessage = usernameInvalid
@@ -88,6 +109,15 @@ export function SecurityStep({ collected, onNext, onBack }: SecurityStepProps): 
     event.preventDefault();
     setSubmitted(true);
     if (!usernameValid || validation.kind !== 'ok') return;
+
+    // No new password entered + the device already has one → keep it.
+    // Emit only the username so the terminal commit's merge leaves the
+    // stored `securityPinHash` untouched (#651).
+    if (password === '') {
+      onNext({ adminUsername: usernameTrimmed });
+      return;
+    }
+
     setIsHashing(true);
     try {
       const hash = await sha256Hex(password);
@@ -156,25 +186,38 @@ export function SecurityStep({ collected, onNext, onBack }: SecurityStepProps): 
           )}
         </FormRow>
 
-        <FormRow label={t('setup.security.password.label')} htmlFor={passwordId} required>
+        <FormRow
+          label={t('setup.security.password.label')}
+          htmlFor={passwordId}
+          required={!hasExistingPassword}
+        >
           <PasswordInput
             id={passwordId}
             value={password}
             onChange={setPassword}
             placeholder={t('setup.security.password.placeholder')}
-            isRequired
+            isRequired={!hasExistingPassword}
             autoComplete="new-password"
             {...(passwordErrorMessage !== undefined ? { error: passwordErrorMessage } : {})}
           />
+          {hasExistingPassword && passwordErrorMessage === undefined && (
+            <p className="pt-1.5 text-sm text-tertiary">
+              {t('setup.security.password.optionalHint')}
+            </p>
+          )}
         </FormRow>
 
-        <FormRow label={t('setup.security.confirm.label')} htmlFor={confirmId} required>
+        <FormRow
+          label={t('setup.security.confirm.label')}
+          htmlFor={confirmId}
+          required={!hasExistingPassword}
+        >
           <PasswordInput
             id={confirmId}
             value={confirm}
             onChange={setConfirm}
             placeholder={t('setup.security.confirm.placeholder')}
-            isRequired
+            isRequired={!hasExistingPassword}
             autoComplete="new-password"
             {...(confirmErrorMessage !== undefined ? { error: confirmErrorMessage } : {})}
           />

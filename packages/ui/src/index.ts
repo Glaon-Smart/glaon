@@ -24,6 +24,7 @@ export * from './components/Drawer';
 export * from './components/Dropdown';
 export * from './components/FormField';
 export * from './components/Input';
+export * from './components/LanguageSelect';
 export * from './components/List';
 export * from './components/LocationPicker';
 export * from './components/Logo';

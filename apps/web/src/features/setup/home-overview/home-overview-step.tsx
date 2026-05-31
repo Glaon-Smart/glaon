@@ -28,26 +28,16 @@ import {
   CountrySelect,
   CurrencySelect,
   InputBase,
+  LanguageSelect,
   LocationPicker,
   Radio,
   RadioGroup,
-  Select,
-  SelectItem,
   TextField,
   TimezoneSelect,
   nominatimGeocode,
   useToast,
-  type SelectItemType,
 } from '@glaon/ui';
-import {
-  useEffect,
-  useId,
-  useMemo,
-  useRef,
-  useState,
-  type ReactNode,
-  type SubmitEvent,
-} from 'react';
+import { useEffect, useId, useRef, useState, type ReactNode, type SubmitEvent } from 'react';
 import { useTranslation } from 'react-i18next';
 
 import { SUPPORTED_LOCALES, type SupportedLocale } from '@glaon/core/i18n';
@@ -79,7 +69,7 @@ interface LocationState {
 const DEFAULT_RADIUS_M = 100;
 
 export function HomeOverviewStep({ collected, onNext }: HomeOverviewStepProps): ReactNode {
-  const { t } = useTranslation();
+  const { t, i18n } = useTranslation();
   const toast = useToast();
   const homeNameLabelId = useId();
   const countryLabelId = useId();
@@ -157,15 +147,6 @@ export function HomeOverviewStep({ collected, onNext }: HomeOverviewStepProps): 
     // Seed once on mount; `collected` is read for the initial guard only.
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, []);
-
-  const localeItems = useMemo<SelectItemType[]>(
-    () =>
-      SUPPORTED_LOCALES.map((code) => ({
-        id: code,
-        label: t(`setup.locales.${code}`),
-      })),
-    [t],
-  );
 
   const homeNameTrimmed = homeName.trim();
   const homeNameInvalid = showHomeNameError && homeNameTrimmed === '';
@@ -373,23 +354,23 @@ export function HomeOverviewStep({ collected, onNext }: HomeOverviewStepProps): 
           />
         </FormRow>
 
+        {/* Single language control (#650) — the sidebar switcher was
+            removed. Selecting a language live-switches the wizard UI
+            (i18n.changeLanguage) and is saved to HA core `language`. */}
         <FormRow label={t('setup.homeOverview.language.label')} labelId={languageLabelId}>
-          <Select
+          <LanguageSelect
             aria-labelledby={languageLabelId}
-            items={localeItems}
-            placeholder={t('setup.homeOverview.language.placeholder')}
+            options={SUPPORTED_LOCALES}
             value={locale}
-            onChange={(key) => {
-              if (
-                typeof key === 'string' &&
-                (SUPPORTED_LOCALES as readonly string[]).includes(key)
-              ) {
-                setLocale(key as SupportedLocale);
+            placeholder={t('setup.homeOverview.language.placeholder')}
+            autoDetect={false}
+            onSelectionChange={(code) => {
+              if (code !== null && (SUPPORTED_LOCALES as readonly string[]).includes(code)) {
+                setLocale(code as SupportedLocale);
+                void i18n.changeLanguage(code);
               }
             }}
-          >
-            {(item) => <SelectItem key={item.id} id={item.id} label={item.label ?? ''} />}
-          </Select>
+          />
         </FormRow>
 
         <div className="flex justify-end gap-3 border-t border-secondary py-6">

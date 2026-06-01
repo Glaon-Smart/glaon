@@ -126,7 +126,17 @@ export function SetupLayout({
           )}
         </div>
       </aside>
-      <main className="flex flex-1 flex-col lg:min-w-[480px] lg:overflow-y-auto">{children}</main>
+      {/* `relative` makes <main> the containing block for its
+          absolutely-positioned descendants (#665). Step forms include
+          react-aria visually-hidden inputs (`position: absolute`); without
+          a positioning context here their containing block is <body>, so
+          they escape <main>'s `overflow-y-auto` clip and poke past the
+          viewport, producing a second, window-level scrollbar on top of
+          <main>'s own scroll. Anchoring them to <main> keeps a single
+          content scroll and the sidebar full-height. */}
+      <main className="relative flex flex-1 flex-col lg:min-w-[480px] lg:overflow-y-auto">
+        {children}
+      </main>
     </div>
   );
 }

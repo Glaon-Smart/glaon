@@ -22,7 +22,6 @@ import { Button, useToast } from '@glaon/ui';
 import { useState, type ReactNode } from 'react';
 import { useTranslation } from 'react-i18next';
 
-import type { ApplyHaResponse } from '@glaon/core/api-client';
 import type { DeviceConfigInput, InterfaceConfig, IpConfig, Layout } from '@glaon/core/config';
 
 import { useDeviceConfig } from '../../../config/config-provider';
@@ -30,9 +29,7 @@ import {
   DEFAULT_WIRELESS_INTERFACE,
   NETWORK_INFO_URL,
   findWirelessInterface,
-  pushHostname,
   pushInterfaceUpdate,
-  toSupervisorIpBlock,
 } from '../network/network-api';
 import { HandoffModal } from '../wifi/handoff-modal';
 import { HandoffOverlay } from '../wifi/handoff-overlay';
@@ -48,63 +45,12 @@ interface ApplyStepProps {
   readonly onBack?: () => void;
 }
 
-// #617 — apps/api endpoint that pushes the collected home settings into
-// HA Core (config/core/update + floor/area registry) over WebSocket.
-const HA_APPLY_SETTINGS = '/api/setup/apply-ha';
-
 // Hard-coded URL the QR code encodes. The mDNS responder advertises the
 // device under `glaon.local` on the home network (addon-side concern).
 const DEVICE_URL_AFTER_HANDOFF = 'http://glaon.local';
 
 function isSecuredCipher(cipher: string | undefined): boolean {
   return cipher !== undefined && cipher !== '' && cipher !== '(unsecured)';
-}
-
-/**
- * Outcome of pushing the collected home settings into HA Core (#617).
- *   - `ok`       every command landed.
- *   - `skipped`  apps/api has no HA Core configured (503) — expected in
- *                dev when HA_CORE_* is unset; not a user-facing error.
- *   - `partial`  some commands failed (HA reachable, rejected a step).
- *   - `error`    couldn't reach apps/api / HA, or a malformed response.
- */
-type HaApplyOutcome =
-  | { readonly kind: 'ok' }
-  | { readonly kind: 'skipped' }
-  | { readonly kind: 'partial' }
-  | { readonly kind: 'error' };
-
-async function pushSettingsToHa(collected: DeviceConfigInput): Promise<HaApplyOutcome> {
-  const body: Record<string, unknown> = {};
-  if (collected.latitude !== undefined) body.latitude = collected.latitude;
-  if (collected.longitude !== undefined) body.longitude = collected.longitude;
-  if (collected.unitSystem !== undefined) body.unitSystem = collected.unitSystem;
-  if (collected.timezone !== undefined) body.timezone = collected.timezone;
-  if (collected.country !== undefined) body.country = collected.country;
-  if (collected.locale !== undefined) body.locale = collected.locale;
-  // `layout` is no longer sent here — the Layout step reconciles it to the
-  // device per-step via `POST /api/setup/ha-layout` (#652). Re-creating it
-  // through apply-ha would duplicate floors/rooms.
-
-  // Nothing collected that maps to HA → no-op success.
-  if (Object.keys(body).length === 0) return { kind: 'ok' };
-
-  let response: Response;
-  try {
-    response = await fetch(HA_APPLY_SETTINGS, {
-      method: 'POST',
-      credentials: 'include',
-      headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify(body),
-    });
-  } catch {
-    return { kind: 'error' };
-  }
-  if (response.status === 503) return { kind: 'skipped' };
-  if (!response.ok) return { kind: 'error' };
-  const json = (await response.json().catch(() => null)) as ApplyHaResponse | null;
-  if (json === null) return { kind: 'error' };
-  return json.ok ? { kind: 'ok' } : { kind: 'partial' };
 }
 
 /** Discover the wireless interface so the Wi-Fi handoff targets the right
@@ -178,50 +124,23 @@ export function ApplyStep({ collected, onBack }: ApplyStepProps): ReactNode {
   async function runCommit(wifiPassword: string): Promise<void> {
     setHandoffPhase('committing');
 
-    // Push home settings to HA *before* touching the network — non-
-    // destructive, network still stable, so a failure aborts cleanly. A
-    // `skipped` outcome (no HA Core configured — dev 503) proceeds.
-    const haOutcome = await pushSettingsToHa(collected);
-    if (haOutcome.kind === 'error' || haOutcome.kind === 'partial') {
-      setHandoffPhase(wifiSecured ? 'confirming' : 'idle');
-      toast.show({
-        intent: 'danger',
-        title: t('setup.apply.haSettingsFailed.title'),
-        description: t('setup.apply.haSettingsFailed.description'),
-      });
-      return;
-    }
-
     try {
-      // Hostname first — cheap and non-destructive.
-      if (collected.network?.hostname !== undefined) {
-        await pushHostname(collected.network.hostname);
+      // Everything non-destructive is already on the device via per-step
+      // saves: HA settings (#646), layout (#652), hostname + IP config
+      // (#653), and the security config. All that's left here is the
+      // destructive Wi-Fi join — push the credentials to the wireless
+      // interface, which is the AP→home disconnect moment.
+      if (wifi !== undefined) {
+        const wirelessIface = await discoverWirelessInterface();
+        const wifiBody = wifiSecured
+          ? { mode: 'infrastructure', auth: 'wpa-psk', ssid: wifi.ssid, psk: wifiPassword }
+          : { mode: 'infrastructure', auth: 'open', ssid: wifi.ssid };
+        await pushInterfaceUpdate(wirelessIface, { wifi: wifiBody });
       }
 
-      // Per-interface IP config. The wireless interface's update folds in
-      // the Wi-Fi credentials so the home-network join is one request.
-      const wirelessIface = wifi !== undefined ? await discoverWirelessInterface() : undefined;
-      const interfaces = collected.network?.interfaces ?? [];
-      const wifiBody = wifiSecured
-        ? { mode: 'infrastructure', auth: 'wpa-psk', ssid: wifi.ssid, psk: wifiPassword }
-        : { mode: 'infrastructure', auth: 'open', ssid: wifi?.ssid };
-
-      for (const iface of interfaces) {
-        const body: Record<string, unknown> = {};
-        if (iface.ipv4 !== undefined) body.ipv4 = toSupervisorIpBlock(iface.ipv4);
-        if (iface.ipv6 !== undefined) body.ipv6 = toSupervisorIpBlock(iface.ipv6);
-        if (iface.name === wirelessIface && wifi !== undefined) body.wifi = wifiBody;
-        if (Object.keys(body).length > 0) await pushInterfaceUpdate(iface.name, body);
-      }
-
-      // Edge: Wi-Fi was chosen but the Network step never collected an
-      // interface list (it degraded to "unavailable") — push Wi-Fi on its
-      // own to the discovered wireless interface.
-      const wirelessInList = interfaces.some((i) => i.name === wirelessIface);
-      if (wifi !== undefined && !wirelessInList) {
-        await pushInterfaceUpdate(wirelessIface ?? DEFAULT_WIRELESS_INTERFACE, { wifi: wifiBody });
-      }
-
+      // Mirror the full collected blob into the ConfigStore + mark the
+      // wizard complete. (Most fields were already persisted per-step; this
+      // is the authoritative final write + the `completedAt` flip.)
       await setPartial(collected);
       await markComplete();
       // Wizard complete — drop the Wi-Fi wrap key so a future visit never

@@ -207,6 +207,10 @@
       "subtitle": "Set this device's hostname and how each interface gets its address, then pick the Wi-Fi network it should join.",
       "loading": "Loading network configuration…",
       "loadFailed": "We couldn't load the current network configuration. The Home Assistant add-on may be restarting.",
+      "saveFailed": {
+        "title": "Couldn't save network settings",
+        "description": "The hostname or interface settings weren't applied. Check the connection and try again."
+      },
       "unavailable": "Network configuration isn't available in this environment, so we'll skip it. Your other settings will still be saved.",
       "hostname": {
         "label": "Hostname",

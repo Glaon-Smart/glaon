@@ -207,6 +207,10 @@
       "subtitle": "Bu cihazın ana bilgisayar adını ve her arayüzün adresini nasıl alacağını ayarla, sonra bağlanacağı Wi-Fi ağını seç.",
       "loading": "Ağ yapılandırması yükleniyor…",
       "loadFailed": "Mevcut ağ yapılandırması yüklenemedi. Home Assistant add-on’u yeniden başlatılıyor olabilir.",
+      "saveFailed": {
+        "title": "Ağ ayarları kaydedilemedi",
+        "description": "Ana bilgisayar adı veya arayüz ayarları uygulanmadı. Bağlantını kontrol edip tekrar dene."
+      },
       "unavailable": "Bu ortamda ağ yapılandırması yapılamıyor, bu yüzden atlanacak. Diğer ayarların yine de kaydedilir.",
       "hostname": {
         "label": "Ana bilgisayar adı",

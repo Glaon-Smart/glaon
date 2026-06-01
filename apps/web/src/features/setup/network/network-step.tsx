@@ -41,6 +41,7 @@ import {
   parseAccessPoints,
   parseHostname,
   parseInterfaces,
+  saveNetworkConfig,
   type AccessPoint,
   type InterfaceInfo,
 } from './network-api';
@@ -371,10 +372,27 @@ export function NetworkStep({ collected, onNext, onBack }: NetworkStepProps): Re
       partial.network = network;
 
     if (selectedNetwork !== null) {
-      setIsSubmitting(true);
       const password = draftPassword.trim();
       const passwordCipher = password !== '' ? await wrapPassword(password) : '(unsecured)';
       partial.wifi = { ssid: selectedNetwork.ssid, passwordCipher };
+    }
+
+    // Per-step save (#653): push hostname + per-interface IP config to the
+    // device now (Wi-Fi join stays terminal — Apply). Only runs when the
+    // Supervisor is reachable (loadState === 'ready'), so a failure here is
+    // real → Toast + stay. The collected Wi-Fi still flows to Apply.
+    setIsSubmitting(true);
+    if (partial.network !== undefined) {
+      const outcome = await saveNetworkConfig(partial.network);
+      if (outcome === 'error') {
+        setIsSubmitting(false);
+        toast.show({
+          intent: 'danger',
+          title: t('setup.network.saveFailed.title'),
+          description: t('setup.network.saveFailed.description'),
+        });
+        return;
+      }
     }
 
     onNext(partial);
@@ -387,6 +405,8 @@ export function NetworkStep({ collected, onNext, onBack }: NetworkStepProps): Re
     loadState,
     onNext,
     selectedNetwork,
+    t,
+    toast,
   ]);
 
   return (

@@ -188,6 +188,33 @@ test.describe('setup wizard @smoke', () => {
     await expect(page.getByLabel('Home Name')).toHaveValue('Olivia');
   });
 
+  test('keeps a single content scroll — no window scrollbar at desktop (#665)', async ({
+    page,
+  }) => {
+    // A short, wide desktop viewport so the Home Overview form overflows
+    // vertically: at >=lg the SetupLayout pins the page to the viewport and
+    // only <main> scrolls. The regression (#665) was a second, window-level
+    // scrollbar caused by an absolutely-positioned visually-hidden input
+    // escaping <main>'s clip — guarded by anchoring it via `position:
+    // relative` on <main>.
+    await page.setViewportSize({ width: 1440, height: 640 });
+    await page.goto('/');
+    await expect(page.getByRole('heading', { level: 1, name: 'Home Overview' })).toBeVisible();
+
+    const scroll = await page.evaluate(() => {
+      const html = document.documentElement;
+      const main = document.querySelector('main');
+      return {
+        windowScrolls: html.scrollHeight > html.clientHeight + 1,
+        mainScrolls: main ? main.scrollHeight > main.clientHeight + 1 : false,
+      };
+    });
+    // The window must not scroll (single scrollbar); <main> carries the
+    // overflow instead.
+    expect(scroll.windowScrolls).toBe(false);
+    expect(scroll.mainScrolls).toBe(true);
+  });
+
   test('reload after completion never re-runs the wizard', async ({ page }) => {
     await walkToNetworkStep(page);
     await page.getByRole('button', { name: /PreviewGuest/i }).click();

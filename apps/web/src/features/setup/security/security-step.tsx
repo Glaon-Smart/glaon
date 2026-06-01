@@ -70,7 +70,7 @@ function validatePasswords(
 export function SecurityStep({ collected, onNext, onBack }: SecurityStepProps): ReactNode {
   const { t } = useTranslation();
   const toast = useToast();
-  const { config } = useDeviceConfig();
+  const { config, setPartial } = useDeviceConfig();
   const usernameId = useId();
   const passwordId = useId();
   const confirmId = useId();
@@ -110,22 +110,20 @@ export function SecurityStep({ collected, onNext, onBack }: SecurityStepProps): 
     setSubmitted(true);
     if (!usernameValid || validation.kind !== 'ok') return;
 
-    // No new password entered + the device already has one → keep it.
-    // Emit only the username so the terminal commit's merge leaves the
-    // stored `securityPinHash` untouched (#651).
-    if (password === '') {
-      onNext({ adminUsername: usernameTrimmed });
-      return;
-    }
-
     setIsHashing(true);
     try {
-      const hash = await sha256Hex(password);
-      onNext({ adminUsername: usernameTrimmed, securityPinHash: hash });
+      // Build the slice: always the username; the hash only when a new
+      // password was entered (blank keeps the stored one — #651).
+      const partial: DeviceConfigInput = { adminUsername: usernameTrimmed };
+      if (password !== '') partial.securityPinHash = await sha256Hex(password);
+      // Per-step save (#653): persist to the device's ConfigStore now, then
+      // advance. A merge write, so omitting `securityPinHash` keeps the
+      // existing one.
+      await setPartial(partial);
+      onNext(partial);
     } catch {
-      // Web Crypto failure is extremely rare (older browsers without
-      // `crypto.subtle`). Surface via Toast per the API Error Toast
-      // Rule so the user has somewhere to read the failure.
+      // Web Crypto failure (no `crypto.subtle`) or a ConfigStore write
+      // error — surface via Toast per the API Error Toast Rule.
       toast.show({
         intent: 'danger',
         title: t('setup.security.hashFailed.title'),

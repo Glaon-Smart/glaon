@@ -12,6 +12,7 @@ export {
   type LocaleNegotiationInput,
   type SupportedLocale,
 } from './locale-negotiator';
+export { HA_LANGUAGES } from './ha-languages';
 export type { I18nNamespaces, I18nResource, I18nResources, LocaleChoice } from './types';
 export {
   clearHaTranslationsCache,

@@ -151,3 +151,24 @@ export function countryTimeZones(iso: string): string[] {
     return [];
   }
 }
+
+/**
+ * Country → currency sync (#666). Returns the ISO 4217 currency code for an
+ * ISO 3166-1 alpha-2 region via `Intl.Locale.getCurrencies()` (Intl Locale
+ * Info). `undefined` when the runtime lacks the API or the code is unknown,
+ * so the caller skips the currency sync rather than guessing. Multi-currency
+ * regions return the first (legal-tender) entry, which the user can change.
+ */
+export function countryCurrency(iso: string): string | undefined {
+  try {
+    const loc = new Intl.Locale('und', { region: iso.toUpperCase() }) as unknown as {
+      getCurrencies?: () => string[];
+      currencies?: string[];
+    };
+    const currencies =
+      typeof loc.getCurrencies === 'function' ? loc.getCurrencies() : loc.currencies;
+    return Array.isArray(currencies) ? currencies[0] : undefined;
+  } catch {
+    return undefined;
+  }
+}

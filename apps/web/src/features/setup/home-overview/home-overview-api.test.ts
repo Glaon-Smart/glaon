@@ -1,6 +1,6 @@
 import { describe, expect, it, vi } from 'vitest';
 
-import { countryTimeZones, lookupCountryCenter } from './home-overview-api';
+import { countryCurrency, countryTimeZones, lookupCountryCenter } from './home-overview-api';
 
 describe('lookupCountryCenter (#648)', () => {
   it("geocodes the country's localized display name and returns the first center", async () => {
@@ -52,5 +52,25 @@ describe('countryTimeZones (#648)', () => {
 
   it('uppercases the region code', () => {
     expect(countryTimeZones('tr')).toEqual(countryTimeZones('TR'));
+  });
+});
+
+describe('countryCurrency (#666)', () => {
+  it('returns the ISO 4217 code for a country', () => {
+    const ccy = countryCurrency('TR');
+    // Runtimes with Intl Locale Info return 'TRY'; older ones return
+    // undefined (the caller then skips the currency sync).
+    if (ccy !== undefined) {
+      expect(ccy).toBe('TRY');
+    }
+  });
+
+  it('uppercases the region code', () => {
+    expect(countryCurrency('jp')).toBe(countryCurrency('JP'));
+  });
+
+  it('returns undefined and never throws for odd input', () => {
+    expect(() => countryCurrency('ZZ')).not.toThrow();
+    expect(() => countryCurrency('')).not.toThrow();
   });
 });

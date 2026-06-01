@@ -3,12 +3,20 @@
 // 1277:791 right column. Replaces the placeholder from #539.
 //
 // Form fields (per Figma, top to bottom):
+// - Language (LanguageSelect; the HA-supported language set from @glaon/core)
 // - Home Name (required text input)
+// - Country (CountrySelect — auto-detect on first visit)
 // - Location (LocationPicker — autocomplete + map + draggable marker)
 // - Unit System (radio: metric / imperial)
-// - Country (CountrySelect — auto-detect on first visit)
 // - Timezone (TimezoneSelect — auto-detect on first visit)
-// - Language (Select; SUPPORTED_LOCALES from @glaon/core)
+// - Currency (CurrencySelect — follows the country selection)
+//
+// Language sits first (#666): it switches the wizard UI language, so the
+// user picks it before reading the rest of the form. The full HA language
+// set is offered (HA_LANGUAGES) since the value maps to HA Core's
+// `language` (the device language), not only Glaon's own UI bundle —
+// picking a non-Glaon-UI language saves to the device without re-skinning
+// the wizard (only SUPPORTED_LOCALES drive `i18n.changeLanguage`).
 //
 // Layout follows the UUI horizontal-form pattern: a label column on
 // the left, the control on the right, horizontal divider between
@@ -37,13 +45,22 @@ import {
   nominatimGeocode,
   useToast,
 } from '@glaon/ui';
-import { useEffect, useId, useRef, useState, type ReactNode, type SubmitEvent } from 'react';
+import {
+  useCallback,
+  useEffect,
+  useId,
+  useRef,
+  useState,
+  type ReactNode,
+  type SubmitEvent,
+} from 'react';
 import { useTranslation } from 'react-i18next';
 
-import { SUPPORTED_LOCALES, type SupportedLocale } from '@glaon/core/i18n';
+import { HA_LANGUAGES, SUPPORTED_LOCALES } from '@glaon/core/i18n';
 import type { DeviceConfigInput } from '@glaon/core/config';
 
 import {
+  countryCurrency,
   countryTimeZones,
   fetchHaConfig,
   lookupCountryCenter,
@@ -88,9 +105,9 @@ export function HomeOverviewStep({ collected, onNext }: HomeOverviewStepProps): 
   const [country, setCountry] = useState<string>(collected.country ?? '');
   const [timezone, setTimezone] = useState<string>(collected.timezone ?? '');
   const [currency, setCurrency] = useState<string>(collected.currency ?? '');
-  const [locale, setLocale] = useState<SupportedLocale>(
-    (collected.locale as SupportedLocale | undefined) ?? 'en',
-  );
+  // Locale is a free BCP-47 string (#666): it maps to HA Core `language`,
+  // which spans the full HA language set — not only Glaon's UI locales.
+  const [locale, setLocale] = useState<string>(collected.locale ?? 'en');
   const [showHomeNameError, setShowHomeNameError] = useState<boolean>(false);
   const [isSaving, setIsSaving] = useState<boolean>(false);
 
@@ -133,12 +150,15 @@ export function HomeOverviewStep({ collected, onNext }: HomeOverviewStepProps): 
       if (collected.currency === undefined && seed.currency !== undefined) {
         setCurrency((prev) => (prev === '' ? (seed.currency ?? prev) : prev));
       }
-      if (
-        collected.locale === undefined &&
-        seed.language !== undefined &&
-        (SUPPORTED_LOCALES as readonly string[]).includes(seed.language)
-      ) {
-        setLocale(seed.language as SupportedLocale);
+      // Seed the language from any device language (#666), not just Glaon's
+      // UI locales — the field maps to HA Core `language`. Only flip the
+      // wizard UI when the seeded language is one Glaon actually ships.
+      if (collected.locale === undefined && seed.language !== undefined) {
+        const lang = seed.language;
+        setLocale(lang);
+        if ((SUPPORTED_LOCALES as readonly string[]).includes(lang)) {
+          void i18n.changeLanguage(lang);
+        }
       }
     });
     return () => {
@@ -165,18 +185,22 @@ export function HomeOverviewStep({ collected, onNext }: HomeOverviewStepProps): 
         }
       : undefined;
 
-  // Country → map + timezone sync (#648). Every country selection drives
-  // both: the timezone snaps to the country's primary IANA zone, and the
-  // map recenters to the country's centre (geocoded best-effort, online
-  // only). Country is the authoritative high-level choice, so each change
-  // re-syncs (the first pick and every subsequent one). Radius is kept;
-  // the address is cleared (a country centre isn't a precise address).
+  // Country → map + timezone + currency sync (#648, #666). Every country
+  // selection drives all three: the timezone snaps to the country's primary
+  // IANA zone, the currency snaps to its ISO 4217 code, and the map recenters
+  // to the country's centre (geocoded best-effort, online only). Country is
+  // the authoritative high-level choice, so each change re-syncs (the first
+  // pick and every subsequent one). Radius is kept; the address is cleared
+  // (a country centre isn't a precise address).
   const onCountrySelect = (iso: string | null): void => {
     setCountry(iso ?? '');
     if (iso === null || iso === '') return;
 
     const zones = countryTimeZones(iso);
     if (zones[0] !== undefined) setTimezone(zones[0]);
+
+    const ccy = countryCurrency(iso);
+    if (ccy !== undefined) setCurrency(ccy);
 
     const online = typeof navigator === 'undefined' || navigator.onLine;
     if (!online) return;
@@ -190,6 +214,16 @@ export function HomeOverviewStep({ collected, onNext }: HomeOverviewStepProps): 
       }));
     });
   };
+
+  // Country-scoped address search (#666). Once a country is picked, the
+  // LocationPicker's geocoder is bound to that country (`countrycodes`) so
+  // address lookups stay in-country and resolve faster. Re-created when the
+  // country changes so the picker re-queries with the new scope.
+  const scopedGeocode = useCallback(
+    (query: string, signal?: AbortSignal, geoLocale?: string) =>
+      nominatimGeocode(query, signal, geoLocale, country !== '' ? country : undefined),
+    [country],
+  );
 
   const onSubmit = async (event: SubmitEvent<HTMLFormElement>): Promise<void> => {
     event.preventDefault();
@@ -251,6 +285,28 @@ export function HomeOverviewStep({ collected, onNext }: HomeOverviewStepProps): 
         noValidate
         className="flex flex-col"
       >
+        {/* Language sits first (#666) — it switches the wizard UI, so the
+            user chooses it before reading the rest. The full HA language set
+            (HA_LANGUAGES) is offered since the value maps to HA Core
+            `language`; only Glaon's own UI locales (SUPPORTED_LOCALES)
+            actually re-skin the wizard via i18n.changeLanguage. */}
+        <FormRow label={t('setup.homeOverview.language.label')} labelId={languageLabelId}>
+          <LanguageSelect
+            aria-labelledby={languageLabelId}
+            options={HA_LANGUAGES}
+            value={locale}
+            placeholder={t('setup.homeOverview.language.placeholder')}
+            autoDetect={false}
+            onSelectionChange={(code) => {
+              if (code === null) return;
+              setLocale(code);
+              if ((SUPPORTED_LOCALES as readonly string[]).includes(code)) {
+                void i18n.changeLanguage(code);
+              }
+            }}
+          />
+        </FormRow>
+
         <FormRow label={t('setup.homeOverview.homeName.label')} labelId={homeNameLabelId} required>
           <TextField
             value={homeName}
@@ -293,7 +349,7 @@ export function HomeOverviewStep({ collected, onNext }: HomeOverviewStepProps): 
             radiusLabel={t('setup.homeOverview.location.radius')}
             radiusUnit={t('setup.homeOverview.location.radiusUnit')}
             placeholder={t('setup.homeOverview.location.placeholder')}
-            geocode={nominatimGeocode}
+            geocode={scopedGeocode}
             {...(locationValue !== undefined ? { value: locationValue } : {})}
             onChange={(value) => {
               setLocation({
@@ -340,35 +396,17 @@ export function HomeOverviewStep({ collected, onNext }: HomeOverviewStepProps): 
           />
         </FormRow>
 
-        {/* Currency sits under Timezone (#649). Label-less picker — the
-            form-row label is associated via aria-labelledby. */}
+        {/* Currency sits under Timezone (#649). Controlled (#666) so a
+            country change can drive it (country → currency sync). Label-less
+            picker — the form-row label is associated via aria-labelledby. */}
         <FormRow label={t('setup.homeOverview.currency.label')} labelId={currencyLabelId}>
           <CurrencySelect
             aria-labelledby={currencyLabelId}
             placeholder={t('setup.homeOverview.currency.placeholder')}
-            {...(collected.currency !== undefined ? { defaultValue: collected.currency } : {})}
-            autoDetect={collected.currency === undefined}
+            {...(currency !== '' ? { value: currency } : {})}
+            autoDetect={collected.currency === undefined && currency === ''}
             onSelectionChange={(code) => {
               setCurrency(code ?? '');
-            }}
-          />
-        </FormRow>
-
-        {/* Single language control (#650) — the sidebar switcher was
-            removed. Selecting a language live-switches the wizard UI
-            (i18n.changeLanguage) and is saved to HA core `language`. */}
-        <FormRow label={t('setup.homeOverview.language.label')} labelId={languageLabelId}>
-          <LanguageSelect
-            aria-labelledby={languageLabelId}
-            options={SUPPORTED_LOCALES}
-            value={locale}
-            placeholder={t('setup.homeOverview.language.placeholder')}
-            autoDetect={false}
-            onSelectionChange={(code) => {
-              if (code !== null && (SUPPORTED_LOCALES as readonly string[]).includes(code)) {
-                setLocale(code as SupportedLocale);
-                void i18n.changeLanguage(code);
-              }
             }}
           />
         </FormRow>

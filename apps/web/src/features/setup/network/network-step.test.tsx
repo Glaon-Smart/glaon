@@ -115,6 +115,42 @@ describe('NetworkStep — ready', () => {
     expect(end0?.ipv4?.address).toEqual(['192.168.1.50/24']);
   });
 
+  it('saves the hostname + interface config to the device on Next (#653)', async () => {
+    const { onNext, findByTestId, getByTestId } = renderStep();
+    await findByTestId('network-hostname');
+    fireEvent.click(getByTestId('network-next'));
+    await waitFor(() => {
+      expect(onNext).toHaveBeenCalledTimes(1);
+    });
+    const fetchMock = global.fetch as unknown as { mock: { calls: unknown[][] } };
+    const posted = (substr: string): boolean =>
+      fetchMock.mock.calls.some(
+        ([u, init]) =>
+          String(u).includes(substr) &&
+          (init as { method?: string } | undefined)?.method === 'POST',
+      );
+    expect(posted('/host/options')).toBe(true);
+    expect(posted('/network/interface/end0/update')).toBe(true);
+  });
+
+  it('stays on the step and toasts when the per-step network save fails (#653)', async () => {
+    vi.stubGlobal(
+      'fetch',
+      vi.fn((url: unknown, init?: { method?: string }) => {
+        const u = String(url);
+        if (init?.method === 'POST' && u.includes('/host/options')) {
+          return Promise.resolve(mockFetchResponse({ ok: false, status: 500 }));
+        }
+        return readyFetch(url);
+      }),
+    );
+    const { onNext, findByTestId, getByTestId, findByRole } = renderStep();
+    await findByTestId('network-hostname');
+    fireEvent.click(getByTestId('network-next'));
+    expect(await findByRole('status')).toBeInTheDocument();
+    expect(onNext).not.toHaveBeenCalled();
+  });
+
   it('splits a seeded CIDR into an IP + dotted subnet mask on a static interface (#639)', async () => {
     const { findByRole, getByLabelText } = renderStep();
     // end0's IPv4 is static, so its panel auto-opens; the seeded

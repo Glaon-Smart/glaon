@@ -161,7 +161,7 @@ describe('ApplyStep — commit', () => {
     expect(findPost('/network/interface/')).toBeUndefined();
   });
 
-  it('pushes the hostname and a static IPv4 config, then reloads', async () => {
+  it('does NOT re-push hostname/IP at commit — they were saved per-step (#653)', async () => {
     const collected = {
       ...baseCollected,
       network: {
@@ -184,9 +184,10 @@ describe('ApplyStep — commit', () => {
     await waitFor(() => {
       expect(reloadSpy).toHaveBeenCalledTimes(1);
     });
-    expect(postBody(findPost('/host/options'))).toMatchObject({ hostname: 'glaon-wall' });
-    const ifaceBody = postBody(findPost('/network/interface/end0/update'));
-    expect(ifaceBody).toMatchObject({ ipv4: { method: 'static', address: ['192.168.1.50/24'] } });
+    // The Network step pushed these on its own Next; Apply (no Wi-Fi here)
+    // must not touch the Supervisor.
+    expect(findPost('/host/options')).toBeUndefined();
+    expect(findPost('/network/interface/end0/update')).toBeUndefined();
   });
 
   it('commits an unsecured Wi-Fi without opening the handoff modal', async () => {
@@ -246,28 +247,14 @@ describe('ApplyStep — commit', () => {
     expect(reloadSpy).not.toHaveBeenCalled();
   });
 
-  it('aborts before the network push and toasts when the HA-settings push fails', async () => {
-    vi.stubGlobal(
-      'fetch',
-      vi.fn((url: unknown) => {
-        const u = String(url);
-        if (u.includes('/api/setup/apply-ha')) {
-          return Promise.resolve(
-            mockFetchResponse({
-              json: { ok: false, steps: [{ step: 'core', ok: false, error: 'boom' }] },
-            }),
-          );
-        }
-        return Promise.resolve(mockFetchResponse({ json: { result: 'ok' } }));
-      }),
-    );
-    const collected = { ...baseCollected, wifi: { ssid: 'Guest', passwordCipher: '(unsecured)' } };
-    const { getByRole, findByRole } = render(wrap(<ApplyStep collected={collected} />));
+  it('does NOT push HA settings at commit — they were saved per-step (#646/#653)', async () => {
+    const { getByRole } = render(wrap(<ApplyStep collected={baseCollected} />));
     fireEvent.click(getByRole('button', { name: 'Save and switch network' }));
-    expect(await findByRole('status')).toBeInTheDocument();
-    expect(reloadSpy).not.toHaveBeenCalled();
-    // The destructive network push never fired.
-    expect(findPost('/network/interface/')).toBeUndefined();
+    await waitFor(() => {
+      expect(reloadSpy).toHaveBeenCalledTimes(1);
+    });
+    // The slimmed commit (#653) never re-pushes home settings to apply-ha.
+    expect(findPost('/api/setup/apply-ha')).toBeUndefined();
   });
 });
 

@@ -5,7 +5,7 @@
 // (`supervisor-not-configured`) means this environment genuinely can't
 // reach a Supervisor (HA-less dev); callers degrade gracefully.
 
-import type { IpConfig, IpMethod } from '@glaon/core/config';
+import type { IpConfig, IpMethod, NetworkConfig } from '@glaon/core/config';
 
 export const NETWORK_INFO_URL = '/api/hassio/network/info';
 export const HOST_INFO_URL = '/api/hassio/host/info';
@@ -131,8 +131,9 @@ export function parseHostname(json: unknown): string | undefined {
   return typeof hostname === 'string' && hostname !== '' ? hostname : undefined;
 }
 
-/** Push the device hostname to the Supervisor host API. Throws on non-ok. */
-export async function pushHostname(hostname: string): Promise<void> {
+/** Push the device hostname to the Supervisor host API. Throws on non-ok.
+ *  Internal — only `saveNetworkConfig` calls it now (#653). */
+async function pushHostname(hostname: string): Promise<void> {
   const response = await fetch(HOST_OPTIONS_URL, {
     method: 'POST',
     credentials: 'include',
@@ -152,8 +153,9 @@ interface SupervisorIpBlock {
   readonly nameservers?: string[];
 }
 
-/** Map a collected `IpConfig` to the Supervisor update wire shape. */
-export function toSupervisorIpBlock(config: IpConfig): SupervisorIpBlock {
+/** Map a collected `IpConfig` to the Supervisor update wire shape.
+ *  Internal — only `saveNetworkConfig` calls it now (#653). */
+function toSupervisorIpBlock(config: IpConfig): SupervisorIpBlock {
   if (config.method !== 'static') return { method: config.method };
   return {
     method: 'static',
@@ -185,5 +187,28 @@ export async function pushInterfaceUpdate(
   });
   if (!response.ok) {
     throw new Error(`Supervisor interface update responded ${String(response.status)}`);
+  }
+}
+
+/**
+ * Per-step Network save (#653): push the hostname + each interface's
+ * IPv4/IPv6 config to the Supervisor on the wizard's Next, **without**
+ * Wi-Fi — the destructive network join stays in the terminal Apply step.
+ * Only called when the Supervisor is reachable (the step skips the save
+ * entirely when `/network/info` returned 503), so any throw is a real
+ * failure → `'error'`; the caller surfaces a Toast and stays on the step.
+ */
+export async function saveNetworkConfig(network: NetworkConfig): Promise<'ok' | 'error'> {
+  try {
+    if (network.hostname !== undefined) await pushHostname(network.hostname);
+    for (const iface of network.interfaces ?? []) {
+      const body: Record<string, unknown> = {};
+      if (iface.ipv4 !== undefined) body.ipv4 = toSupervisorIpBlock(iface.ipv4);
+      if (iface.ipv6 !== undefined) body.ipv6 = toSupervisorIpBlock(iface.ipv6);
+      if (Object.keys(body).length > 0) await pushInterfaceUpdate(iface.name, body);
+    }
+    return 'ok';
+  } catch {
+    return 'error';
   }
 }

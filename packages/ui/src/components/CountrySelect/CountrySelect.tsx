@@ -275,7 +275,7 @@ function renderTriggerIcon(code: string | null | undefined): FC | ReactNode {
   if (!code) return Globe01;
   return (
     <span data-icon className="flex shrink-0 items-center" aria-hidden="true">
-      <Flag country={code} shape="circle" />
+      <Flag country={code} shape="square" />
     </span>
   );
 }
@@ -288,7 +288,7 @@ function renderTriggerIcon(code: string | null | undefined): FC | ReactNode {
 function renderListItemFlag(code: string): ReactNode {
   return (
     <span data-icon className="flex shrink-0 items-center" aria-hidden="true">
-      <Flag country={code} shape="circle" />
+      <Flag country={code} shape="square" />
     </span>
   );
 }

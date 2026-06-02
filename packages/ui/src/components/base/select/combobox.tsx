@@ -81,6 +81,17 @@ const ComboBoxValue = ({ size, shortcut, placeholder, shortcutClassName, icon: I
 
                 <AriaInput
                     placeholder={placeholder}
+                    // GLAON PATCH (re-apply on upgrade): the kit leaves the
+                    // combobox input open to browser autofill/autocomplete,
+                    // which pops a stray native suggestion list over our own
+                    // option popover (the "select box, not a text input"
+                    // review note). Disable browser autocomplete/correct; the
+                    // RAC `aria-autocomplete` listbox is the only suggestion
+                    // surface.
+                    autoComplete="off"
+                    autoCorrect="off"
+                    autoCapitalize="off"
+                    spellCheck={false}
                     className={cx(
                         "z-10 w-full appearance-none bg-transparent text-transparent caret-alpha-black/90 placeholder:text-placeholder focus:outline-hidden disabled:cursor-not-allowed",
                         sizes[size].text,

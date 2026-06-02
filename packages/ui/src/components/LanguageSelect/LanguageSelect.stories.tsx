@@ -36,8 +36,9 @@ type Story = StoryObj<typeof LanguageSelect>;
 export const excludeFromArgs = languageSelectExcludeFromArgs;
 
 /**
- * Default — Glaon's supported set (`en`, `tr`), auto-detect on. Labels are
- * localized via `Intl.DisplayNames` (English in the `en` story locale).
+ * Default — Glaon's supported set (`en`, `tr`), auto-detect on. Each label
+ * is the language's autonym (its name in its own language: `English`,
+ * `Türkçe`). Plain dropdown (no in-field search), leading translate glyph.
  */
 export const Default: Story = {};
 
@@ -60,8 +61,8 @@ export const TurkishLocale: Story = {
 };
 
 /**
- * Wider option set — exercises search across many languages (the
- * fallback list). Type `por`, `deu`, etc. to filter.
+ * Wider option set — a scrollable dropdown of many languages (the fallback
+ * list). No in-field search; options sort by their displayed (autonym) label.
  */
 export const ManyLanguages: Story = {
   args: {

@@ -2,39 +2,44 @@
 //
 // Unlike CountrySelect/TimezoneSelect/CurrencySelect, the candidate set
 // isn't a fixed Intl table — it's the app's *supported* languages (Glaon
-// ships en/tr today; HA could supply more later). So the option codes are
-// injected via the `options` prop; this module only turns codes into
-// localized labels (`Intl.DisplayNames(locale, { type: 'language' })`),
-// sorts them, and filters — the same runtime-locale approach as the sister
-// pickers, no shipped translation tables.
+// gets the HA-supported set from the device via `GET /api/setup`, #683). So
+// the option codes are injected via the `options` prop; this module turns
+// each code into a label and sorts them — no shipped translation tables.
+//
+// Label (#683): the language's **autonym** only — its name in its own
+// language (`'de'` → `Deutsch`, `'tr'` → `Türkçe`), from `Intl.DisplayNames`.
 
 import type { SelectItemType } from '../base/select/select-shared';
 
-// Standalone fallback for stories / consumers that don't inject a list.
-// Apps pass their own supported set (e.g. @glaon/core's SUPPORTED_LOCALES).
+// Standalone fallback for stories / consumers that don't inject a list, and
+// for the sub-second window before the device seed lands.
 const DEFAULT_LANGUAGES = ['en', 'tr', 'de', 'fr', 'es', 'it', 'pt', 'ar', 'ru', 'ja'] as const;
 
-/** Localized language name, e.g. `'tr'` → `'Türkçe'` (in tr) / `'Turkish'` (in en). */
+/** Language name in `locale`, e.g. `'tr'` → `'Türkçe'` (tr) / `'Turkish'` (en). */
 function languageName(code: string, locale: string): string {
   try {
-    const dn = new Intl.DisplayNames([locale], { type: 'language' });
-    return dn.of(code) ?? code;
+    return new Intl.DisplayNames([locale], { type: 'language' }).of(code) ?? code;
   } catch {
     return code;
   }
 }
 
+/** The language's autonym — its name in its own language (`'de'` → `'Deutsch'`). */
+function languageAutonym(code: string): string {
+  return languageName(code, code);
+}
+
 /**
- * Build a `{ id, label }` list from the injected language codes, sorted by
- * the localized label via `Intl.Collator`. `id` is the BCP-47 code the
- * consumer persists (e.g. `'tr'`). Falls back to a common set when
- * `options` is empty so the primitive renders something in isolation.
+ * Build a `{ id, label }` list from the injected language codes (#683).
+ * `label` is the language's **autonym** (its name in its own language);
+ * `id` is the BCP-47 code the consumer persists. Sorted by the autonym via
+ * `Intl.Collator`. Falls back to a common set when `options` is empty.
  */
 export function buildLanguageItems(options: readonly string[], locale: string): SelectItemType[] {
   const codes = options.length > 0 ? options : DEFAULT_LANGUAGES;
   const collator = new Intl.Collator(locale, { sensitivity: 'base' });
   return codes
-    .map((code) => ({ id: code, label: languageName(code, locale) }))
+    .map((code) => ({ id: code, label: languageAutonym(code) }))
     .sort((a, b) => collator.compare(a.label, b.label));
 }
 
@@ -52,20 +57,4 @@ export function detectBrowserLanguage(options: readonly string[]): string | null
   if (primary === undefined || primary === '') return null;
   const supported = (options.length > 0 ? options : DEFAULT_LANGUAGES).map((c) => c.toLowerCase());
   return supported.includes(primary) ? primary : null;
-}
-
-/**
- * Diacritic-insensitive substring filter — mirrors the helper in the
- * sister pickers. Duplicated to keep this PR scoped; #589 tracks pulling
- * the copies into a shared `_internal` module.
- */
-export function diacriticInsensitiveFilter(textValue: string, inputValue: string): boolean {
-  if (!inputValue) return true;
-  return normaliseForSearch(textValue).includes(normaliseForSearch(inputValue));
-}
-
-const COMBINING_MARKS_RE = /[̀-ͯ]/g;
-
-function normaliseForSearch(s: string): string {
-  return s.normalize('NFD').replace(COMBINING_MARKS_RE, '').toLowerCase();
 }

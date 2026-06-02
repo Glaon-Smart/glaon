@@ -131,12 +131,13 @@ describe('HomeOverviewStep', () => {
   });
 
   it('renders the language switcher in the header, outside the form, before the home name (#670)', () => {
-    const { getByRole, getByTestId } = render(
+    const { container, getByTestId } = render(
       wrap(<HomeOverviewStep collected={{}} onNext={() => undefined} />),
     );
-    // The switcher is label-less now (header chrome, not a FormRow): query
-    // it by its accessible name (aria-label "Language").
-    const language = getByRole('combobox', { name: 'Language' });
+    // The switcher is a label-less UUI Select (#683): query it by its
+    // aria-label ("Language") rather than by role, which is button now.
+    const language = container.querySelector('[aria-label="Language"]');
+    if (!(language instanceof HTMLElement)) throw new Error('language switcher not found');
     const homeName = getByTestId('home-overview-home-name');
     // It lives in the header, so it precedes the home name field, and it is
     // NOT inside the <form>.

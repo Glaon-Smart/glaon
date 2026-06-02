@@ -54,7 +54,7 @@ export const languageSelectControls = {
     type: 'inline-radio',
     options: sizeOptions,
     default: 'md',
-    description: 'Visual scale forwarded to the underlying ComboBox.',
+    description: 'Visual scale forwarded to the underlying Select.',
     category: 'Style',
   } satisfies ControlSpec<(typeof sizeOptions)[number]>,
   isDisabled: {

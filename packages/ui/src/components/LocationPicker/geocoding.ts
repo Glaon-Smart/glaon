@@ -44,11 +44,15 @@ const NOMINATIM_BASE = 'https://nominatim.openstreetmap.org';
  * @param locale Optional BCP-47 tag — passed to Nominatim's
  *               `accept-language` query so labels come back in the
  *               user's language when available.
+ * @param countryCode Optional ISO 3166-1 alpha-2 — scopes the search to
+ *               that country (`countrycodes`), so address lookups after a
+ *               country pick are faster and in-country only (#666).
  */
 export async function nominatimGeocode(
   query: string,
   signal?: AbortSignal,
   locale?: string,
+  countryCode?: string,
 ): Promise<GeocodeSuggestion[]> {
   const trimmed = query.trim();
   if (trimmed.length === 0) return [];
@@ -61,6 +65,9 @@ export async function nominatimGeocode(
   });
   if (locale !== undefined && locale.length > 0) {
     params.set('accept-language', locale);
+  }
+  if (countryCode !== undefined && /^[A-Za-z]{2}$/.test(countryCode)) {
+    params.set('countrycodes', countryCode.toLowerCase());
   }
 
   const url = `${NOMINATIM_BASE}/search?${params.toString()}`;

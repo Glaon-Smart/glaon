@@ -121,6 +121,18 @@ describe('HomeOverviewStep', () => {
     ).toBeTruthy();
   });
 
+  it('renders Language first, above the home name (#666 reorder)', () => {
+    const { getByText, getByTestId } = render(
+      wrap(<HomeOverviewStep collected={{}} onNext={() => undefined} />),
+    );
+    const language = getByText('Language');
+    const homeName = getByTestId('home-overview-home-name');
+    // Language's row precedes the home name field in document order.
+    expect(
+      language.compareDocumentPosition(homeName) & Node.DOCUMENT_POSITION_FOLLOWING,
+    ).toBeTruthy();
+  });
+
   it('blocks submission when home name is empty and shows an inline error', () => {
     const onNext = vi.fn();
     const { getByRole, queryByRole } = render(

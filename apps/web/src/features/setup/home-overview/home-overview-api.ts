@@ -9,29 +9,30 @@
 // (HA-less dev) — reads degrade to "no seed" and saves degrade to a
 // no-op success so the wizard still walks in standalone dev.
 
-import { HaConfigResponseSchema, type HaConfigResponse } from '@glaon/core/api-client';
+import { SetupSeedResponseSchema, type SetupHomeOverview } from '@glaon/core/api-client';
 
-const HA_CONFIG_URL = '/api/setup/ha-config';
+const SETUP_SEED_URL = '/api/setup';
 const HA_APPLY_SETTINGS = '/api/setup/apply-ha';
 
 /**
- * Read the device's current HA Core config to seed the Home Overview
- * fields. Returns `null` when there is nothing to seed — no HA Core
- * configured (503), unreachable, or a malformed response — so the caller
- * just starts with blank/auto-detect defaults.
+ * Read the unified device seed (#678) and return its Home Overview section
+ * (HA Core `get_config` + the `zone.home` radius). Returns `null` when
+ * there is nothing to seed — no HA Core configured/reachable (the section
+ * comes back `null`), the request failed, or a malformed response — so the
+ * caller just starts with blank/auto-detect defaults. The wizard reads the
+ * whole seed from one endpoint; this helper hands back only the slice the
+ * Home Overview step needs.
  */
-export async function fetchHaConfig(): Promise<HaConfigResponse | null> {
+export async function fetchHomeOverviewSeed(): Promise<SetupHomeOverview | null> {
   let response: Response;
   try {
-    response = await fetch(HA_CONFIG_URL, { credentials: 'include' });
+    response = await fetch(SETUP_SEED_URL, { credentials: 'include' });
   } catch {
     return null;
   }
   if (!response.ok) return null;
-  // Validate the (camelCase) seed apps/api returns; pass the parsed JSON
-  // straight into Zod rather than binding it to an `any` local.
-  const parsed = HaConfigResponseSchema.safeParse(await response.json().catch(() => null));
-  return parsed.success ? parsed.data : null;
+  const parsed = SetupSeedResponseSchema.safeParse(await response.json().catch(() => null));
+  return parsed.success ? (parsed.data.homeOverview ?? null) : null;
 }
 
 /**

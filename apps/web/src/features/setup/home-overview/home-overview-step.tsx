@@ -55,7 +55,7 @@ import type { DeviceConfigInput } from '@glaon/core/config';
 import {
   countryCurrency,
   countryTimeZones,
-  fetchHaConfig,
+  fetchHomeOverviewSeed,
   lookupCountryCenter,
   saveHomeSettings,
 } from './home-overview-api';
@@ -117,7 +117,7 @@ export function HomeOverviewStep({ collected, onNext }: HomeOverviewStepProps): 
   // remount's fetch resolves with `cancelled === false` and seeds.
   useEffect(() => {
     let cancelled = false;
-    void fetchHaConfig().then((seed) => {
+    void fetchHomeOverviewSeed().then((seed) => {
       if (cancelled || seed === null) return;
       if (collected.homeName === undefined && seed.locationName !== undefined) {
         setHomeName((prev) => (prev === '' ? (seed.locationName ?? prev) : prev));
@@ -130,7 +130,16 @@ export function HomeOverviewStep({ collected, onNext }: HomeOverviewStepProps): 
       ) {
         setLocation((prev) =>
           prev.latitude === undefined && prev.longitude === undefined
-            ? { ...prev, latitude: seed.latitude, longitude: seed.longitude }
+            ? {
+                ...prev,
+                latitude: seed.latitude,
+                longitude: seed.longitude,
+                // Seed the home-zone radius too (#678) — it travels with the
+                // device's location. Only when the user hasn't set one yet.
+                ...(prev.radius === undefined && seed.radius !== undefined
+                  ? { radius: seed.radius }
+                  : {}),
+              }
             : prev,
         );
       }

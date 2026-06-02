@@ -121,16 +121,21 @@ describe('HomeOverviewStep', () => {
     ).toBeTruthy();
   });
 
-  it('renders Language first, above the home name (#666 reorder)', () => {
-    const { getByText, getByTestId } = render(
+  it('renders the language switcher in the header, outside the form, before the home name (#670)', () => {
+    const { getByRole, getByTestId } = render(
       wrap(<HomeOverviewStep collected={{}} onNext={() => undefined} />),
     );
-    const language = getByText('Language');
+    // The switcher is label-less now (header chrome, not a FormRow): query
+    // it by its accessible name (aria-label "Language").
+    const language = getByRole('combobox', { name: 'Language' });
     const homeName = getByTestId('home-overview-home-name');
-    // Language's row precedes the home name field in document order.
+    // It lives in the header, so it precedes the home name field, and it is
+    // NOT inside the <form>.
     expect(
       language.compareDocumentPosition(homeName) & Node.DOCUMENT_POSITION_FOLLOWING,
     ).toBeTruthy();
+    expect(homeName.closest('form')).not.toBeNull();
+    expect(language.closest('form')).toBeNull();
   });
 
   it('blocks submission when home name is empty and shows an inline error', () => {

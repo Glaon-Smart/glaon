@@ -15,24 +15,35 @@ const SETUP_SEED_URL = '/api/setup';
 const HA_APPLY_SETTINGS = '/api/setup/apply-ha';
 
 /**
- * Read the unified device seed (#678) and return its Home Overview section
- * (HA Core `get_config` + the `zone.home` radius). Returns `null` when
- * there is nothing to seed — no HA Core configured/reachable (the section
- * comes back `null`), the request failed, or a malformed response — so the
- * caller just starts with blank/auto-detect defaults. The wizard reads the
- * whole seed from one endpoint; this helper hands back only the slice the
- * Home Overview step needs.
+ * What the Home Overview step needs from the unified seed (#678/#683):
+ * the `homeOverview` section (`null` when HA Core is unconfigured/unreachable
+ * → blank/auto-detect defaults) and the device-sourced `languages` list for
+ * the language picker (empty on failure → the picker's built-in fallback).
  */
-export async function fetchHomeOverviewSeed(): Promise<SetupHomeOverview | null> {
+// Not exported: only `fetchHomeOverviewSeed`'s signature references it; the
+// step consumes the result structurally (knip blocks unused exports).
+interface HomeOverviewSeed {
+  readonly overview: SetupHomeOverview | null;
+  readonly languages: readonly string[];
+}
+
+/**
+ * Read the unified device seed (#678) and return the Home Overview slice.
+ * The wizard reads the whole seed from one endpoint; this helper hands back
+ * the `homeOverview` section + the offered `languages` (#683). A failed /
+ * malformed response degrades to `{ overview: null, languages: [] }`.
+ */
+export async function fetchHomeOverviewSeed(): Promise<HomeOverviewSeed> {
   let response: Response;
   try {
     response = await fetch(SETUP_SEED_URL, { credentials: 'include' });
   } catch {
-    return null;
+    return { overview: null, languages: [] };
   }
-  if (!response.ok) return null;
+  if (!response.ok) return { overview: null, languages: [] };
   const parsed = SetupSeedResponseSchema.safeParse(await response.json().catch(() => null));
-  return parsed.success ? (parsed.data.homeOverview ?? null) : null;
+  if (!parsed.success) return { overview: null, languages: [] };
+  return { overview: parsed.data.homeOverview, languages: parsed.data.languages };
 }
 
 /**

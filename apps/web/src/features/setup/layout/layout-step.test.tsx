@@ -42,7 +42,9 @@ function installFetch(seed?: unknown): void {
           return Promise.resolve(mockResponse({ ok: false, status: 503, json: {} }));
         }
         return Promise.resolve(
-          mockResponse({ json: { homeOverview: null, layout: seed, network: null } }),
+          mockResponse({
+            json: { homeOverview: null, layout: seed, network: null, languages: [] },
+          }),
         );
       }
       return Promise.resolve(mockResponse({ json: {} }));

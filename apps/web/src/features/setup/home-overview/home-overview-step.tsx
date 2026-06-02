@@ -5,11 +5,12 @@
 // Header: title/subtitle on the left, an independent **language switcher
 // pinned top-right** (#670) — outside the <form> so it reads as page
 // chrome, not a form field. It changes the wizard UI language (i18n) and
-// seeds the HA `language` value the form saves on Next. The full HA
-// language set is offered (HA_LANGUAGES) since the value maps to HA Core's
-// `language` (the device language), not only Glaon's own UI bundle —
-// picking a non-Glaon-UI language saves to the device without re-skinning
-// the wizard (only SUPPORTED_LOCALES drive `i18n.changeLanguage`).
+// seeds the HA `language` value the form saves on Next. The offered
+// languages come from the device seed (#683: `GET /api/setup` `languages`),
+// since the value maps to HA Core's `language` (the device language), not
+// only Glaon's own UI bundle — picking a non-Glaon-UI language saves to the
+// device without re-skinning the wizard (only SUPPORTED_LOCALES drive
+// `i18n.changeLanguage`).
 //
 // Form fields (per Figma, top to bottom):
 // - Home Name (required text input)
@@ -49,7 +50,7 @@ import {
 import { useCallback, useEffect, useId, useState, type ReactNode, type SubmitEvent } from 'react';
 import { useTranslation } from 'react-i18next';
 
-import { HA_LANGUAGES, SUPPORTED_LOCALES } from '@glaon/core/i18n';
+import { SUPPORTED_LOCALES } from '@glaon/core/i18n';
 import type { DeviceConfigInput } from '@glaon/core/config';
 
 import {
@@ -100,6 +101,10 @@ export function HomeOverviewStep({ collected, onNext }: HomeOverviewStepProps): 
   // Locale is a free BCP-47 string (#666): it maps to HA Core `language`,
   // which spans the full HA language set — not only Glaon's UI locales.
   const [locale, setLocale] = useState<string>(collected.locale ?? 'en');
+  // Languages offered by the picker — sourced from the device seed (#683).
+  // Empty until the seed lands; LanguageSelect falls back to a built-in set
+  // for that sub-second window (and if the backend is unreachable).
+  const [languages, setLanguages] = useState<readonly string[]>([]);
   const [showHomeNameError, setShowHomeNameError] = useState<boolean>(false);
   const [isSaving, setIsSaving] = useState<boolean>(false);
 
@@ -117,8 +122,11 @@ export function HomeOverviewStep({ collected, onNext }: HomeOverviewStepProps): 
   // remount's fetch resolves with `cancelled === false` and seeds.
   useEffect(() => {
     let cancelled = false;
-    void fetchHomeOverviewSeed().then((seed) => {
-      if (cancelled || seed === null) return;
+    void fetchHomeOverviewSeed().then((result) => {
+      if (cancelled) return;
+      setLanguages(result.languages);
+      const seed = result.overview;
+      if (seed === null) return;
       if (collected.homeName === undefined && seed.locationName !== undefined) {
         setHomeName((prev) => (prev === '' ? (seed.locationName ?? prev) : prev));
       }
@@ -280,8 +288,9 @@ export function HomeOverviewStep({ collected, onNext }: HomeOverviewStepProps): 
           language switcher pinned top-right (#670). The switcher lives
           *outside* the <form> so it reads as page chrome, not a form field
           — it changes the wizard UI language (i18n) and seeds the HA
-          `language` value the form saves on Next. Full HA_LANGUAGES set is
-          offered; only Glaon UI locales (SUPPORTED_LOCALES) re-skin the UI. */}
+          `language` value the form saves on Next. The offered languages come
+          from the device seed (#683); only Glaon UI locales
+          (SUPPORTED_LOCALES) re-skin the UI. */}
       <header className="flex items-start justify-between gap-6 pb-6">
         <div className="flex flex-col gap-1">
           <h1 className="text-display-xs font-semibold text-primary">
@@ -292,7 +301,7 @@ export function HomeOverviewStep({ collected, onNext }: HomeOverviewStepProps): 
         <div className="w-44 shrink-0">
           <LanguageSelect
             aria-label={t('setup.homeOverview.language.label')}
-            options={HA_LANGUAGES}
+            options={languages}
             value={locale}
             placeholder={t('setup.homeOverview.language.placeholder')}
             autoDetect={false}

@@ -77,7 +77,12 @@ function installFetch(overrides: FetchOverrides = {}): void {
       const u = String(url);
       if (u.endsWith('/api/setup')) {
         return Promise.resolve(
-          mockResponse({ homeOverview: overrides.haConfig ?? {}, layout: null, network: null }),
+          mockResponse({
+            homeOverview: overrides.haConfig ?? {},
+            layout: null,
+            network: null,
+            languages: ['en', 'tr'],
+          }),
         );
       }
       if (u.includes('/api/setup/apply-ha') && init?.method === 'POST') {

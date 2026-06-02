@@ -164,5 +164,12 @@ export const SetupSeedResponseSchema = z.object({
   homeOverview: SetupHomeOverviewSchema.nullable(),
   layout: HaLayoutResponseSchema.nullable(),
   network: SetupNetworkSchema.nullable(),
+  /**
+   * Languages offered by the Home Overview language picker (#683), sourced
+   * by the server: the HA-supported set (`HA_LANGUAGES`) with the device's
+   * current `get_config.language` guaranteed present. Always non-null — even
+   * when HA Core is unconfigured the static set is available. BCP-47 codes.
+   */
+  languages: z.array(z.string()),
 });
 export type SetupSeedResponse = z.infer<typeof SetupSeedResponseSchema>;

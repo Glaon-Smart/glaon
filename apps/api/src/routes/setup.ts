@@ -19,6 +19,7 @@
 import { Hono } from 'hono';
 
 import { SetupSeedResponseSchema, type SetupHomeOverview } from '@glaon/core/api-client';
+import { HA_LANGUAGES } from '@glaon/core/i18n';
 
 import type { Config } from '../config';
 import {
@@ -118,9 +119,20 @@ export function createSetupRouter(deps: SetupRouterDeps): Hono {
     });
 
     const [homeOverview, layout, network] = await Promise.all([homeOverviewP, layoutP, networkP]);
+
+    // Languages offered by the picker (#683): the HA-supported set with the
+    // device's current language guaranteed present (deduped, device-first so
+    // an unlisted-but-active language still surfaces). Always available — the
+    // static set stands in even when HA Core is unconfigured.
+    const deviceLanguage = homeOverview?.language;
+    const languages = [
+      ...(deviceLanguage !== undefined ? [deviceLanguage] : []),
+      ...HA_LANGUAGES.filter((code) => code !== deviceLanguage),
+    ];
+
     // Validate the assembled seed against the published contract before
     // returning — strips any stray keys + guarantees the nested shape.
-    return c.json(SetupSeedResponseSchema.parse({ homeOverview, layout, network }), 200);
+    return c.json(SetupSeedResponseSchema.parse({ homeOverview, layout, network, languages }), 200);
   });
 
   // The per-step GET seeds (`/ha-config` #646, `/ha-layout` #638) were

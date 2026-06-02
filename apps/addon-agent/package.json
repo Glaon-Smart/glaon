@@ -18,9 +18,9 @@
     "@glaon/config": "workspace:*",
     "@types/node": "^22.10.2",
     "@types/ws": "^8.5.13",
-    "@vitest/coverage-v8": "^4.1.5",
+    "@vitest/coverage-v8": "^4.1.8",
     "esbuild": "^0.27.3",
     "typescript": "^5.7.2",
-    "vitest": "^4.1.5"
+    "vitest": "^4.1.8"
   }
 }

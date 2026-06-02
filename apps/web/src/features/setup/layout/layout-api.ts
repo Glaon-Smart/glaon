@@ -4,9 +4,46 @@
 // doesn't duplicate floors/rooms. Mirrors the home-overview save's
 // outcome mapping; raw `fetch` per the apps/web idiom.
 
+import { SetupSeedResponseSchema, type HaLayoutResponse } from '@glaon/core/api-client';
 import type { Layout } from '@glaon/core/config';
 
 const HA_LAYOUT_URL = '/api/setup/ha-layout';
+const SETUP_SEED_URL = '/api/setup';
+
+/**
+ * Outcome of reading the Layout seed from the unified `GET /api/setup`
+ * (#678). `ok` separates "nothing to seed" (a `null` layout section, or a
+ * 503 in HA-less / backend-down dev) — which the step handles silently —
+ * from a real fetch failure that should surface a Toast.
+ */
+// Not exported: only `fetchLayoutSeed` (this module) references it, and
+// the step consumes the result structurally (memory: knip blocks PRs on
+// exports without an external consumer).
+type LayoutSeedResult =
+  | { readonly ok: true; readonly layout: HaLayoutResponse | null }
+  | { readonly ok: false };
+
+/**
+ * Read the unified device seed and return its Layout section (#678 phase
+ * 2b). A `null` section (HA Core unconfigured/unreachable) and a 503
+ * (apps/api down, per the dev proxy #674) both resolve to
+ * `{ ok: true, layout: null }` — expected in dev, seed silently skipped.
+ * A thrown request or any other non-OK is `{ ok: false }` so the step can
+ * surface a load-failed Toast.
+ */
+export async function fetchLayoutSeed(): Promise<LayoutSeedResult> {
+  let response: Response;
+  try {
+    response = await fetch(SETUP_SEED_URL, { credentials: 'include' });
+  } catch {
+    return { ok: false };
+  }
+  if (response.status === 503) return { ok: true, layout: null };
+  if (!response.ok) return { ok: false };
+  const parsed = SetupSeedResponseSchema.safeParse(await response.json().catch(() => null));
+  if (!parsed.success) return { ok: false };
+  return { ok: true, layout: parsed.data.layout };
+}
 
 /**
  * Outcome of reconciling the layout to the device.

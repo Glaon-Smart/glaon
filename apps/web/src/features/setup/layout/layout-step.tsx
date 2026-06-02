@@ -2,9 +2,10 @@
 // (epic #533, ADR 0028). Multi-floor + rooms editor (#592).
 //
 // On entry the step seeds its editor from the device's existing HA
-// floors + areas (#638): `GET /api/setup/ha-layout` returns the current
-// registries normalized into floors-with-rooms (+ floorless areas under
-// `unassigned`), which we map into the editor's initial state. The user
+// floors + areas (#638), read from the unified `GET /api/setup` (#678)
+// `layout` section: the current registries normalized into
+// floors-with-rooms (+ floorless areas under `unassigned`), which we map
+// into the editor's initial state. The user
 // then adds / edits on top. When the wizard already collected a layout
 // (re-entry / back-navigation), that takes precedence and the device
 // read is skipped. A 503 (HA Core not configured — HA-less dev) is
@@ -21,12 +22,12 @@ import { useToast } from '@glaon/ui';
 import { useCallback, useEffect, useState, type ReactNode, type SubmitEvent } from 'react';
 import { useTranslation } from 'react-i18next';
 
-import { HaLayoutResponseSchema, type HaLayoutResponse } from '@glaon/core/api-client';
+import type { HaLayoutResponse } from '@glaon/core/api-client';
 import type { DeviceConfigInput, Layout } from '@glaon/core/config';
 
 import { WizardBackButton } from '../wizard-back-button';
 import { FloorTabs } from './floor-tabs';
-import { saveLayout } from './layout-api';
+import { fetchLayoutSeed, saveLayout } from './layout-api';
 import { RoomGrid } from './room-grid';
 import { useLayoutState } from './use-layout-state';
 
@@ -41,7 +42,6 @@ interface LayoutStepProps {
 
 const MAX_FLOORS = 10;
 const MAX_ROOMS_PER_FLOOR = 50;
-const HA_LAYOUT_URL = '/api/setup/ha-layout';
 
 /**
  * Map the device's HA floors/areas into the editor's seed `Layout`.
@@ -97,23 +97,16 @@ export function LayoutStep({ collected, onNext, onBack }: LayoutStepProps): Reac
     // stable while on the step), and a setState after unmount is a no-op
     // in React 19.
     void (async () => {
-      try {
-        const res = await fetch(HA_LAYOUT_URL, { credentials: 'include' });
-        if (res.ok) {
-          const parsed = HaLayoutResponseSchema.safeParse(await res.json().catch(() => null));
-          if (parsed.success) {
-            setSeed(mapHaLayoutToSeed(parsed.data, defaultFloorName));
-          }
-        } else if (res.status !== 503) {
-          // 503 = HA Core not configured (HA-less dev): expected, silent.
-          // Any other non-ok is a real failure worth surfacing.
-          showLoadError();
-        }
-      } catch {
+      // Seed the Layout section from the unified `GET /api/setup` (#678).
+      // A null section (HA Core unconfigured) / 503 (backend down) is a
+      // silent no-seed; only a real fetch failure surfaces a Toast.
+      const result = await fetchLayoutSeed();
+      if (!result.ok) {
         showLoadError();
-      } finally {
-        setPhase('ready');
+      } else if (result.layout !== null) {
+        setSeed(mapHaLayoutToSeed(result.layout, defaultFloorName));
       }
+      setPhase('ready');
     })();
   }, [collected.layout, defaultFloorName, showLoadError]);
 

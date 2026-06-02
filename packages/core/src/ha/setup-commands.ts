@@ -190,6 +190,25 @@ export function mapHaConfigResult(raw: unknown): HaConfigSeed {
 }
 
 /**
+ * Extract the home-zone radius (metres) from a `get_states` snapshot
+ * (#678). HA keeps it on `zone.home`'s `attributes.radius`; `get_config`
+ * does not carry it, so the wizard reads it separately. Pure + defensive:
+ * returns `undefined` when the entity/attribute is missing or non-numeric,
+ * so the caller falls back to the picker default rather than guessing.
+ */
+export function mapHomeZoneRadius(states: unknown): number | undefined {
+  if (!Array.isArray(states)) return undefined;
+  const home = states.find(
+    (s) =>
+      typeof s === 'object' &&
+      s !== null &&
+      (s as { entity_id?: unknown }).entity_id === 'zone.home',
+  ) as { attributes?: { radius?: unknown } } | undefined;
+  const radius = home?.attributes?.radius;
+  return typeof radius === 'number' && Number.isFinite(radius) ? radius : undefined;
+}
+
+/**
  * HA's `unit_system` is an object of per-dimension unit strings. Glaon
  * only distinguishes `metric` vs `imperial`; the temperature unit is the
  * least ambiguous signal (`°C` → metric, `°F` → imperial). Returns

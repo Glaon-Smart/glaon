@@ -32,6 +32,7 @@ function fakeClient(opts: {
   floors?: readonly unknown[];
   areas?: readonly unknown[];
   config?: unknown;
+  states?: readonly unknown[];
 }): HaSetupClient {
   return {
     connect: () => (opts.connectError ? Promise.reject(opts.connectError) : Promise.resolve()),
@@ -55,6 +56,9 @@ function fakeClient(opts: {
       }
       if (f.type === 'get_config') {
         return Promise.resolve((opts.config ?? {}) as TResult);
+      }
+      if (f.type === 'get_states') {
+        return Promise.resolve((opts.states ?? []) as TResult);
       }
       return Promise.resolve({} as TResult);
     },
@@ -396,5 +400,91 @@ describe('setup — ha-layout reconcile (#652)', () => {
     });
     const res = await postLayout(router, { floors: [{ id: 'f', name: 'F', rooms: [] }] });
     expect(res.status).toBe(502);
+  });
+});
+
+describe('setup — unified seed GET / (#678)', () => {
+  // A canned Supervisor `fetch` for the network section: host/info →
+  // hostname, network/info → interfaces. Any other URL 404s.
+  const supervisorFetch: typeof fetch = (input) => {
+    const u = typeof input === 'string' ? input : input instanceof URL ? input.href : input.url;
+    if (u.endsWith('/host/info')) {
+      return Promise.resolve(
+        new Response(JSON.stringify({ data: { hostname: 'glaon-dev' } }), { status: 200 }),
+      );
+    }
+    if (u.endsWith('/network/info')) {
+      return Promise.resolve(
+        new Response(JSON.stringify({ data: { interfaces: [{ interface: 'wlan0' }] } }), {
+          status: 200,
+        }),
+      );
+    }
+    return Promise.resolve(new Response('not found', { status: 404 }));
+  };
+
+  it('aggregates homeOverview (incl. zone.home radius), layout, and network', async () => {
+    const sink: RecordedFrame[] = [];
+    const router = createSetupRouter({
+      config: baseConfig({
+        supervisorUrl: 'http://supervisor.local',
+        supervisorToken: 'token',
+      }),
+      clientFactory: () =>
+        fakeClient({
+          sink,
+          config: { latitude: 41, longitude: 29, country: 'TR', time_zone: 'Europe/Istanbul' },
+          floors: [{ floor_id: 'f1', name: 'Ground', level: 0 }],
+          areas: [{ area_id: 'a1', name: 'Kitchen', floor_id: 'f1' }],
+          states: [{ entity_id: 'zone.home', attributes: { radius: 250 } }],
+        }),
+      fetchImpl: supervisorFetch,
+    });
+
+    const res = await router.request('/');
+    expect(res.status).toBe(200);
+    const body = (await res.json()) as {
+      homeOverview: { country?: string; radius?: number } | null;
+      layout: { floors: { name: string }[] } | null;
+      network: { hostname?: string; interfaces?: unknown[] } | null;
+    };
+    expect(body.homeOverview?.country).toBe('TR');
+    expect(body.homeOverview?.radius).toBe(250);
+    expect(body.layout?.floors.some((f) => f.name === 'Ground')).toBe(true);
+    expect(body.network?.hostname).toBe('glaon-dev');
+    expect(body.network?.interfaces).toHaveLength(1);
+  });
+
+  it('degrades per-section: HA Core unconfigured → home/layout null, network still present', async () => {
+    const router = createSetupRouter({
+      // No clientFactory + no HA Core env → factory undefined.
+      config: baseConfig({ supervisorMock: true }),
+    });
+    const res = await router.request('/');
+    expect(res.status).toBe(200);
+    const body = (await res.json()) as {
+      homeOverview: unknown;
+      layout: unknown;
+      network: { hostname?: string } | null;
+    };
+    expect(body.homeOverview).toBeNull();
+    expect(body.layout).toBeNull();
+    // supervisorMock seeds the canned hostname.
+    expect(body.network?.hostname).toBe('glaon');
+  });
+
+  it('network null when the Supervisor is unconfigured (no mock, no url)', async () => {
+    const sink: RecordedFrame[] = [];
+    const router = createSetupRouter({
+      config: baseConfig(),
+      clientFactory: () => fakeClient({ sink, config: { country: 'TR' } }),
+    });
+    const res = await router.request('/');
+    const body = (await res.json()) as {
+      network: unknown;
+      homeOverview: { country?: string } | null;
+    };
+    expect(body.network).toBeNull();
+    expect(body.homeOverview?.country).toBe('TR');
   });
 });

@@ -127,3 +127,42 @@ export const HaConfigResponseSchema = z.object({
   locationName: z.string().optional(),
 });
 export type HaConfigResponse = z.infer<typeof HaConfigResponseSchema>;
+
+// ---- Unified wizard seed: GET /setup (#678) ----
+
+/**
+ * Home Overview section of the unified seed — the HA Core `get_config`
+ * fields (`HaConfigResponseSchema`) plus the home-zone `radius` (metres),
+ * which lives on `zone.home`, not `get_config`, so it's read separately.
+ */
+const SetupHomeOverviewSchema = HaConfigResponseSchema.extend({
+  radius: z.number().optional(),
+});
+export type SetupHomeOverview = z.infer<typeof SetupHomeOverviewSchema>;
+
+/**
+ * Network section of the unified seed — the Supervisor `/host/info`
+ * hostname + the `/network/info` interfaces. `interfaces` stays loosely
+ * typed (passthrough): the Network step owns the detailed interface
+ * parsing; the seed just forwards the Supervisor payload.
+ */
+const SetupNetworkSchema = z.object({
+  hostname: z.string().optional(),
+  interfaces: z.array(z.unknown()).optional(),
+});
+export type SetupNetwork = z.infer<typeof SetupNetworkSchema>;
+
+/**
+ * Unified wizard device seed returned by `GET /setup` (#678). Grouped by
+ * wizard step. **Each section is independently nullable**: a section is
+ * `null` when its source is unconfigured or unreachable (HA Core for
+ * `homeOverview`/`layout`, the Supervisor for `network`), so the wizard
+ * seeds whatever is present and degrades the rest. The endpoint returns
+ * 200 even when some sections are null.
+ */
+export const SetupSeedResponseSchema = z.object({
+  homeOverview: SetupHomeOverviewSchema.nullable(),
+  layout: HaLayoutResponseSchema.nullable(),
+  network: SetupNetworkSchema.nullable(),
+});
+export type SetupSeedResponse = z.infer<typeof SetupSeedResponseSchema>;

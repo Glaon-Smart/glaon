@@ -18,6 +18,8 @@
 
 import { Hono } from 'hono';
 
+import { SetupSeedResponseSchema, type SetupHomeOverview } from '@glaon/core/api-client';
+
 import type { Config } from '../config';
 import {
   applyHaSetup,
@@ -25,9 +27,11 @@ import {
   HaCoreUnreachableError,
   readHaConfig,
   readHaLayout,
+  readHomeZoneRadius,
   reconcileHaLayout,
   type HaSetupClient,
 } from '../ha/ha-setup-service';
+import { readNetworkSeed } from './hassio-network';
 import type { Logger } from '../observability/logger';
 import { ApplyHaRequestSchema, ReconcileLayoutRequestSchema } from '../schemas';
 
@@ -35,6 +39,9 @@ interface SetupRouterDeps {
   readonly config: Config;
   /** Injectable for tests — defaults to a real HA Core WS client. */
   readonly clientFactory?: () => HaSetupClient;
+  /** Injectable for tests — the Supervisor `fetch` for the network seed
+   *  (#678). Defaults to the global `fetch`. */
+  readonly fetchImpl?: typeof fetch;
   readonly logger?: Logger;
 }
 
@@ -55,6 +62,66 @@ export function createSetupRouter(deps: SetupRouterDeps): Hono {
     error: 'ha-core-not-configured',
     hint: 'Set HA_CORE_URL + HA_CORE_TOKEN (a long-lived access token). See docs/dev-supervisor.md.',
   } as const;
+
+  const withLogger = (factory: () => HaSetupClient) =>
+    deps.logger !== undefined
+      ? { clientFactory: factory, logger: deps.logger }
+      : { clientFactory: factory };
+
+  // Unified wizard seed (#678): one read for the whole wizard, grouped by
+  // step. Each section is independently nullable — HA Core unreachable/
+  // unconfigured → `homeOverview`/`layout` null; Supervisor unreachable/
+  // unconfigured → `network` null. Always 200 (an apps/api outage is
+  // surfaced upstream by the dev proxy's 503, #674), so the wizard seeds
+  // whatever is present and degrades the rest. Sections read in parallel.
+  //
+  // The legacy `/ha-config` + `/ha-layout` GET routes below stay as
+  // deprecated aliases until the frontend migrates to this endpoint
+  // (#678 phase 2).
+  router.get('/', async (c) => {
+    const factory = resolveFactory();
+
+    const homeOverviewP: Promise<SetupHomeOverview | null> = (async () => {
+      if (factory === undefined) return null;
+      try {
+        const [config, radius] = await Promise.all([
+          readHaConfig(withLogger(factory)),
+          readHomeZoneRadius(withLogger(factory)),
+        ]);
+        return radius !== undefined ? { ...config, radius } : { ...config };
+      } catch (err) {
+        deps.logger?.warn({
+          event: 'setup.seed.home-overview.failed',
+          message: err instanceof Error ? err.message : 'unknown',
+        });
+        return null;
+      }
+    })();
+
+    const layoutP = (async () => {
+      if (factory === undefined) return null;
+      try {
+        return await readHaLayout(withLogger(factory));
+      } catch (err) {
+        deps.logger?.warn({
+          event: 'setup.seed.layout.failed',
+          message: err instanceof Error ? err.message : 'unknown',
+        });
+        return null;
+      }
+    })();
+
+    const networkP = readNetworkSeed({
+      config: deps.config,
+      ...(deps.fetchImpl !== undefined ? { fetchImpl: deps.fetchImpl } : {}),
+      ...(deps.logger !== undefined ? { logger: deps.logger } : {}),
+    });
+
+    const [homeOverview, layout, network] = await Promise.all([homeOverviewP, layoutP, networkP]);
+    // Validate the assembled seed against the published contract before
+    // returning — strips any stray keys + guarantees the nested shape.
+    return c.json(SetupSeedResponseSchema.parse({ homeOverview, layout, network }), 200);
+  });
 
   // Read the device's existing HA floors + areas to seed the wizard's
   // Layout step (#638). Same auth posture + config-gating as /apply-ha.

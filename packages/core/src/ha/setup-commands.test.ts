@@ -6,6 +6,7 @@ import {
   buildLayoutFromRegistries,
   buildLayoutReconcilePlan,
   mapHaConfigResult,
+  mapHomeZoneRadius,
   type HaSetupInput,
 } from './setup-commands';
 
@@ -272,5 +273,34 @@ describe('buildLayoutReconcilePlan — desired vs existing registries (#652)', (
     expect(plan.areasToUpdate).toEqual([
       { areaId: 'a-living', floor: { kind: 'existing', floorId: 'f-up' } },
     ]);
+  });
+});
+
+describe('mapHomeZoneRadius — zone.home radius from get_states (#678)', () => {
+  it('extracts a numeric radius from the zone.home entity', () => {
+    const states = [
+      { entity_id: 'sun.sun', attributes: {} },
+      { entity_id: 'zone.home', attributes: { radius: 250, latitude: 41 } },
+    ];
+    expect(mapHomeZoneRadius(states)).toBe(250);
+  });
+
+  it('returns undefined when zone.home is absent', () => {
+    expect(
+      mapHomeZoneRadius([{ entity_id: 'zone.work', attributes: { radius: 50 } }]),
+    ).toBeUndefined();
+  });
+
+  it('returns undefined for a non-numeric / missing radius', () => {
+    expect(
+      mapHomeZoneRadius([{ entity_id: 'zone.home', attributes: { radius: 'x' } }]),
+    ).toBeUndefined();
+    expect(mapHomeZoneRadius([{ entity_id: 'zone.home', attributes: {} }])).toBeUndefined();
+  });
+
+  it('never throws on odd input', () => {
+    expect(mapHomeZoneRadius(null)).toBeUndefined();
+    expect(mapHomeZoneRadius('nope')).toBeUndefined();
+    expect(mapHomeZoneRadius([null, 3, 'x'])).toBeUndefined();
   });
 });

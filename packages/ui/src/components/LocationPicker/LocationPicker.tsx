@@ -314,6 +314,30 @@ export function LocationPicker({
     };
   }, []);
 
+  // Defer the heavy MapLibre mount until the browser is idle, i.e. after the
+  // first paint / LCP (#686). The wizard renders LocationPicker on `/` (the
+  // page Lighthouse measures), and MapLibre's WebGL/style init is the
+  // dominant LCP+TBT cost. Until then the numeric fields stay fully usable
+  // and a neutral placeholder fills the map area, so the form paints fast.
+  const [mapReady, setMapReady] = useState<boolean>(false);
+  useEffect(() => {
+    if (typeof window === 'undefined') return;
+    const ready = () => {
+      setMapReady(true);
+    };
+    const ric = window.requestIdleCallback;
+    if (typeof ric === 'function') {
+      const id = ric(ready, { timeout: 2000 });
+      return () => {
+        window.cancelIdleCallback(id);
+      };
+    }
+    const t = window.setTimeout(ready, 200);
+    return () => {
+      window.clearTimeout(t);
+    };
+  }, []);
+
   // --- Map fly-to on external center change (geocode pick / field edit) ---
   const mapRef = useRef<MapRef>(null);
   const lastFlownTo = useRef<string | null>(null);
@@ -442,7 +466,7 @@ export function LocationPicker({
         className="overflow-hidden rounded-lg ring-1 ring-primary"
         style={{ height: mapHeight }}
       >
-        {isOnline ? (
+        {isOnline && mapReady ? (
           <Map
             ref={mapRef}
             initialViewState={initialView}
@@ -483,8 +507,13 @@ export function LocationPicker({
             )}
           </Map>
         ) : (
-          <div className="flex size-full items-center justify-center bg-secondary p-4 text-center text-sm text-tertiary">
-            {offlineLabel}
+          <div
+            aria-hidden={isOnline ? 'true' : undefined}
+            className="flex size-full items-center justify-center bg-secondary p-4 text-center text-sm text-tertiary"
+          >
+            {/* Offline → explain; online-but-not-yet-mounted → neutral
+                placeholder for the brief pre-idle window (#686). */}
+            {isOnline ? null : offlineLabel}
           </div>
         )}
       </div>

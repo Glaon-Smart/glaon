@@ -85,21 +85,22 @@ async function mockSupervisorNetwork(page: Page): Promise<void> {
   await page.route('**/api/hassio/network/interface/*/update', async (route) => {
     await route.fulfill({ status: 200, contentType: 'application/json', body: '{"result":"ok"}' });
   });
-  // #638 — the Layout step reads the device's HA floors/areas to pre-fill.
-  // Mock 503 (HA Core not configured) so the step degrades to a blank
-  // default floor — deterministic and independent of seed content.
-  await page.route('**/api/setup/ha-layout', async (route) => {
+  // #678 — Home Overview + Layout read the unified seed `GET /api/setup`.
+  // Return all-null sections so both steps degrade to blank/auto-detect
+  // defaults — deterministic, and the home name is typed manually below.
+  // (Glob `**/api/setup` matches only the exact path, not the
+  // `/api/setup/*` POST routes below.)
+  await page.route('**/api/setup', async (route) => {
     await route.fulfill({
-      status: 503,
+      status: 200,
       contentType: 'application/json',
-      body: JSON.stringify({ error: 'ha-core-not-configured' }),
+      body: JSON.stringify({ homeOverview: null, layout: null, network: null }),
     });
   });
-  // #646 — Home Overview reads the device's current HA config to seed its
-  // fields. Mock 503 (HA Core not configured) so the step degrades to
-  // blank/auto-detect defaults — deterministic, and the home name is typed
-  // manually below.
-  await page.route('**/api/setup/ha-config', async (route) => {
+  // #652 — the Layout step's per-step reconcile save POSTs here. Mock 503
+  // (HA Core not configured) so the save is treated as skipped and the
+  // step advances.
+  await page.route('**/api/setup/ha-layout', async (route) => {
     await route.fulfill({
       status: 503,
       contentType: 'application/json',

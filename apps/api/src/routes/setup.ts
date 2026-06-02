@@ -123,53 +123,10 @@ export function createSetupRouter(deps: SetupRouterDeps): Hono {
     return c.json(SetupSeedResponseSchema.parse({ homeOverview, layout, network }), 200);
   });
 
-  // Read the device's existing HA floors + areas to seed the wizard's
-  // Layout step (#638). Same auth posture + config-gating as /apply-ha.
-  router.get('/ha-layout', async (c) => {
-    const factory = resolveFactory();
-    if (factory === undefined) return c.json(notConfigured, 503);
-    try {
-      const layout = await readHaLayout({
-        clientFactory: factory,
-        ...(deps.logger !== undefined ? { logger: deps.logger } : {}),
-      });
-      return c.json(layout, 200);
-    } catch (err) {
-      if (err instanceof HaCoreUnreachableError) {
-        deps.logger?.error({ event: 'setup.ha-layout.unreachable', message: err.message });
-        return c.json({ error: 'ha-unreachable' }, 502);
-      }
-      deps.logger?.error({
-        event: 'setup.ha-layout.failed',
-        message: err instanceof Error ? err.message : 'unknown',
-      });
-      return c.json({ error: 'internal' }, 500);
-    }
-  });
-
-  // Read the device's current HA Core config to seed the wizard's Home
-  // Overview step (#646). Same auth posture + config-gating as /apply-ha.
-  router.get('/ha-config', async (c) => {
-    const factory = resolveFactory();
-    if (factory === undefined) return c.json(notConfigured, 503);
-    try {
-      const seed = await readHaConfig({
-        clientFactory: factory,
-        ...(deps.logger !== undefined ? { logger: deps.logger } : {}),
-      });
-      return c.json(seed, 200);
-    } catch (err) {
-      if (err instanceof HaCoreUnreachableError) {
-        deps.logger?.error({ event: 'setup.ha-config.unreachable', message: err.message });
-        return c.json({ error: 'ha-unreachable' }, 502);
-      }
-      deps.logger?.error({
-        event: 'setup.ha-config.failed',
-        message: err instanceof Error ? err.message : 'unknown',
-      });
-      return c.json({ error: 'internal' }, 500);
-    }
-  });
+  // The per-step GET seeds (`/ha-config` #646, `/ha-layout` #638) were
+  // folded into the unified `GET /` aggregator above (#678) and removed
+  // once the frontend migrated to it (Home Overview, Layout). The POST
+  // reconcile (`/ha-layout`) + commit (`/apply-ha`) below are unchanged.
 
   // Per-step Layout save (#652): reconcile the device's floor + area
   // registries to the wizard's desired layout. Idempotent — safe to

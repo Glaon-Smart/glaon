@@ -25,9 +25,10 @@ function mockResponse(init: { ok?: boolean; status?: number; json?: unknown }): 
   } as unknown as Response;
 }
 
-// URL/method-aware fetch: the GET seed (`ha-layout`) returns `seed` (or a
-// 503 when omitted → blank default floor); the per-step save (#652) POST
-// to `ha-layout` returns a successful reconcile so Next advances.
+// URL/method-aware fetch: the GET seed now hits the unified `GET /api/setup`
+// (#678) and reads its `layout` section (`seed`, or a 503 when omitted →
+// blank default floor); the per-step save (#652) POST to `ha-layout`
+// returns a successful reconcile so Next advances.
 function installFetch(seed?: unknown): void {
   vi.stubGlobal(
     'fetch',
@@ -36,10 +37,15 @@ function installFetch(seed?: unknown): void {
       if (u.includes('/api/setup/ha-layout') && init?.method === 'POST') {
         return Promise.resolve(mockResponse({ json: { ok: true, steps: [] } }));
       }
-      if (seed === undefined) {
-        return Promise.resolve(mockResponse({ ok: false, status: 503, json: {} }));
+      if (u.endsWith('/api/setup')) {
+        if (seed === undefined) {
+          return Promise.resolve(mockResponse({ ok: false, status: 503, json: {} }));
+        }
+        return Promise.resolve(
+          mockResponse({ json: { homeOverview: null, layout: seed, network: null } }),
+        );
       }
-      return Promise.resolve(mockResponse({ json: seed }));
+      return Promise.resolve(mockResponse({ json: {} }));
     }),
   );
 }

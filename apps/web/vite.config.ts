@@ -3,7 +3,31 @@ import { defineConfig, loadEnv } from 'vite';
 import react from '@vitejs/plugin-react';
 import tailwindcss from '@tailwindcss/vite';
 import { sentryVitePlugin } from '@sentry/vite-plugin';
-import type { PluginOption } from 'vite';
+import type { PluginOption, ProxyOptions } from 'vite';
+
+// Dev proxy to apps/api with graceful degradation (#674). The wizard's
+// `/api/setup` + `/api/hassio` calls route to apps/api in dev. When apps/api
+// is not running (web-only dev), http-proxy emits `error` and Vite would
+// surface a raw 502 with an empty body — which the wizard's save path maps
+// to a blocking danger Toast. The wizard only degrades cleanly on a 503
+// (treated as "backend not configured" → reads seed null, saves skip +
+// advance), so translate the upstream connection failure into a clean 503
+// JSON. Dev-only; the production add-on bypasses Vite (nginx routes direct).
+const apiProxy = (target: string): ProxyOptions => ({
+  target,
+  changeOrigin: true,
+  rewrite: (path: string) => path.replace(/^\/api/, ''),
+  configure: (proxy) => {
+    proxy.on('error', (_err, _req, res) => {
+      // `res` is a ServerResponse for HTTP (Socket for WS upgrades — skip
+      // those). Only write if nothing has been sent yet.
+      if (res && 'writeHead' in res && !res.headersSent) {
+        res.writeHead(503, { 'Content-Type': 'application/json' });
+        res.end(JSON.stringify({ error: 'backend-unavailable' }));
+      }
+    });
+  },
+});
 
 export default defineConfig(({ command, mode }) => {
   const env = loadEnv(mode, process.cwd(), '');
@@ -100,21 +124,13 @@ export default defineConfig(({ command, mode }) => {
         // Production add-on bypasses this — nginx routes
         // /api/hassio/* directly to the supervisor's Ingress
         // endpoint, no Vite involved.
-        '/api/hassio': {
-          target: env.VITE_API_BASE_URL ?? 'http://localhost:8080',
-          changeOrigin: true,
-          rewrite: (path: string) => path.replace(/^\/api/, ''),
-        },
+        '/api/hassio': apiProxy(env.VITE_API_BASE_URL ?? 'http://localhost:8080'),
         // #617 — the apply step also POSTs the collected home settings
         // to `/api/setup/apply-ha`; apps/api pushes them into HA Core
         // over WebSocket. Same `/api` strip → apps/api mounts at
         // `/setup`. Production add-on bypasses this (onboarding routes
         // through the relay / add-on, not apps/api — ADR 0029).
-        '/api/setup': {
-          target: env.VITE_API_BASE_URL ?? 'http://localhost:8080',
-          changeOrigin: true,
-          rewrite: (path: string) => path.replace(/^\/api/, ''),
-        },
+        '/api/setup': apiProxy(env.VITE_API_BASE_URL ?? 'http://localhost:8080'),
       },
     },
     build: {

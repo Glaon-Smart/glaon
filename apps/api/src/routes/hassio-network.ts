@@ -33,6 +33,8 @@
 
 import { Hono } from 'hono';
 
+import type { SetupNetwork } from '@glaon/core/api-client';
+
 import type { Config } from '../config';
 import type { Logger } from '../observability/logger';
 
@@ -380,6 +382,60 @@ export async function probeSupervisor(
 
 function trim(url: string): string {
   return url.endsWith('/') ? url.slice(0, -1) : url;
+}
+
+/**
+ * Read the Network section of the unified wizard seed (#678): the
+ * Supervisor `/host/info` hostname + `/network/info` interfaces. Mirrors
+ * this router's source resolution — mock → canned payload; configured →
+ * Supervisor REST; unconfigured → `null`. Per-section graceful: any
+ * failure (unconfigured, unreachable, malformed) resolves to `null` so the
+ * aggregate `GET /setup` still returns the other sections. Live Wi-Fi
+ * scanning + interface writes stay on the `/api/hassio/*` routes.
+ */
+export async function readNetworkSeed(deps: {
+  readonly config: Config;
+  readonly fetchImpl?: typeof fetch;
+  readonly logger?: Logger;
+}): Promise<SetupNetwork | null> {
+  const { supervisorUrl, supervisorToken, supervisorMock } = deps.config;
+  if (supervisorMock) {
+    return {
+      hostname: MOCK_HOST_INFO.data.hostname,
+      interfaces: MOCK_NETWORK_INFO.data.interfaces,
+    };
+  }
+  if (supervisorUrl === undefined || supervisorToken === undefined) return null;
+
+  const fetchImpl = deps.fetchImpl ?? fetch;
+  const base = trim(supervisorUrl);
+  const headers = { Authorization: `Bearer ${supervisorToken}` };
+  try {
+    const [hostRes, netRes] = await Promise.all([
+      fetchImpl(`${base}/host/info`, { method: 'GET', headers }),
+      fetchImpl(`${base}/network/info`, { method: 'GET', headers }),
+    ]);
+    const seed: SetupNetwork = {};
+    if (hostRes.ok) {
+      const host = (await hostRes.json().catch(() => null)) as {
+        data?: { hostname?: unknown };
+      } | null;
+      if (typeof host?.data?.hostname === 'string') seed.hostname = host.data.hostname;
+    }
+    if (netRes.ok) {
+      const net = (await netRes.json().catch(() => null)) as {
+        data?: { interfaces?: unknown };
+      } | null;
+      if (Array.isArray(net?.data?.interfaces)) seed.interfaces = net.data.interfaces;
+    }
+    return seed;
+  } catch (err) {
+    deps.logger?.warn({
+      event: 'setup.network-seed.failed',
+      message: err instanceof Error ? err.message : 'unknown',
+    });
+    return null;
+  }
 }
 
 function redactWifiBody(body: unknown): unknown {

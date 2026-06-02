@@ -28,6 +28,7 @@ import {
   buildLayoutFromRegistries,
   buildLayoutReconcilePlan,
   mapHaConfigResult,
+  mapHomeZoneRadius,
   type FloorRef,
   type HaAreaRegistryEntry,
   type HaConfigSeed,
@@ -324,6 +325,34 @@ export async function readHaConfig(deps: ReadHaConfigDeps): Promise<HaConfigSeed
 interface ReadHaConfigDeps {
   readonly clientFactory: () => HaSetupClient;
   readonly logger?: Logger;
+}
+
+/**
+ * Read the home-zone radius (metres) for the Home Overview seed (#678).
+ * `get_config` doesn't carry the radius — it lives on `zone.home`'s
+ * `attributes.radius` — so this issues a `get_states` snapshot and narrows
+ * it via `mapHomeZoneRadius`. Connection failure is fail-loud
+ * (`HaCoreUnreachableError`); a malformed/empty snapshot degrades to
+ * `undefined` so the caller falls back to the picker default.
+ */
+export async function readHomeZoneRadius(deps: ReadHaConfigDeps): Promise<number | undefined> {
+  const client = deps.clientFactory();
+  try {
+    await client.connect();
+  } catch (err) {
+    throw new HaCoreUnreachableError(errMessage(err));
+  }
+  try {
+    const states = await client.request({ type: 'get_states' }).catch((err: unknown) => {
+      deps.logger?.warn({ event: 'ha-config.radius.read.failed', error: errMessage(err) });
+      return null;
+    });
+    return mapHomeZoneRadius(states);
+  } finally {
+    await client.close().catch(() => {
+      /* ignore */
+    });
+  }
 }
 
 /**

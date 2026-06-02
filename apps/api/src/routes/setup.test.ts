@@ -360,4 +360,27 @@ describe('setup — unified seed GET / (#678)', () => {
     expect(body.network).toBeNull();
     expect(body.homeOverview?.country).toBe('TR');
   });
+
+  it('offers languages with the device language first (#683)', async () => {
+    const sink: RecordedFrame[] = [];
+    const router = createSetupRouter({
+      config: baseConfig(),
+      clientFactory: () => fakeClient({ sink, config: { language: 'tr' } }),
+    });
+    const res = await router.request('/');
+    const body = (await res.json()) as { languages: string[] };
+    expect(Array.isArray(body.languages)).toBe(true);
+    expect(body.languages[0]).toBe('tr'); // device language hoisted first
+    expect(body.languages).toContain('en'); // static HA set still present
+    expect(body.languages.filter((l) => l === 'tr')).toHaveLength(1); // deduped
+  });
+
+  it('falls back to the static language set when HA Core is unconfigured (#683)', async () => {
+    const router = createSetupRouter({ config: baseConfig() });
+    const res = await router.request('/');
+    const body = (await res.json()) as { languages: string[]; homeOverview: unknown };
+    expect(body.homeOverview).toBeNull();
+    expect(body.languages.length).toBeGreaterThan(10);
+    expect(body.languages).toContain('en');
+  });
 });

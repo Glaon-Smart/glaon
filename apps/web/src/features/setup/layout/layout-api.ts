@@ -16,7 +16,10 @@ const SETUP_SEED_URL = '/api/setup';
  * 503 in HA-less / backend-down dev) — which the step handles silently —
  * from a real fetch failure that should surface a Toast.
  */
-export type LayoutSeedResult =
+// Not exported: only `fetchLayoutSeed` (this module) references it, and
+// the step consumes the result structurally (memory: knip blocks PRs on
+// exports without an external consumer).
+type LayoutSeedResult =
   | { readonly ok: true; readonly layout: HaLayoutResponse | null }
   | { readonly ok: false };
 

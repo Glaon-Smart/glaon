@@ -51,9 +51,11 @@ import { ToastProvider } from '@glaon/ui';
 
 import { HomeOverviewStep } from './home-overview-step';
 
-// The step now reads the device's HA config on mount (#646) and saves
-// the slice on Next. Mock fetch URL-aware: GET /ha-config returns the
-// `haConfig` seed; POST /apply-ha returns the `apply` result.
+// The step reads the device on mount (#646) from the unified seed
+// (#678 phase 2) and saves the slice on Next. Mock fetch URL-aware:
+// GET /api/setup returns the nested seed (its `homeOverview` section is
+// the `haConfig` override); POST /api/setup/apply-ha returns the `apply`
+// result.
 interface FetchOverrides {
   readonly haConfig?: unknown;
   readonly apply?: { ok?: boolean };
@@ -73,8 +75,10 @@ function installFetch(overrides: FetchOverrides = {}): void {
     'fetch',
     vi.fn((url: unknown, init?: { method?: string }) => {
       const u = String(url);
-      if (u.includes('/api/setup/ha-config')) {
-        return Promise.resolve(mockResponse(overrides.haConfig ?? {}));
+      if (u.endsWith('/api/setup')) {
+        return Promise.resolve(
+          mockResponse({ homeOverview: overrides.haConfig ?? {}, layout: null, network: null }),
+        );
       }
       if (u.includes('/api/setup/apply-ha') && init?.method === 'POST') {
         return Promise.resolve(
@@ -226,6 +230,19 @@ describe('HomeOverviewStep', () => {
     const homeNameInput = getByTestId('home-overview-home-name') as HTMLInputElement;
     await waitFor(() => {
       expect(homeNameInput.value).toBe('Evim');
+    });
+  });
+
+  it('seeds the home-zone radius from the unified seed (#678)', async () => {
+    installFetch({ haConfig: { latitude: 41, longitude: 29, radius: 250 } });
+    const { container } = render(
+      wrap(<HomeOverviewStep collected={{}} onNext={() => undefined} />),
+    );
+    // The radius (250) flows into the LocationPicker's numeric radius field;
+    // lat/lng are 41/29, so a `250` value uniquely identifies the radius input.
+    await waitFor(() => {
+      const values = Array.from(container.querySelectorAll('input')).map((i) => i.value);
+      expect(values).toContain('250');
     });
   });
 

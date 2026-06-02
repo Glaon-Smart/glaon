@@ -46,15 +46,7 @@ import {
   nominatimGeocode,
   useToast,
 } from '@glaon/ui';
-import {
-  useCallback,
-  useEffect,
-  useId,
-  useRef,
-  useState,
-  type ReactNode,
-  type SubmitEvent,
-} from 'react';
+import { useCallback, useEffect, useId, useState, type ReactNode, type SubmitEvent } from 'react';
 import { useTranslation } from 'react-i18next';
 
 import { HA_LANGUAGES, SUPPORTED_LOCALES } from '@glaon/core/i18n';
@@ -114,12 +106,16 @@ export function HomeOverviewStep({ collected, onNext }: HomeOverviewStepProps): 
   // Seed from the device (#646): on the first visit the wizard reads the
   // current HA Core config and pre-fills the fields the user hasn't
   // already set. Guarded by `collected.*` so a back-navigation keeps the
-  // user's entered values instead of re-seeding over them, and by a ref so
-  // it runs once. A missing/unreachable HA Core just leaves the defaults.
-  const seededRef = useRef(false);
+  // user's entered values instead of re-seeding over them. A
+  // missing/unreachable HA Core just leaves the defaults.
+  //
+  // No `seededRef` "run once" guard (#676): under React StrictMode the
+  // effect mounts → unmounts → remounts in dev, and a ref guard would let
+  // the first (now-cancelled) fetch win while blocking the second, live
+  // one — dropping the seed entirely so the form stayed blank in dev. The
+  // GET is idempotent, so we rely solely on the `cancelled` flag: the
+  // remount's fetch resolves with `cancelled === false` and seeds.
   useEffect(() => {
-    if (seededRef.current) return;
-    seededRef.current = true;
     let cancelled = false;
     void fetchHaConfig().then((seed) => {
       if (cancelled || seed === null) return;
@@ -164,7 +160,7 @@ export function HomeOverviewStep({ collected, onNext }: HomeOverviewStepProps): 
     return () => {
       cancelled = true;
     };
-    // Seed once on mount; `collected` is read for the initial guard only.
+    // Seed on mount; `collected` is read for the initial guard only.
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, []);
 
@@ -333,13 +329,15 @@ export function HomeOverviewStep({ collected, onNext }: HomeOverviewStepProps): 
 
         {/* Country sits above Location (#648) so its selection can recenter
             the map. The picker has no built-in label — the FormRow's label
-            is associated via aria-labelledby. */}
+            is associated via aria-labelledby. Controlled on `country` (#676)
+            so the device seed (and country→map/timezone/currency sync) is
+            reflected in the trigger; auto-detect only when nothing is set. */}
         <FormRow label={t('setup.homeOverview.country.label')} labelId={countryLabelId}>
           <CountrySelect
             aria-labelledby={countryLabelId}
             placeholder={t('setup.homeOverview.country.placeholder')}
-            {...(collected.country !== undefined ? { defaultValue: collected.country } : {})}
-            autoDetect={collected.country === undefined}
+            {...(country !== '' ? { value: country } : {})}
+            autoDetect={collected.country === undefined && country === ''}
             onSelectionChange={onCountrySelect}
           />
         </FormRow>

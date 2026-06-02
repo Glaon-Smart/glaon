@@ -2,21 +2,22 @@
 // wizard (epic #533, ADR 0028). Pixel-matched to Figma node
 // 1277:791 right column. Replaces the placeholder from #539.
 //
+// Header: title/subtitle on the left, an independent **language switcher
+// pinned top-right** (#670) — outside the <form> so it reads as page
+// chrome, not a form field. It changes the wizard UI language (i18n) and
+// seeds the HA `language` value the form saves on Next. The full HA
+// language set is offered (HA_LANGUAGES) since the value maps to HA Core's
+// `language` (the device language), not only Glaon's own UI bundle —
+// picking a non-Glaon-UI language saves to the device without re-skinning
+// the wizard (only SUPPORTED_LOCALES drive `i18n.changeLanguage`).
+//
 // Form fields (per Figma, top to bottom):
-// - Language (LanguageSelect; the HA-supported language set from @glaon/core)
 // - Home Name (required text input)
 // - Country (CountrySelect — auto-detect on first visit)
 // - Location (LocationPicker — autocomplete + map + draggable marker)
 // - Unit System (radio: metric / imperial)
 // - Timezone (TimezoneSelect — auto-detect on first visit)
 // - Currency (CurrencySelect — follows the country selection)
-//
-// Language sits first (#666): it switches the wizard UI language, so the
-// user picks it before reading the rest of the form. The full HA language
-// set is offered (HA_LANGUAGES) since the value maps to HA Core's
-// `language` (the device language), not only Glaon's own UI bundle —
-// picking a non-Glaon-UI language saves to the device without re-skinning
-// the wizard (only SUPPORTED_LOCALES drive `i18n.changeLanguage`).
 //
 // Layout follows the UUI horizontal-form pattern: a label column on
 // the left, the control on the right, horizontal divider between
@@ -45,15 +46,7 @@ import {
   nominatimGeocode,
   useToast,
 } from '@glaon/ui';
-import {
-  useCallback,
-  useEffect,
-  useId,
-  useRef,
-  useState,
-  type ReactNode,
-  type SubmitEvent,
-} from 'react';
+import { useCallback, useEffect, useId, useState, type ReactNode, type SubmitEvent } from 'react';
 import { useTranslation } from 'react-i18next';
 
 import { HA_LANGUAGES, SUPPORTED_LOCALES } from '@glaon/core/i18n';
@@ -92,7 +85,6 @@ export function HomeOverviewStep({ collected, onNext }: HomeOverviewStepProps): 
   const countryLabelId = useId();
   const timezoneLabelId = useId();
   const currencyLabelId = useId();
-  const languageLabelId = useId();
 
   const [homeName, setHomeName] = useState<string>(collected.homeName ?? '');
   const [location, setLocation] = useState<LocationState>(() => ({
@@ -114,12 +106,16 @@ export function HomeOverviewStep({ collected, onNext }: HomeOverviewStepProps): 
   // Seed from the device (#646): on the first visit the wizard reads the
   // current HA Core config and pre-fills the fields the user hasn't
   // already set. Guarded by `collected.*` so a back-navigation keeps the
-  // user's entered values instead of re-seeding over them, and by a ref so
-  // it runs once. A missing/unreachable HA Core just leaves the defaults.
-  const seededRef = useRef(false);
+  // user's entered values instead of re-seeding over them. A
+  // missing/unreachable HA Core just leaves the defaults.
+  //
+  // No `seededRef` "run once" guard (#676): under React StrictMode the
+  // effect mounts → unmounts → remounts in dev, and a ref guard would let
+  // the first (now-cancelled) fetch win while blocking the second, live
+  // one — dropping the seed entirely so the form stayed blank in dev. The
+  // GET is idempotent, so we rely solely on the `cancelled` flag: the
+  // remount's fetch resolves with `cancelled === false` and seeds.
   useEffect(() => {
-    if (seededRef.current) return;
-    seededRef.current = true;
     let cancelled = false;
     void fetchHaConfig().then((seed) => {
       if (cancelled || seed === null) return;
@@ -164,7 +160,7 @@ export function HomeOverviewStep({ collected, onNext }: HomeOverviewStepProps): 
     return () => {
       cancelled = true;
     };
-    // Seed once on mount; `collected` is read for the initial guard only.
+    // Seed on mount; `collected` is read for the initial guard only.
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, []);
 
@@ -271,11 +267,36 @@ export function HomeOverviewStep({ collected, onNext }: HomeOverviewStepProps): 
 
   return (
     <div className="flex flex-col p-8 lg:p-12">
-      <header className="flex flex-col gap-1 pb-6">
-        <h1 className="text-display-xs font-semibold text-primary">
-          {t('setup.homeOverview.title')}
-        </h1>
-        <p className="text-sm text-tertiary">{t('setup.homeOverview.subtitle')}</p>
+      {/* Header carries the title/subtitle on the left and an independent
+          language switcher pinned top-right (#670). The switcher lives
+          *outside* the <form> so it reads as page chrome, not a form field
+          — it changes the wizard UI language (i18n) and seeds the HA
+          `language` value the form saves on Next. Full HA_LANGUAGES set is
+          offered; only Glaon UI locales (SUPPORTED_LOCALES) re-skin the UI. */}
+      <header className="flex items-start justify-between gap-6 pb-6">
+        <div className="flex flex-col gap-1">
+          <h1 className="text-display-xs font-semibold text-primary">
+            {t('setup.homeOverview.title')}
+          </h1>
+          <p className="text-sm text-tertiary">{t('setup.homeOverview.subtitle')}</p>
+        </div>
+        <div className="w-44 shrink-0">
+          <LanguageSelect
+            aria-label={t('setup.homeOverview.language.label')}
+            options={HA_LANGUAGES}
+            value={locale}
+            placeholder={t('setup.homeOverview.language.placeholder')}
+            autoDetect={false}
+            size="sm"
+            onSelectionChange={(code) => {
+              if (code === null) return;
+              setLocale(code);
+              if ((SUPPORTED_LOCALES as readonly string[]).includes(code)) {
+                void i18n.changeLanguage(code);
+              }
+            }}
+          />
+        </div>
       </header>
 
       <form
@@ -285,28 +306,6 @@ export function HomeOverviewStep({ collected, onNext }: HomeOverviewStepProps): 
         noValidate
         className="flex flex-col"
       >
-        {/* Language sits first (#666) — it switches the wizard UI, so the
-            user chooses it before reading the rest. The full HA language set
-            (HA_LANGUAGES) is offered since the value maps to HA Core
-            `language`; only Glaon's own UI locales (SUPPORTED_LOCALES)
-            actually re-skin the wizard via i18n.changeLanguage. */}
-        <FormRow label={t('setup.homeOverview.language.label')} labelId={languageLabelId}>
-          <LanguageSelect
-            aria-labelledby={languageLabelId}
-            options={HA_LANGUAGES}
-            value={locale}
-            placeholder={t('setup.homeOverview.language.placeholder')}
-            autoDetect={false}
-            onSelectionChange={(code) => {
-              if (code === null) return;
-              setLocale(code);
-              if ((SUPPORTED_LOCALES as readonly string[]).includes(code)) {
-                void i18n.changeLanguage(code);
-              }
-            }}
-          />
-        </FormRow>
-
         <FormRow label={t('setup.homeOverview.homeName.label')} labelId={homeNameLabelId} required>
           <TextField
             value={homeName}
@@ -330,13 +329,15 @@ export function HomeOverviewStep({ collected, onNext }: HomeOverviewStepProps): 
 
         {/* Country sits above Location (#648) so its selection can recenter
             the map. The picker has no built-in label — the FormRow's label
-            is associated via aria-labelledby. */}
+            is associated via aria-labelledby. Controlled on `country` (#676)
+            so the device seed (and country→map/timezone/currency sync) is
+            reflected in the trigger; auto-detect only when nothing is set. */}
         <FormRow label={t('setup.homeOverview.country.label')} labelId={countryLabelId}>
           <CountrySelect
             aria-labelledby={countryLabelId}
             placeholder={t('setup.homeOverview.country.placeholder')}
-            {...(collected.country !== undefined ? { defaultValue: collected.country } : {})}
-            autoDetect={collected.country === undefined}
+            {...(country !== '' ? { value: country } : {})}
+            autoDetect={collected.country === undefined && country === ''}
             onSelectionChange={onCountrySelect}
           />
         </FormRow>

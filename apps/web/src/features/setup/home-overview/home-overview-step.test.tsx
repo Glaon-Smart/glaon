@@ -45,7 +45,7 @@ HTMLCanvasElement.prototype.getContext = ((): CanvasRenderingContext2D =>
     arc: () => undefined,
   }) as unknown as CanvasRenderingContext2D) as unknown as typeof HTMLCanvasElement.prototype.getContext;
 
-import type { ReactNode } from 'react';
+import { StrictMode, type ReactNode } from 'react';
 
 import { ToastProvider } from '@glaon/ui';
 
@@ -121,16 +121,21 @@ describe('HomeOverviewStep', () => {
     ).toBeTruthy();
   });
 
-  it('renders Language first, above the home name (#666 reorder)', () => {
-    const { getByText, getByTestId } = render(
+  it('renders the language switcher in the header, outside the form, before the home name (#670)', () => {
+    const { getByRole, getByTestId } = render(
       wrap(<HomeOverviewStep collected={{}} onNext={() => undefined} />),
     );
-    const language = getByText('Language');
+    // The switcher is label-less now (header chrome, not a FormRow): query
+    // it by its accessible name (aria-label "Language").
+    const language = getByRole('combobox', { name: 'Language' });
     const homeName = getByTestId('home-overview-home-name');
-    // Language's row precedes the home name field in document order.
+    // It lives in the header, so it precedes the home name field, and it is
+    // NOT inside the <form>.
     expect(
       language.compareDocumentPosition(homeName) & Node.DOCUMENT_POSITION_FOLLOWING,
     ).toBeTruthy();
+    expect(homeName.closest('form')).not.toBeNull();
+    expect(language.closest('form')).toBeNull();
   });
 
   it('blocks submission when home name is empty and shows an inline error', () => {
@@ -217,6 +222,22 @@ describe('HomeOverviewStep', () => {
     installFetch({ haConfig: { locationName: 'Evim', country: 'TR' } });
     const { getByTestId } = render(
       wrap(<HomeOverviewStep collected={{}} onNext={() => undefined} />),
+    );
+    const homeNameInput = getByTestId('home-overview-home-name') as HTMLInputElement;
+    await waitFor(() => {
+      expect(homeNameInput.value).toBe('Evim');
+    });
+  });
+
+  it('applies the device seed under StrictMode — no seededRef drop (#676)', async () => {
+    // Regression guard: StrictMode double-invokes the seed effect (mount →
+    // unmount → remount). The old `seededRef` "run once" guard let the
+    // first (cancelled) fetch win and blocked the live remount fetch, so the
+    // form stayed blank in dev. Rendering inside <StrictMode> reproduces the
+    // double-invoke; the seed must still apply.
+    installFetch({ haConfig: { locationName: 'Evim' } });
+    const { getByTestId } = render(
+      <StrictMode>{wrap(<HomeOverviewStep collected={{}} onNext={() => undefined} />)}</StrictMode>,
     );
     const homeNameInput = getByTestId('home-overview-home-name') as HTMLInputElement;
     await waitFor(() => {

@@ -7,7 +7,6 @@ import type { ControlSpec } from '../_internal/controls';
 import { excludeFromArgs as defineExcludeFromArgs } from '../_internal/controls';
 
 const sizeOptions = ['sm', 'md', 'lg'] as const;
-const localeOptions = ['', 'tr-TR', 'en-US', 'de-DE', 'fr-FR', 'ar-SA'] as const;
 
 export const timezoneSelectControls = {
   label: {
@@ -21,7 +20,19 @@ export const timezoneSelectControls = {
     type: 'text',
     default: 'Select a timezone',
     description:
-      'Hint text shown when no option is selected. Never use placeholder as a substitute for the label.',
+      'Hint text shown in the closed trigger when no zone is selected. Never use placeholder as a substitute for the label.',
+    category: 'Content',
+  } satisfies ControlSpec<string>,
+  searchPlaceholder: {
+    type: 'text',
+    default: 'Search',
+    description: 'Placeholder inside the in-popover search field.',
+    category: 'Content',
+  } satisfies ControlSpec<string>,
+  noResultsLabel: {
+    type: 'text',
+    default: 'No results found',
+    description: 'Text shown in the popover when the search matches no zone.',
     category: 'Content',
   } satisfies ControlSpec<string>,
   hint: {
@@ -37,14 +48,6 @@ export const timezoneSelectControls = {
       'When true (default), pre-select the timezone returned by `Intl.DateTimeFormat().resolvedOptions().timeZone` on mount. Ignored when `value` or `defaultValue` is set. Detection is one-shot — re-mount to re-detect.',
     category: 'Behavior',
   } satisfies ControlSpec<boolean>,
-  locale: {
-    type: 'select',
-    options: localeOptions,
-    default: '',
-    description:
-      'BCP-47 locale used for collation when sorting city labels. Leave empty to use the browser default (`navigator.language`). The labels themselves stay in English — only the sort order follows the locale.',
-    category: 'Content',
-  } satisfies ControlSpec<(typeof localeOptions)[number]>,
   defaultValue: {
     type: 'text',
     description:
@@ -56,7 +59,7 @@ export const timezoneSelectControls = {
     options: sizeOptions,
     default: 'md',
     description:
-      'Visual scale forwarded to the underlying ComboBox. `sm` for compact toolbars, `md` (default) for forms, `lg` for hero affordances.',
+      'Visual scale forwarded to the underlying SearchSelect. `sm` for compact toolbars, `md` (default) for forms, `lg` for hero affordances.',
     category: 'Style',
   } satisfies ControlSpec<(typeof sizeOptions)[number]>,
   isDisabled: {

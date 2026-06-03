@@ -1,109 +1,83 @@
-// Glaon TimezoneSelect — searchable IANA timezone picker that wraps
-// the kit `<ComboBox>` (`packages/ui/src/components/base/select/combobox.tsx`).
+// Glaon TimezoneSelect — timezone picker. The option list + labels come
+// from `react-timezone-select`'s `useTimezoneSelect` hook (#690): a curated
+// set with DST-aware `(GMT±hh:mm) City` labels. The UI is our UUI
+// `SearchSelect` (button trigger + in-popover search, #688) — same look as
+// CountrySelect, no `react-select` (hook-only).
 //
-// Sister primitive to `CountrySelect` — same wrap pattern, same
-// state machine, same polish features (auto-clear-error,
-// select-all-on-focus, diacritic-insensitive filter):
+// Sister primitive to `CountrySelect`: same wrap pattern + state machine
+// (auto-clear-error, diacritic-insensitive filter, one-shot browser
+// auto-detection). The emitted value is the IANA id (`Europe/Istanbul`).
 //
-//   - Built-in IANA list from `Intl.supportedValuesOf('timeZone')`,
-//     no shipped database, no extra dependency.
-//   - Display labels combine city (last segment of the IANA id, with
-//     underscores prettied) and current UTC offset
-//     (`(UTC+03:00)` etc.) so users can disambiguate at a glance.
-//   - Optional one-shot browser autodetection — when on, the picker
-//     preselects the zone returned by
-//     `Intl.DateTimeFormat().resolvedOptions().timeZone`.
-//   - `Clock` glyph (`@untitledui/icons`) as the trigger leading
-//     icon. Unlike CountrySelect we don't swap the icon per-zone;
-//     timezones don't have a comparable visual identity.
-//
-// Per CLAUDE.md's UUI Source Rule and Component Data-Fetching Boundary:
-// the visual + popover positioning + RAC plumbing come from the kit;
-// this wrapper contributes the prop API + the dataset + detection.
-// No network call lives here.
+// Per CLAUDE.md's UUI Source Rule + Component Data-Fetching Boundary: the
+// trigger + popover + search come from the kit `SearchSelect`; this wrapper
+// contributes the prop API + the hook-sourced dataset + detection. No
+// network call here.
 
-import { useCallback, useEffect, useMemo, useState, type FocusEvent, type ReactNode } from 'react';
+import { useEffect, useMemo, useState, type ReactNode } from 'react';
 import { Clock } from '@untitledui/icons';
-import type { Key } from 'react-aria-components';
+import { allTimezones, useTimezoneSelect } from 'react-timezone-select';
 
-import { ComboBox, SelectItem, type SelectItemType } from '../Select';
-import { buildTimezoneItems, detectBrowserTimezone, diacriticInsensitiveFilter } from './timezones';
+import { SearchSelect, SelectItem, type SelectItemType } from '../Select';
+import { buildTimezoneDict, detectBrowserTimezone, diacriticInsensitiveFilter } from './timezones';
 
-// Types stay un-exported per memory note `feedback_knip_props_interfaces.md`
-// — `react-docgen-typescript` still resolves the prop names for the
-// F6 prop-coverage gate without a top-level `export`. Promote to
-// `index.ts` once an external consumer needs them.
+// react-timezone-select labels are `(GMT±hh:mm) City`. Many IANA zones share
+// an offset, so we group them under a `GMT±hh:mm` section header and show
+// just the city per row — the full label is kept as the trigger value and as
+// the search `textValue`, so typing "gmt+3" or "istanbul" both match.
+const GMT_PREFIX_RE = /^\(([^)]*)\)\s*/;
+
+function offsetGroup(item: SelectItemType): string {
+  return GMT_PREFIX_RE.exec(item.label ?? '')?.[1] ?? 'Other';
+}
+
+function cityLabel(label: string): string {
+  return label.replace(GMT_PREFIX_RE, '') || label;
+}
+
+// Types stay un-exported per memory note `feedback_knip_props_interfaces.md`.
 type TimezoneSelectSize = 'sm' | 'md' | 'lg';
 
 interface TimezoneSelectProps {
   /**
    * Controlled selection — IANA timezone identifier (e.g.
-   * `'Europe/Istanbul'`, `'America/New_York'`). Pair with
-   * `onSelectionChange` to manage state outside. When set,
+   * `'Europe/Istanbul'`). Pair with `onSelectionChange`. When set,
    * `defaultValue` and `autoDetect` are ignored.
    */
   value?: string;
-  /**
-   * Uncontrolled initial selection — IANA timezone identifier to
-   * start with. When set, `autoDetect` is ignored.
-   */
+  /** Uncontrolled initial selection — IANA id. Ignores `autoDetect`. */
   defaultValue?: string;
-  /**
-   * Fires when the user (or the auto-detect path) changes the
-   * selection. Receives the IANA identifier, or `null` when the
-   * selection is cleared.
-   */
+  /** Fires on selection change. Receives the IANA id, or `null`. */
   onSelectionChange?: (timezone: string | null) => void;
   /**
    * When `true` (default), pre-select the timezone returned by
-   * `Intl.DateTimeFormat().resolvedOptions().timeZone` on mount.
-   * Ignored when `value` or `defaultValue` is set. Detection is
-   * one-shot — re-mount to re-detect.
-   * @default true
+   * `Intl.DateTimeFormat().resolvedOptions().timeZone` on mount. Ignored
+   * when `value` / `defaultValue` is set. One-shot. @default true
    */
   autoDetect?: boolean;
-  /**
-   * BCP-47 locale tag used to sort city labels. Defaults to
-   * `navigator.language` in the browser, `'en'` on a runtime without
-   * `navigator` (e.g. SSR). The city labels themselves stay in
-   * English (the IANA database is English); only the sort order
-   * follows the locale's collation rules.
-   */
-  locale?: string;
   /** Field label rendered above the trigger. */
   label?: string;
-  /** Accessible name when no visible `label` is rendered. Forwarded to
-   *  the underlying ComboBox. */
+  /** Accessible name when no visible `label` is rendered. */
   'aria-label'?: string;
-  /** Id of an external visible label; forwarded as `aria-labelledby` to
-   *  associate a host-rendered label instead of the built-in `label`. */
+  /** Id of an external visible label; forwarded as `aria-labelledby`. */
   'aria-labelledby'?: string;
-  /** Placeholder text shown when no option is selected. */
+  /** Placeholder shown in the (closed) trigger when nothing is selected. */
   placeholder?: string;
-  /** Helper text shown under the trigger; doubles as the error
-   *  message when `isInvalid` is true. */
+  /** Placeholder inside the in-popover search field. @default 'Search' */
+  searchPlaceholder?: string;
+  /** Text shown when the search matches no zone. @default 'No results found' */
+  noResultsLabel?: string;
+  /** Helper text under the trigger; doubles as the error message when
+   *  `isInvalid` is true. */
   hint?: ReactNode;
   /** Block all interaction and dim the trigger. */
   isDisabled?: boolean;
-  /**
-   * Surface validation error styling. Pair with `hint` to describe
-   * the error; the kit wires `aria-invalid` + `aria-describedby`.
-   *
-   * The picker auto-clears this styling once the user makes a
-   * selection — the host can re-assert it by toggling `isInvalid`
-   * from `false` → `true` after re-validation.
-   */
+  /** Surface validation error styling. Auto-clears on selection. */
   isInvalid?: boolean;
-  /** Mark the field as required (renders an indicator next to the
-   *  label and forwards `aria-required`). */
+  /** Mark the field as required. */
   isRequired?: boolean;
-  /** Hide the visual `*` next to the label even when `isRequired`
-   *  is true. Keeps the a11y contract. */
+  /** Hide the visual `*` even when `isRequired` is true. */
   hideRequiredIndicator?: boolean;
-  /**
-   * Visual scale of the underlying ComboBox.
-   * @default 'md'
-   */
+  /** Visual scale of the underlying SearchSelect. @default 'md' */
   size?: TimezoneSelectSize;
   /** Tailwind override hook for the outer wrapper. */
   className?: string;
@@ -116,11 +90,12 @@ export function TimezoneSelect({
   defaultValue,
   onSelectionChange,
   autoDetect = true,
-  locale,
   label,
   'aria-label': ariaLabel,
   'aria-labelledby': ariaLabelledby,
   placeholder,
+  searchPlaceholder,
+  noResultsLabel,
   hint,
   isDisabled,
   isInvalid,
@@ -130,15 +105,22 @@ export function TimezoneSelect({
   className,
   popoverClassName,
 }: TimezoneSelectProps) {
-  const resolvedLocale = useResolvedLocale(locale);
-  const items = useMemo(() => buildTimezoneItems(resolvedLocale), [resolvedLocale]);
+  // DST-aware timezone options from react-timezone-select, over the FULL
+  // runtime IANA list (so every zone the wizard may seed/sync — e.g.
+  // Europe/Istanbul — is present; the library's curated `allTimezones`
+  // omits many). Falls back to `allTimezones` if `supportedValuesOf` is
+  // unavailable. `value` is the IANA id; `label` is `(GMT±hh:mm) City`.
+  const timezoneDict = useMemo(() => {
+    const full = buildTimezoneDict();
+    return Object.keys(full).length > 0 ? full : allTimezones;
+  }, []);
+  const { options } = useTimezoneSelect({ labelStyle: 'original', timezones: timezoneDict });
+  const items = useMemo<SelectItemType[]>(
+    () => options.map((o) => ({ id: o.value, label: o.label })),
+    [options],
+  );
 
   const isHostControlled = value !== undefined;
-
-  // Unified selection state — seeded from `defaultValue`; auto-detect
-  // promotes the seed when neither `value` nor `defaultValue` is set.
-  // Same shape as CountrySelect so the wrap pattern stays consistent
-  // across the sister pair.
   const [internalKey, setInternalKey] = useState<string | null>(defaultValue ?? null);
 
   useEffect(() => {
@@ -153,88 +135,50 @@ export function TimezoneSelect({
 
   const effectiveKey = isHostControlled ? value : internalKey;
 
-  // Suppress the invalid styling once the user picks something. The
-  // host can re-assert `isInvalid` by toggling it false → true (the
-  // effect below resets the suppression when the prop transitions).
   const [suppressInvalid, setSuppressInvalid] = useState(false);
   useEffect(() => {
     setSuppressInvalid(false);
   }, [isInvalid]);
 
-  const handleSelectionChange = (key: Key | null) => {
-    const next = key === null ? null : String(key);
+  const handleSelectionChange = (next: string | null) => {
     if (!isHostControlled) setInternalKey(next);
     setSuppressInvalid(true);
     onSelectionChange?.(next);
   };
 
-  // Select-all-on-focus inside the inner search input so the next
-  // keystroke replaces the previous label cleanly. RAC's ComboBox
-  // doesn't forward `onFocus` to the input, so we capture at the
-  // wrapper and act on any input descendant. `requestAnimationFrame`
-  // defers the `.select()` until RAC's own focus handling settles.
-  const handleFocusCapture = useCallback((event: FocusEvent<HTMLDivElement>) => {
-    const target = event.target;
-    if (!(target instanceof HTMLInputElement)) return;
-    if (target.disabled || target.readOnly) return;
-    requestAnimationFrame(() => {
-      try {
-        target.select();
-      } catch {
-        // Input may have unmounted between the focus event and the
-        // rAF tick — the failed `.select()` is harmless.
-      }
-    });
-  }, []);
-
   const effectiveInvalid = isInvalid === true && !suppressInvalid;
 
-  // Build the ComboBox props bag conditionally — the @glaon/ui package
-  // compiles with `exactOptionalPropertyTypes: true`, so passing
-  // explicit `undefined` to an optional prop fails type-check.
-  const comboProps: Record<string, unknown> = {
+  // Build the SearchSelect props bag conditionally — @glaon/ui compiles with
+  // `exactOptionalPropertyTypes: true`, so explicit `undefined` fails.
+  const selectProps: Record<string, unknown> = {
     items,
     size,
     selectedKey: effectiveKey ?? null,
     onSelectionChange: handleSelectionChange,
-    defaultFilter: diacriticInsensitiveFilter,
-    shortcut: false,
-    icon: Clock,
+    filter: diacriticInsensitiveFilter,
+    leadingIcon: Clock,
+    groupBy: offsetGroup,
   };
 
-  if (label !== undefined) comboProps.label = label;
-  if (ariaLabel !== undefined) comboProps['aria-label'] = ariaLabel;
-  if (ariaLabelledby !== undefined) comboProps['aria-labelledby'] = ariaLabelledby;
-  if (placeholder !== undefined) comboProps.placeholder = placeholder;
-  if (hint !== undefined) comboProps.hint = hint;
-  if (isDisabled === true) comboProps.isDisabled = true;
-  if (effectiveInvalid) comboProps.isInvalid = true;
-  if (isRequired === true) comboProps.isRequired = true;
-  if (hideRequiredIndicator === true) comboProps.hideRequiredIndicator = true;
-  if (className !== undefined) comboProps.className = className;
-  if (popoverClassName !== undefined) comboProps.popoverClassName = popoverClassName;
+  if (label !== undefined) selectProps.label = label;
+  if (ariaLabel !== undefined) selectProps['aria-label'] = ariaLabel;
+  if (ariaLabelledby !== undefined) selectProps['aria-labelledby'] = ariaLabelledby;
+  if (placeholder !== undefined) selectProps.placeholder = placeholder;
+  if (searchPlaceholder !== undefined) selectProps.searchPlaceholder = searchPlaceholder;
+  if (noResultsLabel !== undefined) selectProps.noResultsLabel = noResultsLabel;
+  if (hint !== undefined) selectProps.hint = hint;
+  if (isDisabled === true) selectProps.isDisabled = true;
+  if (effectiveInvalid) selectProps.isInvalid = true;
+  if (isRequired === true) selectProps.isRequired = true;
+  if (hideRequiredIndicator === true) selectProps.hideRequiredIndicator = true;
+  if (className !== undefined) selectProps.className = className;
+  if (popoverClassName !== undefined) selectProps.popoverClassName = popoverClassName;
 
   return (
-    <div onFocusCapture={handleFocusCapture}>
-      <ComboBox {...comboProps}>
-        {(item: SelectItemType) => <SelectItem id={item.id} label={item.label ?? ''} />}
-      </ComboBox>
-    </div>
+    <SearchSelect {...selectProps}>
+      {(item: SelectItemType) => (
+        <SelectItem id={item.id} label={cityLabel(item.label ?? '')} textValue={item.label ?? ''} />
+      )}
+    </SearchSelect>
   );
-}
-
-/**
- * Resolve the locale to use for the timezone collator. Reads
- * `navigator.language` lazily so SSR builds don't crash on a missing
- * `navigator`. Falls back to `'en'` when neither prop nor navigator
- * is available.
- */
-function useResolvedLocale(locale: string | undefined): string {
-  return useMemo(() => {
-    if (locale !== undefined && locale.length > 0) return locale;
-    if (typeof navigator !== 'undefined' && navigator.language) {
-      return navigator.language;
-    }
-    return 'en';
-  }, [locale]);
 }

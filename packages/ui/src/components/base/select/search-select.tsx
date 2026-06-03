@@ -18,10 +18,13 @@ import type { Key, Selection } from 'react-aria-components';
 import {
   Autocomplete as AriaAutocomplete,
   Button as AriaButton,
+  Collection as AriaCollection,
   Dialog as AriaDialog,
   DialogTrigger as AriaDialogTrigger,
+  Header as AriaHeader,
   Input as AriaInput,
   ListBox as AriaListBox,
+  ListBoxSection as AriaListBoxSection,
   Popover as AriaPopover,
   SearchField as AriaSearchField,
 } from 'react-aria-components';
@@ -54,6 +57,11 @@ interface SearchSelectProps extends CommonProps {
   leadingIcon?: FC | ReactNode;
   /** Diacritic-insensitive `(textValue, inputValue) => boolean` filter. */
   filter?: (textValue: string, inputValue: string) => boolean;
+  /** When set, options are grouped into sections keyed by the returned
+   *  string, each rendered under a sticky header (e.g. group timezones by
+   *  GMT offset). Items keep their source order, so the first time a key is
+   *  seen fixes that section's position. Omit for a flat list. */
+  groupBy?: (item: SelectItemType) => string;
   /** Placeholder inside the popover search field. */
   searchPlaceholder?: string;
   /** Text shown when the search matches no option. */
@@ -75,6 +83,7 @@ const SearchSelectRoot = ({
   onSelectionChange,
   leadingIcon,
   filter,
+  groupBy,
   searchPlaceholder = 'Search',
   noResultsLabel = 'No results found',
   isDisabled,
@@ -113,7 +122,26 @@ const SearchSelectRoot = ({
   };
 
   const selectedItem = selectedKey != null ? items?.find((i) => i.id === selectedKey) : undefined;
-  const triggerIcon = selectedItem?.icon ?? leadingIcon;
+  // Capitalized so JSX treats it as a component, not a literal DOM tag.
+  const TriggerIcon = selectedItem?.icon ?? leadingIcon;
+
+  // Group the flat `items` into sections when `groupBy` is set, preserving
+  // first-seen order so callers control section ordering by item order.
+  const sections = groupBy
+    ? (() => {
+        const byKey = new Map<string, { id: string; items: SelectItemType[] }>();
+        for (const item of items ?? []) {
+          const key = groupBy(item);
+          let section = byKey.get(key);
+          if (!section) {
+            section = { id: key, items: [] };
+            byKey.set(key, section);
+          }
+          section.items.push(item);
+        }
+        return [...byKey.values()];
+      })()
+    : null;
 
   return (
     <SelectContext.Provider value={{ size }}>
@@ -151,10 +179,10 @@ const SearchSelectRoot = ({
                 '*:data-icon:shrink-0 *:data-icon:text-fg-quaternary',
               )}
             >
-              {isReactComponent(triggerIcon) ? (
-                <triggerIcon data-icon aria-hidden="true" />
+              {isReactComponent(TriggerIcon) ? (
+                <TriggerIcon data-icon aria-hidden="true" />
               ) : (
-                (triggerIcon ?? null)
+                (TriggerIcon ?? null)
               )}
 
               <span className={cx('flex flex-1 truncate', sizes[size].textContainer)}>
@@ -223,7 +251,7 @@ const SearchSelectRoot = ({
 
                 <AriaListBox
                   aria-label={label || ariaLabel || 'Options'}
-                  items={items}
+                  items={sections ?? items}
                   selectionMode="single"
                   selectedKeys={selectedKey != null ? new Set([selectedKey]) : new Set()}
                   onSelectionChange={handleListSelectionChange}
@@ -232,7 +260,16 @@ const SearchSelectRoot = ({
                   )}
                   className={cx('overflow-y-auto py-1 outline-hidden', popoverMaxHeights[size])}
                 >
-                  {children}
+                  {sections
+                    ? (section: { id: string; items: SelectItemType[] }) => (
+                        <AriaListBoxSection id={section.id}>
+                          <AriaHeader className="sticky top-0 z-10 truncate bg-primary px-3 pt-2 pb-1 text-xs font-semibold text-tertiary">
+                            {section.id}
+                          </AriaHeader>
+                          <AriaCollection items={section.items}>{children}</AriaCollection>
+                        </AriaListBoxSection>
+                      )
+                    : children}
                 </AriaListBox>
               </AriaAutocomplete>
             </AriaDialog>

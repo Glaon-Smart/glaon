@@ -79,6 +79,8 @@
       "timezone": {
         "label": "Saat Dilimi",
         "placeholder": "Saat dilimini seç",
+        "searchPlaceholder": "Saat dilimi ara",
+        "noResults": "Sonuç bulunamadı",
         "tooltip": "HA saat görüntülemeleri ve otomasyonları için kullanılır."
       },
       "currency": {

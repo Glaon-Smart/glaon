@@ -6,18 +6,19 @@ import * as TimezoneSelectStories from './TimezoneSelect.stories';
 
 # TimezoneSelect
 
-App-primitive IANA timezone picker. Thin wrap over the kit
-[`<ComboBox>`](?path=/docs/web-primitives-select--docs#withsearch)
-that adds the built-in timezone list, locale-aware sorting,
-diacritic-insensitive search, and optional one-shot browser
-autodetection.
+App-primitive timezone picker. The option list + labels come from
+[`react-timezone-select`](https://github.com/ndom91/react-timezone-select)'s
+`useTimezoneSelect` hook (#690) — a curated set with DST-aware
+`(GMT±hh:mm) City` labels — rendered through our UUI `SearchSelect`
+(button trigger + in-popover search). No `react-select` (hook-only).
 
 Sister primitive to
-[CountrySelect](?path=/docs/app-primitives-countryselect--docs) —
-same prop contract, same state machine, same polish (auto-clear-error,
-select-all-on-focus). The differences come from the dataset (IANA
-zones, no flag glyphs) and the detection source
-(`Intl.DateTimeFormat().resolvedOptions().timeZone`).
+[CountrySelect](?path=/docs/app-primitives-countryselect--docs) — same
+`SearchSelect` shape + state machine (auto-clear-error, diacritic-
+insensitive search, one-shot browser autodetection). The differences
+come from the dataset (IANA zones, no flag glyphs) and the detection
+source (`Intl.DateTimeFormat().resolvedOptions().timeZone`). The emitted
+value is the IANA id (`Europe/Istanbul`).
 
 ## When to use
 
@@ -78,27 +79,31 @@ Auto-detection is **skipped** when:
 />
 ```
 
-Each row renders the city (last segment of the IANA id with
-underscores prettied) and the current UTC offset, e.g.
-`Istanbul — (UTC+03:00)`. The UTC zone itself shows as `UTC — (UTC)`.
+Options are **grouped by GMT offset**: each section carries a sticky
+`GMT±hh:mm` header and the rows under it show just the city (e.g.
+`Istanbul` under `GMT+3:00`) so the long list stays scannable instead
+of repeating the offset on every row. The selected trigger and the
+search index still use the full `(GMT±hh:mm) City` label. The offset is
+DST-aware (recomputed for the current date).
 
-## Dataset and localization
+## Dataset
 
-The list comes from `Intl.supportedValuesOf('timeZone')` — the
-runtime-built-in IANA database (~430 zones on a modern engine, no
-shipped table). The `locale` prop drives `Intl.Collator` for
-locale-aware sort order; labels themselves stay in English because
-the IANA database is English-only. If your design needs localized
-city names, that's a follow-up that needs a translation table.
+The labels come from `react-timezone-select`'s
+`useTimezoneSelect({ labelStyle: 'original', timezones })` hook, fed the
+**full** runtime IANA list (`Intl.supportedValuesOf('timeZone')`, via
+`buildTimezoneDict`) so every zone the wizard may seed/sync — e.g.
+`Europe/Istanbul` — is present; the library's curated `allTimezones` is
+used only as a fallback when `supportedValuesOf` is unavailable. We use
+the hook only, so `react-select` is **not** bundled (the `spacetime` /
+`timezone-soft` label engine is). The emitted value stays the raw IANA id.
 
 ## Search behaviour
 
-The filter is **diacritic-insensitive** — typing `istanbul` matches
-`Istanbul`, `reunion` matches `Réunion`. Search is by the displayed
-label only (city + offset string).
-
-The input **selects-all on focus**, so the next keystroke replaces
-the current label cleanly. Tab in, type, pick — no manual clear.
+A search field sits at the top of the popover. The filter is
+**diacritic-insensitive** and runs against the full `(GMT±hh:mm) City`
+label — typing `istanbul` matches `Istanbul`, `reunion` matches
+`Réunion`, and `gmt+3` matches every GMT+3 zone — even though the rows
+display the city only.
 
 ## Error UX
 
@@ -120,11 +125,10 @@ picker re-arms its suppression every time the prop transitions.
 
 - Pass a visible `label`, **or** associate a host-rendered label via
   `aria-labelledby` (id of the external label), **or** supply an
-  `aria-label`. One of the three must be present so the ComboBox always
-  has an accessible name.
-- The popover is keyboard-navigable (Arrow up/down, Enter to select,
-  Esc to dismiss) and the search input is a real `<input>` with
-  `aria-autocomplete="list"`.
+  `aria-label`. One of the three must be present so the trigger button
+  always has an accessible name.
+- Keyboard: open with Enter/Space, type in the popover search field to
+  filter, Arrow up/down through results, Enter to select, Esc to dismiss.
 - Pair `isInvalid` with a descriptive `hint` ("Timezone is
   required.") — the kit wires `aria-invalid` + `aria-describedby`
   automatically.

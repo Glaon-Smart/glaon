@@ -79,6 +79,8 @@
       "timezone": {
         "label": "Timezone",
         "placeholder": "Select timezone",
+        "searchPlaceholder": "Search timezones",
+        "noResults": "No results found",
         "tooltip": "Used by HA-time displays and automations."
       },
       "currency": {

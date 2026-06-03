@@ -79,14 +79,9 @@ export const Utc: Story = {
   args: { defaultValue: 'UTC', autoDetect: false },
 };
 
-/**
- * Turkish locale — same dataset, Turkish collation order. Labels
- * stay in English (the IANA database is English-only) but sort
- * behaviour follows the locale's `Intl.Collator` rules.
- */
+/** A seeded selection — the trigger shows the `(GMT±hh:mm) City` label. */
 export const TurkishLocale: Story = {
   args: {
-    locale: 'tr-TR',
     autoDetect: false,
     defaultValue: 'Europe/Istanbul',
     label: 'Saat dilimi',
@@ -94,13 +89,11 @@ export const TurkishLocale: Story = {
 };
 
 /**
- * Arabic locale — exercises the RTL render path. The decorator wraps
- * the field in `dir="rtl"` so the popover, input alignment, and
- * indicator placement mirror correctly.
+ * RTL render path — the decorator wraps the field in `dir="rtl"` so the
+ * trigger, popover, and search-field alignment mirror correctly.
  */
 export const ArabicRtl: Story = {
   args: {
-    locale: 'ar-SA',
     autoDetect: false,
     defaultValue: 'Asia/Riyadh',
     label: 'المنطقة الزمنية',

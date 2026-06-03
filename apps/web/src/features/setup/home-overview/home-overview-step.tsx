@@ -409,6 +409,8 @@ export function HomeOverviewStep({ collected, onNext }: HomeOverviewStepProps): 
           <TimezoneSelect
             aria-labelledby={timezoneLabelId}
             placeholder={t('setup.homeOverview.timezone.placeholder')}
+            searchPlaceholder={t('setup.homeOverview.timezone.searchPlaceholder')}
+            noResultsLabel={t('setup.homeOverview.timezone.noResults')}
             {...(timezone !== '' ? { value: timezone } : {})}
             autoDetect={collected.timezone === undefined && timezone === ''}
             onSelectionChange={(tz) => {

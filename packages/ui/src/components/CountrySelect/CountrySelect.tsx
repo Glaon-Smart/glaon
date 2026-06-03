@@ -25,20 +25,11 @@
 // this wrapper's contribution is the prop API + the static country
 // list + locale detection. No network call lives here.
 
-import {
-  useCallback,
-  useEffect,
-  useMemo,
-  useState,
-  type FC,
-  type FocusEvent,
-  type ReactNode,
-} from 'react';
+import { useEffect, useMemo, useState, type ReactNode } from 'react';
 import { Globe01 } from '@untitledui/icons';
-import type { Key } from 'react-aria-components';
 
 import { Flag } from '../../icons/flag';
-import { ComboBox, SelectItem, type SelectItemType } from '../Select';
+import { SearchSelect, SelectItem, type SelectItemType } from '../Select';
 import { buildCountryItems, detectBrowserCountry, diacriticInsensitiveFilter } from './countries';
 
 // Types stay un-exported per memory note `feedback_knip_props_interfaces.md`
@@ -93,8 +84,12 @@ interface CountrySelectProps {
    * (e.g. a form row) instead of the built-in `label`.
    */
   'aria-labelledby'?: string;
-  /** Placeholder text shown when no option is selected. */
+  /** Placeholder text shown in the (closed) trigger when nothing is selected. */
   placeholder?: string;
+  /** Placeholder inside the in-popover search field. @default 'Search' */
+  searchPlaceholder?: string;
+  /** Text shown when the search matches no country. @default 'No results found' */
+  noResultsLabel?: string;
   /** Helper text shown under the trigger; doubles as the error
    *  message when `isInvalid` is true. */
   hint?: ReactNode;
@@ -136,6 +131,8 @@ export function CountrySelect({
   'aria-label': ariaLabel,
   'aria-labelledby': ariaLabelledby,
   placeholder,
+  searchPlaceholder,
+  noResultsLabel,
   hint,
   isDisabled,
   isInvalid,
@@ -146,7 +143,16 @@ export function CountrySelect({
   popoverClassName,
 }: CountrySelectProps) {
   const resolvedLocale = useResolvedLocale(locale);
-  const items = useMemo(() => buildCountryItems(resolvedLocale), [resolvedLocale]);
+  // Each item carries its flag as `icon` so the SearchSelect trigger shows
+  // the selected country's flag and every popover row shows its flag.
+  const items = useMemo(
+    () =>
+      buildCountryItems(resolvedLocale).map((item) => ({
+        ...item,
+        icon: renderListItemFlag(String(item.id)),
+      })),
+    [resolvedLocale],
+  );
 
   const isHostControlled = value !== undefined;
 
@@ -177,73 +183,48 @@ export function CountrySelect({
     setSuppressInvalid(false);
   }, [isInvalid]);
 
-  const handleSelectionChange = (key: Key | null) => {
-    const next = key === null ? null : String(key);
+  const handleSelectionChange = (next: string | null) => {
     if (!isHostControlled) setInternalKey(next);
     setSuppressInvalid(true);
     onSelectionChange?.(next);
   };
 
-  // Select-all-on-focus inside the inner search input so the next
-  // keystroke replaces the previous label cleanly. RAC's ComboBox
-  // doesn't forward `onFocus` to the input, so we capture at the
-  // wrapper and act on any input descendant. `requestAnimationFrame`
-  // defers the `.select()` until RAC's own focus handling settles.
-  const handleFocusCapture = useCallback((event: FocusEvent<HTMLDivElement>) => {
-    const target = event.target;
-    if (!(target instanceof HTMLInputElement)) return;
-    if (target.disabled || target.readOnly) return;
-    requestAnimationFrame(() => {
-      try {
-        target.select();
-      } catch {
-        // Input may have unmounted (e.g. dropdown closed) between
-        // the focus event and the rAF tick — the failed `.select()`
-        // is harmless and we don't need to surface it.
-      }
-    });
-  }, []);
-
   const effectiveInvalid = isInvalid === true && !suppressInvalid;
-  const triggerIcon = renderTriggerIcon(effectiveKey);
 
-  // Build the ComboBox props bag conditionally — the @glaon/ui package
-  // compiles with `exactOptionalPropertyTypes: true`, so passing
-  // explicit `undefined` to an optional prop fails type-check.
-  const comboProps: Record<string, unknown> = {
+  // Build the SearchSelect props bag conditionally — the @glaon/ui package
+  // compiles with `exactOptionalPropertyTypes: true`, so passing explicit
+  // `undefined` to an optional prop fails type-check.
+  const selectProps: Record<string, unknown> = {
     items,
     size,
     selectedKey: effectiveKey ?? null,
     onSelectionChange: handleSelectionChange,
-    defaultFilter: diacriticInsensitiveFilter,
-    shortcut: false,
-    icon: triggerIcon,
+    filter: diacriticInsensitiveFilter,
+    // Globe placeholder glyph until a country is picked; once selected the
+    // SearchSelect trigger shows that country's flag (the item's `icon`).
+    leadingIcon: Globe01,
   };
 
-  if (label !== undefined) comboProps.label = label;
-  if (ariaLabel !== undefined) comboProps['aria-label'] = ariaLabel;
-  if (ariaLabelledby !== undefined) comboProps['aria-labelledby'] = ariaLabelledby;
-  if (placeholder !== undefined) comboProps.placeholder = placeholder;
-  if (hint !== undefined) comboProps.hint = hint;
-  if (isDisabled === true) comboProps.isDisabled = true;
-  if (effectiveInvalid) comboProps.isInvalid = true;
-  if (isRequired === true) comboProps.isRequired = true;
-  if (hideRequiredIndicator === true) comboProps.hideRequiredIndicator = true;
-  if (className !== undefined) comboProps.className = className;
-  if (popoverClassName !== undefined) comboProps.popoverClassName = popoverClassName;
+  if (label !== undefined) selectProps.label = label;
+  if (ariaLabel !== undefined) selectProps['aria-label'] = ariaLabel;
+  if (ariaLabelledby !== undefined) selectProps['aria-labelledby'] = ariaLabelledby;
+  if (placeholder !== undefined) selectProps.placeholder = placeholder;
+  if (searchPlaceholder !== undefined) selectProps.searchPlaceholder = searchPlaceholder;
+  if (noResultsLabel !== undefined) selectProps.noResultsLabel = noResultsLabel;
+  if (hint !== undefined) selectProps.hint = hint;
+  if (isDisabled === true) selectProps.isDisabled = true;
+  if (effectiveInvalid) selectProps.isInvalid = true;
+  if (isRequired === true) selectProps.isRequired = true;
+  if (hideRequiredIndicator === true) selectProps.hideRequiredIndicator = true;
+  if (className !== undefined) selectProps.className = className;
+  if (popoverClassName !== undefined) selectProps.popoverClassName = popoverClassName;
 
   return (
-    <div onFocusCapture={handleFocusCapture}>
-      <ComboBox {...comboProps}>
-        {(item: SelectItemType) => (
-          <SelectItem
-            id={item.id}
-            label={item.label ?? ''}
-            icon={renderListItemFlag(String(item.id))}
-          />
-        )}
-      </ComboBox>
-    </div>
+    <SearchSelect {...selectProps}>
+      {(item: SelectItemType) => (
+        <SelectItem id={item.id} label={item.label ?? ''} icon={item.icon} />
+      )}
+    </SearchSelect>
   );
 }
 
@@ -264,26 +245,9 @@ function useResolvedLocale(locale: string | undefined): string {
 }
 
 /**
- * Trigger leading icon. Returns the `Globe01` component (so the kit
- * applies the standard `*:data-icon:size-5` styling) until the user
- * picks a country; once a country is selected, returns a pre-tagged
- * `<span data-icon>` wrapping the country's flag so the kit's
- * `isValidElement` branch renders it verbatim — `data-icon` is what
- * pulls the sizing + colour utilities through.
- */
-function renderTriggerIcon(code: string | null | undefined): FC | ReactNode {
-  if (!code) return Globe01;
-  return (
-    <span data-icon className="flex shrink-0 items-center" aria-hidden="true">
-      <Flag country={code} shape="square" />
-    </span>
-  );
-}
-
-/**
- * Per-row flag for each country in the popover. Same `data-icon` trick
- * as the trigger icon — the kit's `*:data-icon:size-5` selector on
- * the row container picks it up.
+ * Per-row flag for each country (popover rows + the selected trigger).
+ * Pre-tagged `<span data-icon>` so the kit's `*:data-icon:size-5` selector
+ * on the container pulls the sizing + colour utilities through.
  */
 function renderListItemFlag(code: string): ReactNode {
   return (

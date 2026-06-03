@@ -6,14 +6,16 @@ import * as CountrySelectStories from './CountrySelect.stories';
 
 # CountrySelect
 
-App-primitive country picker. Thin wrap over the kit
-[`<ComboBox>`](?path=/docs/web-primitives-select--docs#withsearch) that
-adds the ISO 3166-1 alpha-2 list, runtime localization through
-`Intl.DisplayNames`, diacritic-insensitive search, and optional
-one-shot browser locale auto-detection.
+App-primitive country picker. Thin wrap over the kit `SearchSelect`
+(#688) — a **button trigger** (flag + country name + chevron) that opens
+a popover with a **search field inside it**, not an editable input. Adds
+the ISO 3166-1 alpha-2 list, runtime localization through
+`Intl.DisplayNames`, diacritic-insensitive search, and optional one-shot
+browser locale auto-detection.
 
-The wrap layer is what you import. The visual + popover positioning +
-RAC plumbing all come from the kit ComboBox.
+The wrap layer is what you import. The trigger + popover + in-popover
+search + RAC plumbing all come from the kit `SearchSelect` (itself the
+kit `MultiSelect` button-and-search pattern, as single-select).
 
 ## When to use
 
@@ -77,8 +79,9 @@ Auto-detection is **skipped** when:
 />
 ```
 
-The trigger renders the localized country name once a selection is
-made; the input becomes a search field while the popover is open.
+The trigger is a button showing the selected country's flag + localized
+name (a Globe glyph + placeholder until one is picked). Opening it shows
+a search field at the top of the popover; picking a country closes it.
 
 ## Localization
 
@@ -105,10 +108,9 @@ browser supports — no shipped translation tables, no extra dependency.
 - Pass a visible `label`, **or** — when the host renders its own label
   (e.g. a form row) — associate it via `aria-labelledby` (id of the
   external label) or supply an `aria-label`. One of the three must be
-  present so the ComboBox always has an accessible name.
-- The popover is keyboard-navigable (Arrow up/down, Enter to select,
-  Esc to dismiss) and the search input is a real `<input>` element
-  with `aria-autocomplete="list"`.
+  present so the trigger button always has an accessible name.
+- Keyboard: open with Enter/Space, type in the popover search field to
+  filter, Arrow up/down through results, Enter to select, Esc to dismiss.
 - Pair `isInvalid` with a descriptive `hint` ("Country is required.")
   — the kit wires `aria-invalid` + `aria-describedby` automatically.
 - `isRequired` adds a visual `*` and forwards `aria-required`. Use

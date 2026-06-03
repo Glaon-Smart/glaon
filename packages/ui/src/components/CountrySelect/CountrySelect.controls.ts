@@ -21,7 +21,19 @@ export const countrySelectControls = {
     type: 'text',
     default: 'Select a country',
     description:
-      'Hint text shown when no option is selected. Never use placeholder as a substitute for the label.',
+      'Hint text shown in the closed trigger when no country is selected. Never use placeholder as a substitute for the label.',
+    category: 'Content',
+  } satisfies ControlSpec<string>,
+  searchPlaceholder: {
+    type: 'text',
+    default: 'Search',
+    description: 'Placeholder inside the in-popover search field.',
+    category: 'Content',
+  } satisfies ControlSpec<string>,
+  noResultsLabel: {
+    type: 'text',
+    default: 'No results found',
+    description: 'Text shown in the popover when the search matches no country.',
     category: 'Content',
   } satisfies ControlSpec<string>,
   hint: {

@@ -354,6 +354,8 @@ export function HomeOverviewStep({ collected, onNext }: HomeOverviewStepProps): 
           <CountrySelect
             aria-labelledby={countryLabelId}
             placeholder={t('setup.homeOverview.country.placeholder')}
+            searchPlaceholder={t('setup.homeOverview.country.searchPlaceholder')}
+            noResultsLabel={t('setup.homeOverview.country.noResults')}
             {...(country !== '' ? { value: country } : {})}
             autoDetect={collected.country === undefined && country === ''}
             onSelectionChange={onCountrySelect}

@@ -2,6 +2,7 @@ export {
   ComboBox,
   MultiSelect,
   NativeSelect,
+  SearchSelect,
   Select,
   SelectContext,
   SelectItem,

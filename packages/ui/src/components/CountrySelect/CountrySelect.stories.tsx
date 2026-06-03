@@ -80,8 +80,8 @@ export const GermanLocale: Story = {
 
 /**
  * Arabic locale — exercises the RTL render path. The decorator wraps
- * the field in `dir="rtl"` so the popover, input alignment, and
- * indicator placement mirror correctly.
+ * the field in `dir="rtl"` so the trigger, popover, and search-field
+ * alignment mirror correctly.
  */
 export const ArabicRtl: Story = {
   args: { locale: 'ar-SA', autoDetect: false, defaultValue: 'SA', label: 'الدولة' },

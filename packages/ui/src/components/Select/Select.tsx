@@ -23,6 +23,7 @@
 export { Select, type SelectProps } from '../base/select/select';
 export { ComboBox } from '../base/select/combobox';
 export { MultiSelect } from '../base/select/multi-select';
+export { SearchSelect } from '../base/select/search-select';
 export { TagSelect, TagSelectBase, TagSelectTagsValue } from '../base/select/tag-select';
 export { NativeSelect } from '../base/select/select-native';
 export { SelectItem } from '../base/select/select-item';

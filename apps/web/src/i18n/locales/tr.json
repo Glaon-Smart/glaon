@@ -72,7 +72,9 @@
       },
       "country": {
         "label": "Ülke",
-        "placeholder": "Ülkeni seç"
+        "placeholder": "Ülkeni seç",
+        "searchPlaceholder": "Ülke ara",
+        "noResults": "Sonuç bulunamadı"
       },
       "timezone": {
         "label": "Saat Dilimi",

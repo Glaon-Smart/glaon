@@ -72,7 +72,9 @@
       },
       "country": {
         "label": "Country",
-        "placeholder": "Select your country"
+        "placeholder": "Select your country",
+        "searchPlaceholder": "Search countries",
+        "noResults": "No results found"
       },
       "timezone": {
         "label": "Timezone",

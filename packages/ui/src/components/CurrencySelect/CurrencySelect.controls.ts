@@ -7,7 +7,6 @@ import type { ControlSpec } from '../_internal/controls';
 import { excludeFromArgs as defineExcludeFromArgs } from '../_internal/controls';
 
 const sizeOptions = ['sm', 'md', 'lg'] as const;
-const localeOptions = ['', 'tr-TR', 'en-US', 'de-DE', 'fr-FR', 'ar-SA'] as const;
 
 export const currencySelectControls = {
   label: {
@@ -21,7 +20,19 @@ export const currencySelectControls = {
     type: 'text',
     default: 'Select a currency',
     description:
-      'Hint text shown when no option is selected. Never use placeholder as a substitute for the label.',
+      'Hint text shown in the closed trigger when no option is selected. Never use placeholder as a substitute for the label.',
+    category: 'Content',
+  } satisfies ControlSpec<string>,
+  searchPlaceholder: {
+    type: 'text',
+    default: 'Search',
+    description: 'Placeholder inside the in-popover search field.',
+    category: 'Content',
+  } satisfies ControlSpec<string>,
+  noResultsLabel: {
+    type: 'text',
+    default: 'No results found',
+    description: 'Text shown when the search matches no currency.',
     category: 'Content',
   } satisfies ControlSpec<string>,
   hint: {
@@ -37,14 +48,6 @@ export const currencySelectControls = {
       "When true (default), preselect the currency of the browser locale's region on mount (Intl Locale Info `getCurrencies`). Ignored when `value` or `defaultValue` is set. One-shot — re-mount to re-detect.",
     category: 'Behavior',
   } satisfies ControlSpec<boolean>,
-  locale: {
-    type: 'select',
-    options: localeOptions,
-    default: '',
-    description:
-      'BCP-47 locale used for the localized currency names + label collation. Leave empty to use the browser default (`navigator.language`).',
-    category: 'Content',
-  } satisfies ControlSpec<(typeof localeOptions)[number]>,
   defaultValue: {
     type: 'text',
     description:
@@ -55,7 +58,7 @@ export const currencySelectControls = {
     type: 'inline-radio',
     options: sizeOptions,
     default: 'md',
-    description: 'Visual scale forwarded to the underlying ComboBox.',
+    description: 'Visual scale forwarded to the underlying SearchSelect.',
     category: 'Style',
   } satisfies ControlSpec<(typeof sizeOptions)[number]>,
   isDisabled: {

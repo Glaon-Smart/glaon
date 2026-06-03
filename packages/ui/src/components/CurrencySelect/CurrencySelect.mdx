@@ -7,16 +7,20 @@ import * as CurrencySelectStories from './CurrencySelect.stories';
 # CurrencySelect
 
 App-primitive ISO 4217 currency picker. Thin wrap over the kit
-[`<ComboBox>`](?path=/docs/web-primitives-select--docs#withsearch) that
-adds the built-in currency list, locale-aware sorting + names,
+`<SearchSelect>` (button trigger + in-popover search) — the same
+primitive [CountrySelect](?path=/docs/app-primitives-countryselect--docs)
+uses — that adds the built-in currency list, currency flags,
 diacritic-insensitive search, and optional one-shot autodetection.
 
-Sister primitive to
-[CountrySelect](?path=/docs/app-primitives-countryselect--docs) and
+Sister primitive to CountrySelect and
 [TimezoneSelect](?path=/docs/app-primitives-timezoneselect--docs) — same
-prop contract, same state machine, same polish (auto-clear-error,
-select-all-on-focus). The differences come from the dataset (ISO 4217
-codes) and the detection source (the browser locale's region currency).
+prop contract, same state machine, same polish (auto-clear-error). The
+differences come from the dataset (ISO 4217 codes) and the detection
+source (the browser locale's region currency).
+
+Rows + trigger show the **flag + code only** (🇹🇷 `TRY`). The localized
+currency *name* is intentionally dropped: it is locale-dependent and
+reads as noise in a multi-language wizard.
 
 ## When to use
 
@@ -66,22 +70,22 @@ Intl Locale Info API the picker simply starts empty.
 />
 ```
 
-Each row renders the ISO 4217 code + the localized currency name, e.g.
-`TRY — Turkish Lira`. The emitted value is the bare code (`'TRY'`).
+Each row renders the currency's **flag + ISO 4217 code**, e.g. 🇹🇷 `TRY`.
+The emitted value is the bare code (`'TRY'`).
 
-## Dataset and localization
+## Dataset and flags
 
 The list comes from `Intl.supportedValuesOf('currency')` — the
-runtime-built-in ISO 4217 set, no shipped table. The `locale` prop drives
-both the localized currency **names** (`Intl.DisplayNames`) and the sort
-order (`Intl.Collator`), so the same list renders correctly in any locale
-the browser supports.
+runtime-built-in ISO 4217 set, no shipped table — sorted alphabetically
+by code. Each row's flag maps the currency code to a country: `EUR` → the
+EU flag, otherwise the first two letters (`USD` → `us`, `TRY` → `tr`).
+Supranational / metal codes (`XAF`, `XAU`, …) have no flag asset, so the
+flag box renders empty while the code still identifies the row.
 
 ## Search behaviour
 
-The filter is **diacritic-insensitive** and matches the displayed label
-(code + name). The input **selects-all on focus** so the next keystroke
-replaces the current label cleanly.
+A search field sits at the top of the popover. The filter is
+**diacritic-insensitive** and matches the currency code.
 
 ## Error UX
 
@@ -101,8 +105,8 @@ it back on.
 
 - Pass a visible `label`, **or** associate a host-rendered label via
   `aria-labelledby` (id of the external label), **or** supply an
-  `aria-label`. One of the three must be present so the ComboBox always
-  has an accessible name.
+  `aria-label`. One of the three must be present so the trigger button
+  always has an accessible name.
 - The popover is keyboard-navigable (Arrow up/down, Enter to select, Esc
   to dismiss) and the search input is a real `<input>` with
   `aria-autocomplete="list"`.

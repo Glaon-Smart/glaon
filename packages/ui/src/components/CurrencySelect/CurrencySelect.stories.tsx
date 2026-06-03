@@ -66,12 +66,11 @@ export const UsDollar: Story = {
 };
 
 /**
- * Turkish locale — same dataset, Turkish collation order and localized
- * currency names (`TRY — Türk Lirası`).
+ * Localized field label — the rows still show the code + flag only
+ * (`TRY` 🇹🇷); only the field's own `label` is translated by the host.
  */
 export const TurkishLocale: Story = {
   args: {
-    locale: 'tr-TR',
     autoDetect: false,
     defaultValue: 'TRY',
     label: 'Para birimi',
@@ -79,12 +78,11 @@ export const TurkishLocale: Story = {
 };
 
 /**
- * Arabic locale — exercises the RTL render path; the decorator wraps the
- * field in `dir="rtl"` so the popover + alignment mirror correctly.
+ * RTL render path — the decorator wraps the field in `dir="rtl"` so the
+ * popover + alignment mirror correctly. Rows stay code + flag.
  */
 export const ArabicRtl: Story = {
   args: {
-    locale: 'ar-SA',
     autoDetect: false,
     defaultValue: 'SAR',
     label: 'العملة',

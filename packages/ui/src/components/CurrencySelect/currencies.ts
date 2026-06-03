@@ -5,10 +5,9 @@
 // fall back to a small common set so the picker surfaces something rather
 // than erroring — every supported browser meets the threshold.
 //
-// Display labels combine the code and the localized currency name via
-// `Intl.DisplayNames(locale, { type: 'currency' })`, e.g.
-// `'TRY — Turkish Lira'`. No shipped translation tables, no extra
-// dependency — same runtime-locale approach as CountrySelect/TimezoneSelect.
+// Rows show the **code only** (e.g. `'TRY'`) plus the currency's flag (added
+// by the component). The localized currency *name* is deliberately dropped:
+// it is locale-dependent and reads as noise in a multi-language wizard.
 
 import type { SelectItemType } from '../base/select/select-shared';
 
@@ -34,28 +33,29 @@ function getCurrencyList(): readonly string[] {
   return FALLBACK_CURRENCIES;
 }
 
-/** Localized currency name for a code, e.g. `'TRY'` → `'Turkish Lira'`. */
-function currencyName(code: string, locale: string): string {
-  try {
-    const dn = new Intl.DisplayNames([locale], { type: 'currency' });
-    const name = dn.of(code);
-    return name ?? code;
-  } catch {
-    return code;
-  }
+/**
+ * Build a `{ id, label }` list of currencies sorted alphabetically by code.
+ * `id` and `label` are both the ISO 4217 code (e.g. `'TRY'`) — the canonical
+ * value persisted to HA Core's `currency`. The component layers the flag on
+ * top as the row/trigger `icon`. No locale needed (code-only display).
+ */
+export function buildCurrencyItems(): SelectItemType[] {
+  return [...getCurrencyList()]
+    .sort((a, b) => a.localeCompare(b))
+    .map((code) => ({ id: code, label: code }));
 }
 
 /**
- * Build a `{ id, label }` list of currencies sorted by the localized
- * label using `Intl.Collator`. `id` is the ISO 4217 code (e.g. `'TRY'`),
- * the canonical value persisted to HA Core's `currency`.
+ * Map an ISO 4217 currency code to the ISO 3166-1 alpha-2 country code for
+ * its flag. The currency code's first two letters are the country code for
+ * almost every national currency (`USD`→`us`, `TRY`→`tr`, `GBP`→`gb`);
+ * `EUR` maps to the EU flag. Supranational/metal codes (`XAF`, `XAU`, …)
+ * yield an `x…` code that `flag-icons` has no asset for, so the flag box
+ * renders empty — the code text still identifies the row.
  */
-export function buildCurrencyItems(locale: string): SelectItemType[] {
-  const codes = getCurrencyList();
-  const collator = new Intl.Collator(locale, { sensitivity: 'base' });
-  return codes
-    .map((code) => ({ id: code, label: `${code} — ${currencyName(code, locale)}` }))
-    .sort((a, b) => collator.compare(a.label, b.label));
+export function currencyFlagCode(code: string): string {
+  if (code === 'EUR') return 'eu';
+  return code.slice(0, 2).toLowerCase();
 }
 
 /**

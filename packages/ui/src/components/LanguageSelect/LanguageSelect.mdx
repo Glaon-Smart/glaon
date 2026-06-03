@@ -7,18 +7,19 @@ import * as LanguageSelectStories from './LanguageSelect.stories';
 # LanguageSelect
 
 App-primitive language picker. Thin wrap over the kit
-[`<ComboBox>`](?path=/docs/web-primitives-select--docs#withsearch) that adds
-localized language names, locale-aware sorting, diacritic-insensitive
-search, and optional one-shot browser autodetection.
+[`<Select>`](?path=/docs/web-primitives-select--docs) (icon-leading
+variant) that adds the candidate set, autonym labels, locale-aware sorting,
+and optional one-shot browser autodetection. A plain dropdown — **no
+in-field search** (#683).
 
 Sister to
 [CountrySelect](?path=/docs/app-primitives-countryselect--docs) /
 [TimezoneSelect](?path=/docs/app-primitives-timezoneselect--docs) /
 [CurrencySelect](?path=/docs/app-primitives-currencyselect--docs) — same
 prop contract + polish. The difference: the candidate languages are
-**injected** via `options` (the app's supported set), because "which
-languages the product ships" is app knowledge, not a fixed Intl table.
-Labels come from `Intl.DisplayNames(locale, { type: 'language' })`.
+**injected** via `options` (the HA-supported set the app reads from the
+device), because "which languages the device offers" is device knowledge,
+not a fixed Intl table.
 
 ## When to use
 
@@ -27,20 +28,24 @@ Labels come from `Intl.DisplayNames(locale, { type: 'language' })`.
 
 ## Options
 
-Pass the supported codes via `options` (BCP-47 primary subtags, e.g.
-`['en', 'tr']` — Glaon's current set). When `options` is empty a common
-fallback list renders so the primitive works standalone. A future
-HA-driven language list can feed `options` without changing the component.
+Pass the supported codes via `options` (BCP-47, e.g. `['en', 'tr', 'de']`).
+In Glaon the wizard feeds the **device-sourced** list from the unified
+`GET /api/setup` seed (#683). When `options` is empty a common fallback list
+renders so the primitive works standalone.
 
 ```tsx
-import { SUPPORTED_LOCALES } from '@glaon/core/i18n';
-
 <LanguageSelect
-  options={SUPPORTED_LOCALES}
+  options={languages} // from GET /api/setup
   value={locale}
   onSelectionChange={setLocale}
 />;
 ```
+
+## Labels
+
+Each option is the language's **autonym** — its name in its own language
+(`'de'` → `Deutsch`, `'tr'` → `Türkçe`), from `Intl.DisplayNames`. The
+emitted value is the bare code (`'tr'`).
 
 ## Auto-detection
 
@@ -53,13 +58,8 @@ one of `options`. Skipped when `value` / `defaultValue` is set, or
 
 <Canvas of={LanguageSelectStories.WithDefaultValue} />
 
-Each row renders the localized language name (e.g. `Türkçe`, `English`).
-The emitted value is the bare code (`'tr'`).
-
-## Search behaviour
-
-Diacritic-insensitive substring match on the localized label; the input
-selects-all on focus so the next keystroke replaces the current label.
+A leading translate glyph, the selected language label, and a trailing
+chevron. Opens a plain listbox popover of the offered languages.
 
 ## Error UX
 
@@ -78,9 +78,9 @@ selects-all on focus so the next keystroke replaces the current label.
 
 - Pass a visible `label`, **or** associate a host-rendered label via
   `aria-labelledby`, **or** supply an `aria-label`. One must be present so
-  the ComboBox always has an accessible name.
-- The popover is keyboard-navigable (Arrow up/down, Enter, Esc) and the
-  search input is a real `<input>` with `aria-autocomplete="list"`.
+  the Select trigger always has an accessible name.
+- The popover is keyboard-navigable (Arrow up/down, Enter, Esc); the trigger
+  is a `role="button"` combobox with `aria-expanded`.
 
 ## Related components
 

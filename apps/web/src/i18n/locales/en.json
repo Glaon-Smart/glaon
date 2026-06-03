@@ -85,7 +85,9 @@
       },
       "currency": {
         "label": "Currency",
-        "placeholder": "Select currency"
+        "placeholder": "Select currency",
+        "searchPlaceholder": "Search currencies",
+        "noResults": "No results found"
       },
       "language": {
         "label": "Language",

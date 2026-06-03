@@ -426,6 +426,8 @@ export function HomeOverviewStep({ collected, onNext }: HomeOverviewStepProps): 
           <CurrencySelect
             aria-labelledby={currencyLabelId}
             placeholder={t('setup.homeOverview.currency.placeholder')}
+            searchPlaceholder={t('setup.homeOverview.currency.searchPlaceholder')}
+            noResultsLabel={t('setup.homeOverview.currency.noResults')}
             {...(currency !== '' ? { value: currency } : {})}
             autoDetect={collected.currency === undefined && currency === ''}
             onSelectionChange={(code) => {

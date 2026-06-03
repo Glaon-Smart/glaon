@@ -1,29 +1,33 @@
 // Glaon CurrencySelect — searchable ISO 4217 currency picker that wraps
-// the kit `<ComboBox>` (`packages/ui/src/components/base/select/combobox.tsx`).
+// the kit `<SearchSelect>` (button trigger + in-popover search), the same
+// primitive CountrySelect uses (#688).
 //
 // Sister primitive to `CountrySelect` / `TimezoneSelect` — same wrap
 // pattern, same state machine, same polish (auto-clear-error,
-// select-all-on-focus, diacritic-insensitive filter):
+// diacritic-insensitive filter):
 //
 //   - Built-in list from `Intl.supportedValuesOf('currency')`, no shipped
 //     database, no extra dependency.
-//   - Labels combine the code + localized currency name
-//     (`'TRY — Turkish Lira'`) via `Intl.DisplayNames`.
+//   - Rows + trigger show the **flag + ISO 4217 code only** (e.g. 🇹🇷 TRY).
+//     The localized currency *name* is dropped on purpose — it's
+//     locale-dependent and reads as noise in a multi-language wizard.
 //   - Optional one-shot autodetection from the browser locale's region
 //     (`Intl.Locale.getCurrencies()`).
-//   - `Coins01` glyph (`@untitledui/icons`) as the trigger leading icon.
+//   - `Coins01` glyph (`@untitledui/icons`) as the placeholder trigger icon
+//     until a currency is picked.
 //
 // Per CLAUDE.md's UUI Source Rule + Component Data-Fetching Boundary: the
 // visual + popover + RAC plumbing come from the kit; this wrapper adds the
 // prop API + dataset + detection. No network call here.
 
-import { useCallback, useEffect, useMemo, useState, type FocusEvent, type ReactNode } from 'react';
+import { useEffect, useMemo, useState, type ReactNode } from 'react';
 import { Coins01 } from '@untitledui/icons';
-import type { Key } from 'react-aria-components';
 
-import { ComboBox, SelectItem, type SelectItemType } from '../Select';
+import { Flag } from '../../icons/flag';
+import { SearchSelect, SelectItem, type SelectItemType } from '../Select';
 import {
   buildCurrencyItems,
+  currencyFlagCode,
   detectBrowserCurrency,
   diacriticInsensitiveFilter,
 } from './currencies';
@@ -48,17 +52,19 @@ interface CurrencySelectProps {
    * One-shot — re-mount to re-detect. @default true
    */
   autoDetect?: boolean;
-  /** BCP-47 locale used for currency names + label collation. */
-  locale?: string;
   /** Field label rendered above the trigger. */
   label?: string;
   /** Accessible name when no visible `label` is rendered; forwarded to
-   *  the ComboBox. */
+   *  the SearchSelect. */
   'aria-label'?: string;
   /** Id of an external visible label; forwarded as `aria-labelledby`. */
   'aria-labelledby'?: string;
-  /** Placeholder text shown when no option is selected. */
+  /** Placeholder shown in the (closed) trigger when nothing is selected. */
   placeholder?: string;
+  /** Placeholder inside the in-popover search field. @default 'Search' */
+  searchPlaceholder?: string;
+  /** Text shown when the search matches no currency. @default 'No results found' */
+  noResultsLabel?: string;
   /** Helper text under the trigger; doubles as the error message when
    *  `isInvalid` is true. */
   hint?: ReactNode;
@@ -83,11 +89,12 @@ export function CurrencySelect({
   defaultValue,
   onSelectionChange,
   autoDetect = true,
-  locale,
   label,
   'aria-label': ariaLabel,
   'aria-labelledby': ariaLabelledby,
   placeholder,
+  searchPlaceholder,
+  noResultsLabel,
   hint,
   isDisabled,
   isInvalid,
@@ -97,8 +104,16 @@ export function CurrencySelect({
   className,
   popoverClassName,
 }: CurrencySelectProps) {
-  const resolvedLocale = useResolvedLocale(locale);
-  const items = useMemo(() => buildCurrencyItems(resolvedLocale), [resolvedLocale]);
+  // Each item carries its flag as `icon` so the SearchSelect trigger shows
+  // the selected currency's flag and every popover row shows its flag.
+  const items = useMemo(
+    () =>
+      buildCurrencyItems().map((item) => ({
+        ...item,
+        icon: renderListItemFlag(currencyFlagCode(String(item.id))),
+      })),
+    [],
+  );
 
   const isHostControlled = value !== undefined;
   const [internalKey, setInternalKey] = useState<string | null>(defaultValue ?? null);
@@ -120,70 +135,60 @@ export function CurrencySelect({
     setSuppressInvalid(false);
   }, [isInvalid]);
 
-  const handleSelectionChange = (key: Key | null) => {
-    const next = key === null ? null : String(key);
+  const handleSelectionChange = (next: string | null) => {
     if (!isHostControlled) setInternalKey(next);
     setSuppressInvalid(true);
     onSelectionChange?.(next);
   };
 
-  const handleFocusCapture = useCallback((event: FocusEvent<HTMLDivElement>) => {
-    const target = event.target;
-    if (!(target instanceof HTMLInputElement)) return;
-    if (target.disabled || target.readOnly) return;
-    requestAnimationFrame(() => {
-      try {
-        target.select();
-      } catch {
-        // Input may have unmounted between the focus event and the rAF tick.
-      }
-    });
-  }, []);
-
   const effectiveInvalid = isInvalid === true && !suppressInvalid;
 
-  const comboProps: Record<string, unknown> = {
+  // Build the SearchSelect props bag conditionally — @glaon/ui compiles with
+  // `exactOptionalPropertyTypes: true`, so explicit `undefined` fails.
+  const selectProps: Record<string, unknown> = {
     items,
     size,
     selectedKey: effectiveKey ?? null,
     onSelectionChange: handleSelectionChange,
-    defaultFilter: diacriticInsensitiveFilter,
-    shortcut: false,
-    icon: Coins01,
+    filter: diacriticInsensitiveFilter,
+    // Coins placeholder glyph until a currency is picked; once selected the
+    // SearchSelect trigger shows that currency's flag (the item's `icon`).
+    leadingIcon: Coins01,
   };
 
-  if (label !== undefined) comboProps.label = label;
-  if (ariaLabel !== undefined) comboProps['aria-label'] = ariaLabel;
-  if (ariaLabelledby !== undefined) comboProps['aria-labelledby'] = ariaLabelledby;
-  if (placeholder !== undefined) comboProps.placeholder = placeholder;
-  if (hint !== undefined) comboProps.hint = hint;
-  if (isDisabled === true) comboProps.isDisabled = true;
-  if (effectiveInvalid) comboProps.isInvalid = true;
-  if (isRequired === true) comboProps.isRequired = true;
-  if (hideRequiredIndicator === true) comboProps.hideRequiredIndicator = true;
-  if (className !== undefined) comboProps.className = className;
-  if (popoverClassName !== undefined) comboProps.popoverClassName = popoverClassName;
+  if (label !== undefined) selectProps.label = label;
+  if (ariaLabel !== undefined) selectProps['aria-label'] = ariaLabel;
+  if (ariaLabelledby !== undefined) selectProps['aria-labelledby'] = ariaLabelledby;
+  if (placeholder !== undefined) selectProps.placeholder = placeholder;
+  if (searchPlaceholder !== undefined) selectProps.searchPlaceholder = searchPlaceholder;
+  if (noResultsLabel !== undefined) selectProps.noResultsLabel = noResultsLabel;
+  if (hint !== undefined) selectProps.hint = hint;
+  if (isDisabled === true) selectProps.isDisabled = true;
+  if (effectiveInvalid) selectProps.isInvalid = true;
+  if (isRequired === true) selectProps.isRequired = true;
+  if (hideRequiredIndicator === true) selectProps.hideRequiredIndicator = true;
+  if (className !== undefined) selectProps.className = className;
+  if (popoverClassName !== undefined) selectProps.popoverClassName = popoverClassName;
 
   return (
-    <div onFocusCapture={handleFocusCapture}>
-      <ComboBox {...comboProps}>
-        {(item: SelectItemType) => <SelectItem id={item.id} label={item.label ?? ''} />}
-      </ComboBox>
-    </div>
+    <SearchSelect {...selectProps}>
+      {(item: SelectItemType) => (
+        <SelectItem id={item.id} label={item.label ?? ''} icon={item.icon} />
+      )}
+    </SearchSelect>
   );
 }
 
 /**
- * Resolve the locale for currency names + collation. Reads
- * `navigator.language` lazily so SSR builds don't crash on a missing
- * `navigator`. Falls back to `'en'`.
+ * Per-row flag for each currency (popover rows + the selected trigger).
+ * Pre-tagged `<span data-icon>` so the kit's `*:data-icon:size-5` selector
+ * on the container pulls the sizing + colour utilities through. Mirrors
+ * CountrySelect's `renderListItemFlag`.
  */
-function useResolvedLocale(locale: string | undefined): string {
-  return useMemo(() => {
-    if (locale !== undefined && locale.length > 0) return locale;
-    if (typeof navigator !== 'undefined' && navigator.language) {
-      return navigator.language;
-    }
-    return 'en';
-  }, [locale]);
+function renderListItemFlag(code: string): ReactNode {
+  return (
+    <span data-icon className="flex shrink-0 items-center" aria-hidden="true">
+      <Flag country={code} shape="square" />
+    </span>
+  );
 }

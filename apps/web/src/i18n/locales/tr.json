@@ -85,7 +85,9 @@
       },
       "currency": {
         "label": "Para Birimi",
-        "placeholder": "Para birimi seç"
+        "placeholder": "Para birimi seç",
+        "searchPlaceholder": "Para birimi ara",
+        "noResults": "Sonuç bulunamadı"
       },
       "language": {
         "label": "Dil",

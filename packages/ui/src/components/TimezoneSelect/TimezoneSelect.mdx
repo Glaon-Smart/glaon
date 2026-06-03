@@ -79,31 +79,34 @@ Auto-detection is **skipped** when:
 />
 ```
 
-Options are **grouped by GMT offset**: each section carries a sticky
-`GMT±hh:mm` header and the rows under it show just the city (e.g.
-`Istanbul` under `GMT+3:00`) so the long list stays scannable instead
-of repeating the offset on every row. The selected trigger and the
-search index still use the full `(GMT±hh:mm) City` label. The offset is
-DST-aware (recomputed for the current date).
+Each row is one **GMT offset** with a multi-city label, e.g.
+`(GMT+3:00) Istanbul, Minsk, Moscow, St. Petersburg, Volgograd`. This is
+the curated, offset-grouped presentation (~79 rows) — deliberately
+compact rather than the full IANA list. The offset is DST-aware
+(recomputed for the current date).
 
 ## Dataset
 
-The labels come from `react-timezone-select`'s
-`useTimezoneSelect({ labelStyle: 'original', timezones })` hook, fed the
-**full** runtime IANA list (`Intl.supportedValuesOf('timeZone')`, via
-`buildTimezoneDict`) so every zone the wizard may seed/sync — e.g.
-`Europe/Istanbul` — is present; the library's curated `allTimezones` is
-used only as a fallback when `supportedValuesOf` is unavailable. We use
-the hook only, so `react-select` is **not** bundled (the `spacetime` /
-`timezone-soft` label engine is). The emitted value stays the raw IANA id.
+The list + labels come from `react-timezone-select`'s
+`useTimezoneSelect({ labelStyle: 'original', timezones: allTimezones })`
+hook — the library's curated set with offset-grouped, DST-aware labels.
+We use the hook only, so `react-select` is **not** bundled (the
+`spacetime` / `timezone-soft` label engine is).
+
+Each curated row's `value` is a representative IANA id (the GMT+3 row's
+id is `Europe/Moscow`). A seeded id that isn't a curated key — e.g.
+`Europe/Istanbul` from the country→timezone sync — is fuzzy-resolved by
+`parseTimezone` to its curated row **for display only**: the trigger
+shows the right label and the row highlights, but the held value stays
+the seeded id. It is only rewritten to the curated representative when
+the user actively picks a row.
 
 ## Search behaviour
 
 A search field sits at the top of the popover. The filter is
-**diacritic-insensitive** and runs against the full `(GMT±hh:mm) City`
-label — typing `istanbul` matches `Istanbul`, `reunion` matches
-`Réunion`, and `gmt+3` matches every GMT+3 zone — even though the rows
-display the city only.
+**diacritic-insensitive** and runs against the displayed label — typing
+`istanbul` matches the `(GMT+3:00) Istanbul, …` row, `reunion` matches
+`Réunion`.
 
 ## Error UX
 

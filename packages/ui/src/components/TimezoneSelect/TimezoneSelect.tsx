@@ -18,21 +18,7 @@ import { Clock } from '@untitledui/icons';
 import { allTimezones, useTimezoneSelect } from 'react-timezone-select';
 
 import { SearchSelect, SelectItem, type SelectItemType } from '../Select';
-import { buildTimezoneDict, detectBrowserTimezone, diacriticInsensitiveFilter } from './timezones';
-
-// react-timezone-select labels are `(GMT±hh:mm) City`. Many IANA zones share
-// an offset, so we group them under a `GMT±hh:mm` section header and show
-// just the city per row — the full label is kept as the trigger value and as
-// the search `textValue`, so typing "gmt+3" or "istanbul" both match.
-const GMT_PREFIX_RE = /^\(([^)]*)\)\s*/;
-
-function offsetGroup(item: SelectItemType): string {
-  return GMT_PREFIX_RE.exec(item.label ?? '')?.[1] ?? 'Other';
-}
-
-function cityLabel(label: string): string {
-  return label.replace(GMT_PREFIX_RE, '') || label;
-}
+import { detectBrowserTimezone, diacriticInsensitiveFilter } from './timezones';
 
 // Types stay un-exported per memory note `feedback_knip_props_interfaces.md`.
 type TimezoneSelectSize = 'sm' | 'md' | 'lg';
@@ -105,16 +91,15 @@ export function TimezoneSelect({
   className,
   popoverClassName,
 }: TimezoneSelectProps) {
-  // DST-aware timezone options from react-timezone-select, over the FULL
-  // runtime IANA list (so every zone the wizard may seed/sync — e.g.
-  // Europe/Istanbul — is present; the library's curated `allTimezones`
-  // omits many). Falls back to `allTimezones` if `supportedValuesOf` is
-  // unavailable. `value` is the IANA id; `label` is `(GMT±hh:mm) City`.
-  const timezoneDict = useMemo(() => {
-    const full = buildTimezoneDict();
-    return Object.keys(full).length > 0 ? full : allTimezones;
-  }, []);
-  const { options } = useTimezoneSelect({ labelStyle: 'original', timezones: timezoneDict });
+  // DST-aware timezone options from react-timezone-select's curated
+  // `allTimezones` set: one row per GMT offset with a multi-city label, e.g.
+  // `(GMT+3:00) Istanbul, Minsk, Moscow, St. Petersburg, Volgograd`. This is
+  // the deliberately compact, offset-grouped presentation (~79 rows) rather
+  // than the full IANA list. `value` is the curated representative IANA id.
+  const { options, parseTimezone } = useTimezoneSelect({
+    labelStyle: 'original',
+    timezones: allTimezones,
+  });
   const items = useMemo<SelectItemType[]>(
     () => options.map((o) => ({ id: o.value, label: o.label })),
     [options],
@@ -135,6 +120,24 @@ export function TimezoneSelect({
 
   const effectiveKey = isHostControlled ? value : internalKey;
 
+  // The curated list keys one row per offset (e.g. the GMT+3 row's id is
+  // `Europe/Moscow`), so a seeded id that isn't a curated key — like
+  // `Europe/Istanbul` from the country→timezone sync — wouldn't match any
+  // row and the trigger would render blank. `parseTimezone` fuzzy-resolves
+  // any IANA id to its curated row, so we resolve the *displayed* key only.
+  // The held value (`effectiveKey`) stays untouched: we never rewrite the
+  // seeded id to the curated representative — that only happens when the
+  // user actively picks a row (via `handleSelectionChange`).
+  const displayKey = useMemo<string | null>(() => {
+    if (effectiveKey == null) return null;
+    if (items.some((i) => i.id === effectiveKey)) return effectiveKey;
+    // react-timezone-select types `parseTimezone` as always returning an
+    // option, but at runtime it returns `false` for an unrecognised id that
+    // has no "/" — widen to the real contract so the guard is legitimate.
+    const resolved = parseTimezone(effectiveKey) as { value: string } | string | false;
+    return resolved && typeof resolved === 'object' ? resolved.value : effectiveKey;
+  }, [effectiveKey, items, parseTimezone]);
+
   const [suppressInvalid, setSuppressInvalid] = useState(false);
   useEffect(() => {
     setSuppressInvalid(false);
@@ -153,11 +156,10 @@ export function TimezoneSelect({
   const selectProps: Record<string, unknown> = {
     items,
     size,
-    selectedKey: effectiveKey ?? null,
+    selectedKey: displayKey,
     onSelectionChange: handleSelectionChange,
     filter: diacriticInsensitiveFilter,
     leadingIcon: Clock,
-    groupBy: offsetGroup,
   };
 
   if (label !== undefined) selectProps.label = label;
@@ -176,9 +178,7 @@ export function TimezoneSelect({
 
   return (
     <SearchSelect {...selectProps}>
-      {(item: SelectItemType) => (
-        <SelectItem id={item.id} label={cityLabel(item.label ?? '')} textValue={item.label ?? ''} />
-      )}
+      {(item: SelectItemType) => <SelectItem id={item.id} label={item.label ?? ''} />}
     </SearchSelect>
   );
 }

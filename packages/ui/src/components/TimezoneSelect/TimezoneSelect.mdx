@@ -79,24 +79,31 @@ Auto-detection is **skipped** when:
 />
 ```
 
-Each row renders the GMT offset + city, e.g. `(GMT+03:00) Istanbul`,
-from `react-timezone-select`'s labels. The offset is DST-aware
-(recomputed for the current date).
+Options are **grouped by GMT offset**: each section carries a sticky
+`GMT±hh:mm` header and the rows under it show just the city (e.g.
+`Istanbul` under `GMT+3:00`) so the long list stays scannable instead
+of repeating the offset on every row. The selected trigger and the
+search index still use the full `(GMT±hh:mm) City` label. The offset is
+DST-aware (recomputed for the current date).
 
 ## Dataset
 
-The list + labels come from `react-timezone-select`'s
-`useTimezoneSelect({ labelStyle: 'original', timezones: allTimezones })`
-hook — a curated set of common zones with offset-grouped ordering and
-DST-aware labels. We use the hook only, so `react-select` is **not**
-bundled (the `spacetime` / `timezone-soft` label engine is). The emitted
-value stays the raw IANA id.
+The labels come from `react-timezone-select`'s
+`useTimezoneSelect({ labelStyle: 'original', timezones })` hook, fed the
+**full** runtime IANA list (`Intl.supportedValuesOf('timeZone')`, via
+`buildTimezoneDict`) so every zone the wizard may seed/sync — e.g.
+`Europe/Istanbul` — is present; the library's curated `allTimezones` is
+used only as a fallback when `supportedValuesOf` is unavailable. We use
+the hook only, so `react-select` is **not** bundled (the `spacetime` /
+`timezone-soft` label engine is). The emitted value stays the raw IANA id.
 
 ## Search behaviour
 
 A search field sits at the top of the popover. The filter is
-**diacritic-insensitive** — typing `istanbul` matches `Istanbul`,
-`reunion` matches `Réunion` — matching the displayed label.
+**diacritic-insensitive** and runs against the full `(GMT±hh:mm) City`
+label — typing `istanbul` matches `Istanbul`, `reunion` matches
+`Réunion`, and `gmt+3` matches every GMT+3 zone — even though the rows
+display the city only.
 
 ## Error UX
 

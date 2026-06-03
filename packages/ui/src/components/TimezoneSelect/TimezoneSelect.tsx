@@ -20,6 +20,20 @@ import { allTimezones, useTimezoneSelect } from 'react-timezone-select';
 import { SearchSelect, SelectItem, type SelectItemType } from '../Select';
 import { buildTimezoneDict, detectBrowserTimezone, diacriticInsensitiveFilter } from './timezones';
 
+// react-timezone-select labels are `(GMT±hh:mm) City`. Many IANA zones share
+// an offset, so we group them under a `GMT±hh:mm` section header and show
+// just the city per row — the full label is kept as the trigger value and as
+// the search `textValue`, so typing "gmt+3" or "istanbul" both match.
+const GMT_PREFIX_RE = /^\(([^)]*)\)\s*/;
+
+function offsetGroup(item: SelectItemType): string {
+  return GMT_PREFIX_RE.exec(item.label ?? '')?.[1] ?? 'Other';
+}
+
+function cityLabel(label: string): string {
+  return label.replace(GMT_PREFIX_RE, '') || label;
+}
+
 // Types stay un-exported per memory note `feedback_knip_props_interfaces.md`.
 type TimezoneSelectSize = 'sm' | 'md' | 'lg';
 
@@ -143,6 +157,7 @@ export function TimezoneSelect({
     onSelectionChange: handleSelectionChange,
     filter: diacriticInsensitiveFilter,
     leadingIcon: Clock,
+    groupBy: offsetGroup,
   };
 
   if (label !== undefined) selectProps.label = label;
@@ -161,7 +176,9 @@ export function TimezoneSelect({
 
   return (
     <SearchSelect {...selectProps}>
-      {(item: SelectItemType) => <SelectItem id={item.id} label={item.label ?? ''} />}
+      {(item: SelectItemType) => (
+        <SelectItem id={item.id} label={cityLabel(item.label ?? '')} textValue={item.label ?? ''} />
+      )}
     </SearchSelect>
   );
 }

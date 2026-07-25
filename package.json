@@ -12,7 +12,7 @@
     "png-to-ico": "^3.0.0",
     "prettier": "^3.3.3",
     "publint": "^0.3.18",
-    "sharp": "^0.34.0",
+    "sharp": "^0.35.0",
     "size-limit": "^12.1.0",
     "syncpack": "^14.3.0",
     "turbo": "^2.3.3",

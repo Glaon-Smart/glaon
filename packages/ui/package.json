@@ -31,7 +31,7 @@
     "react-native-web": "^0.21.2",
     "storybook": "^10.3.5",
     "storybook-dark-mode": "^5.0.0",
-    "style-dictionary": "^5.4.0",
+    "style-dictionary": "^5.4.4",
     "tailwind-merge": "^3.5.0",
     "tailwindcss": "^4",
     "tailwindcss-animate": "^1.0.7",
